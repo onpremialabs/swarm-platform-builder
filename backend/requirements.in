@@ -12,23 +12,23 @@
 # a mano — `pip install --require-hashes` rechazaría cualquier línea sin hash.
 
 # Web framework
-fastapi>=0.104.1
-uvicorn[standard]>=0.24.0
+fastapi>=0.161.1
+uvicorn[standard]>=0.54.0
 # uvloop llega como extra de uvicorn[standard]. Su metadata ya lo excluye en
 # win32, pero pip-compile aplanaba la transitiva SIN el marcador y el lock
 # intentaba compilarlo en Windows ("uvloop does not support Windows"), rompiendo
 # dev-local.cmd. Lo declaramos aquí con el marcador para que el lock lo conserve.
-uvloop>=0.15.1 ; sys_platform != "win32"
+uvloop>=0.23.0 ; sys_platform != "win32"
 
 # Validation & settings
-pydantic>=2.9.0
-pydantic-settings>=2.4.0
+pydantic>=2.14.1
+pydantic-settings>=2.16.1
 
 # Database (relational)
-sqlalchemy>=2.0.30
-asyncpg>=0.30.0
+sqlalchemy>=2.1.6
+asyncpg>=0.32.0
 aiosqlite>=0.20.0
-alembic>=1.12.0
+alembic>=1.20.1
 
 # Auth
 python-jose[cryptography]>=3.3.0
@@ -46,7 +46,7 @@ prometheus-client>=0.20.0
 # activo, pero va en el lock para que encenderlo no exija un segundo camino de
 # instalación en producción.
 opentelemetry-sdk>=1.27.0
-opentelemetry-exporter-otlp-proto-http>=1.27.0
+opentelemetry-exporter-otlp-proto-http>=1.45.1
 
 # Coordinación entre workers (SPEC-018/T4.3): pub/sub de eventos SSE, decisiones
 # HITL y tickets de stream. Solo se usa con REDIS_ENABLED; con un worker el bus
@@ -55,22 +55,22 @@ redis>=5.0.0
 
 # Utilities
 email-validator>=2.0.0
-python-dotenv>=1.0.0
+python-dotenv>=1.2.4
 PyYAML>=6.0.1
 
 # Document parsing (RAG)
 pypdf>=4.0.0
 
 # Graph utilities (RAG)
-networkx>=3.0
+networkx>=3.7
 
 # AI orchestration
-langgraph>=0.2.0
-langchain-core>=0.3.0
+langgraph>=1.2.16
+langchain-core>=1.7.0
 
 # LLM providers
 anthropic>=0.40.0
-openai>=1.0.0
+openai>=3.37.0
 
 # Testing
 pytest>=8.0.0
