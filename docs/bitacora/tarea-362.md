@@ -50,9 +50,24 @@ de confundir que una con un modo.
 artículo. El vínculo artículo→proyecto se guarda además en Redis, porque el worker
 que atiende el log puede no ser el que ejecuta.
 
-**No se ha probado contra un Redis real**: aquí solo corre `InProcessBus`. El modo
-de fallo, si lo hubiera, sería no entregar —el canal del proyecto está separado del
-de artículo a propósito—, nunca entregar de más.
+### El camino de Redis, probado
+
+`tests/test_project_log_stream_redis.py` ejercita `RedisBus` con `fakeredis`, una
+implementación del protocolo con la que `redis-py` habla de verdad: se recorren los
+`publish`/`subscribe` reales, los nombres de canal y el buzón de salida, no un
+doble escrito por nosotros. Cinco casos: el evento llega por el canal del proyecto,
+**no se filtra entre proyectos**, un artículo sin vincular no llega a ninguno, el
+vínculo se resuelve desde Redis aunque el proceso no lo tenga en memoria —el caso
+de otro worker—, y el canal por artículo sigue funcionando.
+
+Se comprobó que el test **tiene dientes**: apuntando todos los proyectos al mismo
+canal, `test_no_se_filtra_entre_proyectos_sobre_redis` falla. Un test de
+aislamiento que pasa pase lo que pase es peor que no tenerlo.
+
+Lo que esto **no** cubre: el comportamiento de un servidor Redis concreto y su
+versión, y la entrega entre procesos de sistema distintos. Para eso hace falta un
+Redis de verdad, y en esta máquina no hay ni Docker ni WSL. `fakeredis` va en
+`requirements-dev.txt`, que la CI no instala, así que allí el fichero se salta.
 
 ### Tests
 
@@ -69,4 +84,7 @@ enriquecerse.
 - [x] AC2: test que suscribe a un proyecto y comprueba que no recibe del otro.
 - [x] Autenticado por ticket de un solo uso atado al proyecto.
 - [x] El stream por artículo no se rompe.
-- [ ] Verificación contra un Redis real (multi-worker) — pendiente de entorno.
+- [x] El camino de `RedisBus` ejercitado contra una implementación del protocolo,
+      con prueba de que el test de aislamiento detecta la fuga.
+- [ ] Verificación contra un servidor Redis real y entre procesos — hace falta un
+      entorno con Docker o WSL, que esta máquina no tiene.
