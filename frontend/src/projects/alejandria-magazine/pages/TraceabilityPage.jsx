@@ -165,7 +165,7 @@ export default function TraceabilityPage() {
     try {
       const data = await agentsApi.getExplain(articleId);
       setTraceData(data);
-    } catch { /* mejor-esfuerzo */ }
+    } catch { /* mejor-esfuerzo: traza en modo degradado, la vista queda vacía */ }
     finally { setTraceLoading(false); }
   }, [articleId]);
 
@@ -189,6 +189,7 @@ export default function TraceabilityPage() {
 
   // Fallback preview
   useEffect(() => {
+    // mejor-esfuerzo: preview al completar; si falla, el texto se carga al reabrir el artículo
     if (done && !preview)
       fetchArticle(articleId).then(art => { if (art?.body) setPreview(art.body); }).catch(() => {});
   }, [done]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -288,6 +289,7 @@ export default function TraceabilityPage() {
             setPipelineFailed(false);
             setElapsed(formatDurationLive(Date.now() - (startTimeMsRef.current || Date.now())));
             addLog('Pipeline completado', 'success', null);
+            // mejor-esfuerzo: preview post-ejecución; si falla, el texto se carga al reabrir el artículo
             fetchArticle(articleId).then(art => { if (art?.body) setPreview(art.body); }).catch(() => {});
             evtSource.close();
 
@@ -305,12 +307,14 @@ export default function TraceabilityPage() {
             addLog('Pipeline cancelado — artículo guardado como borrador', 'warn', null);
             evtSource.close();
           }
-        } catch { /* mejor-esfuerzo */ }
+        // mejor-esfuerzo: evento SSE malformado, descartado sin interrumpir el stream
+        } catch { }
       };
 
       evtSource.onerror = () => {
         evtSource.close();
         setDone(true);
+        // mejor-esfuerzo: preview en error de SSE; si falla, el texto se carga al reabrir el artículo
         fetchArticle(articleId).then(art => { if (art?.body) setPreview(p => p || art.body); }).catch(() => {});
       };
     })();
