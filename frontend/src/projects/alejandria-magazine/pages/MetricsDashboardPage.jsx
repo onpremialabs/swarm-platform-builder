@@ -7,7 +7,7 @@ import { EmptyState, LoadingState } from '../../../platform/components/ui/states
 import {
   Activity, BarChart2, Clock, FileText, RefreshCw,
   TrendingUp, XCircle, CheckCircle, Zap, ChevronDown, ChevronRight,
-  AlertTriangle,
+  AlertTriangle, CloudOff, Bot,
 } from 'lucide-react';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -60,15 +60,65 @@ const agentColor = (name) => agentMeta(name)?.color || 'var(--text-muted)';
 
 // ─── Tile global ──────────────────────────────────────────────────────────────
 
-function StatTile({ icon, label, value, sub, color }) {
+/**
+ * Tile de magnitud. Con `unavailable` no pinta un cero: pinta que no se pudo
+ * preguntar (AC7). Un cero y un «no lo sé» no pueden verse igual — es el mismo
+ * principio que el «0 de 4 comprobaciones» de las anomalías.
+ */
+function StatTile({ icon, label, value, sub, color, unavailable, reason }) {
   return (
-    <div className="metrics-stat-tile">
-      <span className="metrics-stat-icon" style={{ color: color || 'var(--brand)' }}>{icon}</span>
+    <div className="metrics-stat-tile" data-unavailable={unavailable || undefined}>
+      <span className="metrics-stat-icon"
+        style={{ color: unavailable ? 'var(--text-muted)' : (color || 'var(--brand)') }}>
+        {unavailable ? <CloudOff size={20} /> : icon}
+      </span>
       <div>
-        <div className="metrics-stat-value">{value}</div>
+        <div className="metrics-stat-value"
+          style={unavailable ? { color: 'var(--text-muted)' } : undefined}>
+          {unavailable ? 'No disponible' : value}
+        </div>
         <div className="metrics-stat-label">{label}</div>
-        {sub && <div className="metrics-stat-sub">{sub}</div>}
+        {unavailable
+          ? <div className="metrics-stat-sub">No se pudo consultar{reason ? ` (${reason})` : ''}</div>
+          : sub && <div className="metrics-stat-sub">{sub}</div>}
       </div>
+    </div>
+  );
+}
+
+/** Estado del enjambre (AC4): cada agente, su estado y el criterio que lo decide. */
+const SWARM_STYLE = {
+  ejecutando:     { label: 'Ejecutando',     color: 'var(--info)' },
+  incierto:       { label: 'Incierto',       color: 'var(--warning)' },
+  disponible:     { label: 'Disponible',     color: 'var(--success)' },
+  no_configurado: { label: 'Sin perfil',     color: 'var(--text-muted)' },
+};
+
+function SwarmAgent({ agent }) {
+  const meta  = agentMeta(agent.name) || {};
+  const Icono = meta.icon;
+  const estilo = SWARM_STYLE[agent.state] || SWARM_STYLE.no_configurado;
+  return (
+    <div className="metrics-swarm-agent" title={agent.criterion}>
+      <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+        {Icono
+          ? <Icono size={16} style={{ color: agentColor(agent.name), flexShrink: 0 }} />
+          : <span style={{ width: 16, height: 16, borderRadius: '50%',
+              background: agentColor(agent.name), flexShrink: 0 }} />}
+        <span style={{ fontSize: 'var(--font-size-sm)', fontWeight: 500,
+          color: 'var(--text-heading)', overflow: 'hidden',
+          textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {meta.label || agent.label || agent.name}
+        </span>
+      </span>
+      <span style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+        {agent.state === 'ejecutando' && (
+          <span className="metrics-swarm-pulse" style={{ background: estilo.color }} />
+        )}
+        <span style={{ fontSize: 'var(--font-size-xs)', fontWeight: 600, color: estilo.color }}>
+          {estilo.label}
+        </span>
+      </span>
     </div>
   );
 }
@@ -163,6 +213,12 @@ export default function MetricsDashboardPage() {
 
   useEffect(() => { fetchArticles({ limit: 200 }); }, []); // eslint-disable-line
   useEffect(() => { loadSummary(); }, []); // eslint-disable-line
+
+  // Disponibilidad por sección (AC7). Si el backend no la declara —respuesta de
+  // una versión anterior— se asume disponible: lo contrario pintaría «no
+  // disponible» sobre datos que sí llegaron.
+  const sections = summary?.sections ?? {};
+  const seccion  = (n) => sections[n] ?? { available: true };
 
   // ── Agregados desde /dashboard/summary ──────────────────────────────────────
   const globalTokensIn  = summary?.tokens_in       ?? 0;
@@ -260,27 +316,62 @@ export default function MetricsDashboardPage() {
         <StatTile icon={<Activity size={20} />}    label="Tokens totales (7 días)"
           value={fmtNum(globalTokensIn + globalTokensOut)}
           sub={`↑ ${fmtNum(globalTokensIn)} entrada  ·  ↓ ${fmtNum(globalTokensOut)} salida`}
-          color="var(--brand)" />
+          color="var(--brand)"
+          unavailable={!seccion('metrics').available} reason={seccion('metrics').reason} />
         <StatTile icon={<Clock size={20} />}        label="Latencia p50 por paso de agente"
           value={fmt(latencyP50)}
           sub="Mediana de agent_run_steps (no HTTP)"
-          color="var(--agent-write)" />
+          color="var(--agent-write)"
+          unavailable={!seccion('metrics').available} reason={seccion('metrics').reason} />
         <StatTile icon={<FileText size={20} />}     label="Artículos con ejecución"
           value={summary?.articles_analyzed ?? 0}
           sub={`en los últimos ${summary?.window_days ?? 7} días`}
-          color="var(--agent-format)" />
+          color="var(--agent-format)"
+          unavailable={!seccion('metrics').available} reason={seccion('metrics').reason} />
         <StatTile icon={<Zap size={20} />}          label="Ejecuciones de pipeline"
           value={fmtNum(summary?.executions_total ?? 0)}
           sub="pasadas completas, no pasos"
-          color="var(--agent-review)" />
+          color="var(--agent-review)"
+          unavailable={!seccion('metrics').available} reason={seccion('metrics').reason} />
         <StatTile icon={<XCircle size={20} />}      label="Pasos con error"
           value={globalErrors}
-          color={globalErrors > 0 ? 'var(--error)' : 'var(--success)'} />
+          color={globalErrors > 0 ? 'var(--error)' : 'var(--success)'}
+          unavailable={!seccion('metrics').available} reason={seccion('metrics').reason} />
         <StatTile icon={<AlertTriangle size={20} />} label="Anomalías detectadas"
           value={anomalies.total ?? 0}
           sub={anomalies.total === 0 ? `${(anomalies.checks_applied || []).length} condiciones verificadas` : undefined}
-          color={anomalies.total > 0 ? 'var(--warning)' : 'var(--success)'} />
+          color={anomalies.total > 0 ? 'var(--warning)' : 'var(--success)'}
+          unavailable={!seccion('metrics').available} reason={seccion('metrics').reason} />
       </div>
+
+      {/* ESTADO DEL ENJAMBRE (AC4 — derivado de los pasos abiertos, no almacenado) */}
+      <section>
+        <h3 className="metrics-section-title">
+          <Bot size={16} /> Estado del enjambre
+        </h3>
+        {!seccion('swarm').available ? (
+          <div className="metrics-card" style={{ padding: 'var(--space-5)', textAlign: 'center',
+            color: 'var(--text-muted)', fontSize: 'var(--font-size-sm)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+            <CloudOff size={16} />
+            No se pudo consultar el estado de los agentes
+            {seccion('swarm').reason ? ` (${seccion('swarm').reason})` : ''}.
+          </div>
+        ) : (
+          <>
+            <div className="metrics-swarm-grid">
+              {(summary?.swarm?.agents ?? []).map(a => <SwarmAgent key={a.name} agent={a} />)}
+            </div>
+            <p style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)',
+              marginTop: 'var(--space-2)' }}>
+              Derivado de los pasos abiertos en <code>agent_runs</code>, no de un registro aparte.
+              Un paso que lleva más de {Math.round((summary?.swarm?.stale_after_s ?? 900) / 60)} min
+              sin cerrar pasa a «incierto»: un proceso que muere deja el paso abierto para siempre,
+              y seguir diciendo «ejecutando» sería mentir. Pasa el ratón por cada agente para ver su criterio.
+            </p>
+          </>
+        )}
+      </section>
 
       {/* ANOMALÍAS (AC3 — el cero tiene semántica: se verificó y no se encontró) */}
       {anomalies.checks_applied && (
@@ -345,7 +436,15 @@ export default function MetricsDashboardPage() {
             <span>Estado</span>
           </div>
 
-          {executionRows.length === 0 ? (
+          {!seccion('executions').available ? (
+            <div style={{ padding: 'var(--space-5)', textAlign: 'center',
+              color: 'var(--text-muted)', fontSize: 'var(--font-size-sm)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+              <CloudOff size={16} />
+              No se pudieron consultar las ejecuciones
+              {seccion('executions').reason ? ` (${seccion('executions').reason})` : ''}.
+            </div>
+          ) : executionRows.length === 0 ? (
             <div style={{ padding: 'var(--space-5)', textAlign: 'center',
               color: 'var(--text-muted)', fontSize: 'var(--font-size-sm)' }}>
               Sin ejecuciones en los últimos {summary?.window_days ?? 7} días.
@@ -452,7 +551,16 @@ export default function MetricsDashboardPage() {
               <span></span>
             </div>
 
-            {articleRows.length === 0 && (
+            {!seccion('articles').available && (
+              <div style={{ padding: 'var(--space-5)', textAlign: 'center',
+                color: 'var(--text-muted)', fontSize: 'var(--font-size-sm)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                <CloudOff size={16} />
+                No se pudieron consultar las métricas por artículo
+                {seccion('articles').reason ? ` (${seccion('articles').reason})` : ''}.
+              </div>
+            )}
+            {seccion('articles').available && articleRows.length === 0 && (
               <div style={{ padding: 'var(--space-5)', textAlign: 'center',
                 color: 'var(--text-muted)', fontSize: 'var(--font-size-sm)' }}>
                 No hay ejecuciones registradas en los últimos {summary?.window_days ?? 7} días.

@@ -270,6 +270,111 @@ async def test_reejecucion_aparece_como_dos_ejecuciones(dos_proyectos):
     assert body["steps_total"] == 3
 
 
+async def _token_y_cabeceras(ac, project_id):
+    resp = await ac.post("/api/v1/auth/login", json={"email": "admin@test", "password": "pw"})
+    token = resp.json()["access_token"]
+    return {"Authorization": f"Bearer {token}", "X-Project-Id": str(project_id)}
+
+
+@pytest.mark.asyncio
+async def test_estado_del_enjambre_distingue_ejecutando_de_colgado(dos_proyectos):
+    """AC4: un paso abierto hace rato no puede seguir diciendo «ejecutando».
+
+    Un proceso que muere deja su fila de agent_runs en 'running' para siempre.
+    Sin umbral, la portada afirmaría que el agente trabaja justo cuando no lo hace.
+    """
+    from app.main import app
+    from app.models.agent_profile import AgentProfileModel
+    from app.models.agent_run import AgentRunModel
+    from app.platform.summary import SWARM_STALE_AFTER_S
+
+    p1, a1 = dos_proyectos["p1"], dos_proyectos["a1"]
+    ahora = datetime.now(timezone.utc)
+
+    async with AsyncSessionLocal() as s:
+        for slug, nombre in (("redactor", "Redactor"), ("revisor", "Revisor"),
+                             ("investigador", "Investigador")):
+            s.add(AgentProfileModel(project_id=p1.id, slug=slug, name=nombre))
+        # Recién empezado: está ejecutando de verdad.
+        s.add(AgentRunModel(
+            agent_name="redactor", article_id=a1.id, author_id=dos_proyectos["admin"].id,
+            status="running", started_at=ahora - timedelta(seconds=30),
+        ))
+        # Abierto desde mucho antes del umbral: nadie lo cerró.
+        s.add(AgentRunModel(
+            agent_name="revisor", article_id=a1.id, author_id=dos_proyectos["admin"].id,
+            status="running", started_at=ahora - timedelta(seconds=SWARM_STALE_AFTER_S + 600),
+        ))
+        await s.commit()
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        resp = await ac.get("/api/v1/dashboard/summary",
+                            headers=await _token_y_cabeceras(ac, p1.id))
+        assert resp.status_code == 200, resp.text
+        swarm = resp.json()["swarm"]
+
+    por_nombre = {a["name"]: a for a in swarm["agents"]}
+    assert por_nombre["redactor"]["state"] == "ejecutando"
+    assert por_nombre["revisor"]["state"] == "incierto", "un paso colgado sigue diciendo que ejecuta"
+    assert por_nombre["investigador"]["state"] == "disponible"
+
+    # El criterio va en la respuesta: un rótulo sin criterio escrito se interpreta solo.
+    assert swarm["stale_after_s"] == SWARM_STALE_AFTER_S
+    assert all(a["criterion"] for a in swarm["agents"])
+    assert set(swarm["criteria"]) == {"ejecutando", "incierto", "disponible", "no_configurado"}
+
+
+@pytest.mark.asyncio
+async def test_agente_sin_perfil_aparece_como_no_configurado(dos_proyectos):
+    """AC4: un agente que ejecutó y perdió su perfil no se oculta."""
+    from app.main import app
+
+    p1 = dos_proyectos["p1"]
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        resp = await ac.get("/api/v1/dashboard/summary",
+                            headers=await _token_y_cabeceras(ac, p1.id))
+        swarm = resp.json()["swarm"]
+
+    # El fixture deja un paso de «redactor» sin crear su perfil.
+    redactor = next(a for a in swarm["agents"] if a["name"] == "redactor")
+    assert redactor["state"] == "no_configurado"
+
+
+@pytest.mark.asyncio
+async def test_una_seccion_caida_no_tumba_la_portada(dos_proyectos, monkeypatch):
+    """AC7: lo que no se pudo preguntar se dice; no se rellena con ceros.
+
+    Antes los tres `await` iban seguidos y un fallo devolvía 500: la portada se
+    quedaba en blanco, que es peor que inútil porque un cero no se distinguía de
+    «no se pudo preguntar».
+    """
+    from app.main import app
+    import app.routers.dashboard as router_dashboard
+
+    p1 = dos_proyectos["p1"]
+
+    async def _revienta(*_a, **_k):
+        raise RuntimeError("Qdrant no responde")
+
+    monkeypatch.setattr(router_dashboard, "project_executions", _revienta)
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        resp = await ac.get("/api/v1/dashboard/summary",
+                            headers=await _token_y_cabeceras(ac, p1.id))
+        assert resp.status_code == 200, "una sección caída no puede tumbar la portada"
+        body = resp.json()
+
+    assert body["sections"]["executions"]["available"] is False
+    assert body["sections"]["executions"]["reason"] == "RuntimeError"
+    assert body["executions"] == []
+
+    # Y el resto sigue sirviendo datos reales, no ceros.
+    assert body["sections"]["metrics"]["available"] is True
+    assert body["tokens_total"] == 300
+    assert body["sections"]["swarm"]["available"] is True
+
+
 @pytest.mark.asyncio
 async def test_anomalias_detectan_paso_fallido(dos_proyectos):
     """AC3: un paso con status='error' incrementa el contador failed_step."""

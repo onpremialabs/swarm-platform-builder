@@ -108,10 +108,24 @@ mucho más que «0».
 
 **El estado del enjambre se deriva, no se almacena (AC4).** Un registro de estado
 vivo sería un segundo sitio donde la verdad puede quedar desincronizada —y este
-repo ya ha pagado eso—. Un paso abierto es una fila en `agent_run_steps` sin cerrar;
-eso basta. El umbral del AC4 existe porque un proceso que muere deja el paso
-abierto para siempre, y sin él la portada mentiría en el caso justo en que más
-importa.
+repo ya ha pagado eso—. Un paso abierto es una fila sin cerrar; eso basta. El
+umbral del AC4 existe porque un proceso que muere deja el paso abierto para
+siempre, y sin él la portada mentiría en el caso justo en que más importa.
+
+La fila es la de **`agent_runs`**, no la de `agent_run_steps` como decía antes este
+párrafo: el orquestador escribe la traza de explicabilidad **al cerrar** el nodo,
+así que mientras un agente trabaja todavía no tiene fila ahí. `log_run_start` abre
+la de `agent_runs` con `status='running'` y `log_run_end` la cierra, que es el
+ciclo de vida que AC4 necesita observar. Como esa tabla no lleva `project_id`, se
+acota por `articles.project_id`; cruzarla por `agent_run_steps` perdería
+precisamente el run recién abierto.
+
+**La portada no es todo o nada (AC7).** Cada magnitud se calcula en su propio
+intento y la respuesta declara en `sections` cuál se pudo obtener. Una sección
+caída devuelve su forma vacía y se marca como indisponible: **no** se rellena con
+ceros, porque un cero y un «no se pudo preguntar» se leen igual y ya costó caro
+una vez. Tras un error la sesión de SQLAlchemy queda inutilizable, así que el
+intento hace `rollback`; sin él la primera sección rota tumbaría las siguientes.
 
 **Presupuestos declarados, no incrustados.** El umbral de latencia del AC3 vive en
 configuración junto a los demás, no dentro de la consulta: es el mismo patrón que

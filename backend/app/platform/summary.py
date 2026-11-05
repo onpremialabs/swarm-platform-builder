@@ -33,13 +33,43 @@ from uuid import UUID
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.agent_profile import AgentProfileModel
+from app.models.agent_run import AgentRunModel
 from app.models.agent_run_step import AgentRunStepModel
+from app.models.article import ArticleModel
 from app.platform.explainability import group_executions
 
 # Presupuestos declarados (AC3 — no incrustados en la consulta).
 MAX_REVIEW_LOOPS: int = 3
 LATENCY_BUDGET_MS: float = 60_000.0
 WINDOW_DAYS: int = 7
+
+#: Umbral de incertidumbre del estado del enjambre (AC4). Un proceso que muere
+#: deja su fila de `agent_runs` en 'running' para siempre; pasado este tiempo el
+#: paso deja de contar como «ejecutando» y pasa a «incierto», que es lo que de
+#: verdad se sabe. Holgado respecto a `LATENCY_BUDGET_MS` a propósito: superar el
+#: presupuesto de latencia es una anomalía, no una señal de que el proceso murió.
+SWARM_STALE_AFTER_S: int = 900
+
+#: Qué significa cada estado, en la respuesta y no solo en el código: AC4 pide que
+#: «el criterio de cada uno esté escrito», y un criterio que vive únicamente en el
+#: backend se desincroniza del rótulo que lee quien mira la portada.
+SWARM_CRITERIA: dict[str, str] = {
+    "ejecutando": (
+        "Tiene un paso abierto —fila en agent_runs con status 'running' y sin "
+        f"finished_at— empezado hace menos de {SWARM_STALE_AFTER_S // 60} min."
+    ),
+    "incierto": (
+        f"Tiene un paso abierto desde hace más de {SWARM_STALE_AFTER_S // 60} min. "
+        "No se afirma que esté ejecutando: lo normal a esas alturas es que el "
+        "proceso muriera sin cerrar el paso."
+    ),
+    "disponible": "Tiene perfil en el proyecto y ningún paso abierto.",
+    "no_configurado": (
+        "Aparece en la traza del proyecto pero ya no tiene perfil: se borró o se "
+        "renombró después de ejecutarse."
+    ),
+}
 
 # Agentes que no hacen RAG y deben excluirse del conteo rag_empty.
 _NO_RAG_AGENTS = frozenset({"publicador", "formateador"})
@@ -163,6 +193,98 @@ async def project_summary(session: AsyncSession, project_id: UUID) -> dict:
             "latency_budget_ms": LATENCY_BUDGET_MS,
             "max_review_loops": MAX_REVIEW_LOOPS,
         },
+    }
+
+
+async def project_swarm_state(session: AsyncSession, project_id: UUID) -> dict:
+    """Estado de cada agente del proyecto, derivado de hechos (SPEC-028 / T16.4 / AC4).
+
+    **Se deriva, no se almacena.** Un registro de estado vivo sería un segundo
+    sitio donde la verdad puede quedar desincronizada. El hecho es la fila de
+    ``agent_runs``: ``log_run_start`` la abre con ``status='running'`` y
+    ``log_run_end`` la cierra. Un paso abierto es una fila que nadie cerró.
+
+    No se mira ``agent_run_steps`` —que es lo que sugería la spec— porque el
+    orquestador escribe esa traza **al cerrar** el nodo: mientras un agente está
+    trabajando todavía no tiene fila ahí, que es justo el momento que AC4 quiere
+    ver.
+
+    El umbral existe porque un proceso que muere deja el paso abierto para
+    siempre. Pasado ``SWARM_STALE_AFTER_S`` el agente no se muestra como
+    «ejecutando» sino como «incierto»: sin el umbral la portada mentiría en el
+    caso justo en que más importa.
+    """
+    ahora = datetime.now(timezone.utc)
+    since = ahora - timedelta(days=WINDOW_DAYS)
+
+    # Pasos abiertos del proyecto. `agent_runs` no lleva project_id, así que se
+    # acota por el artículo: un run abierto puede no tener aún fila en
+    # agent_run_steps, de modo que no sirve cruzarlo por ahí.
+    abiertos_q = await session.execute(
+        select(AgentRunModel.agent_name, AgentRunModel.started_at)
+        .join(ArticleModel, AgentRunModel.article_id == ArticleModel.id)
+        .where(
+            and_(
+                ArticleModel.project_id == project_id,
+                AgentRunModel.status == "running",
+                AgentRunModel.finished_at.is_(None),
+            )
+        )
+    )
+    abiertos: dict[str, list[datetime]] = {}
+    for nombre, inicio in abiertos_q.all():
+        abiertos.setdefault(nombre, []).append(inicio)
+
+    perfiles_q = await session.execute(
+        select(AgentProfileModel.slug, AgentProfileModel.name)
+        .where(AgentProfileModel.project_id == project_id)
+    )
+    perfiles = {slug: nombre for slug, nombre in perfiles_q.all()}
+
+    # Agentes vistos en la traza reciente: si uno perdió su perfil, sigue siendo
+    # parte de lo que el proyecto ejecutó y callarlo esconde el descuadre.
+    vistos_q = await session.execute(
+        select(AgentRunStepModel.agent_name)
+        .where(
+            and_(
+                AgentRunStepModel.project_id == project_id,
+                AgentRunStepModel.created_at >= since,
+            )
+        ).distinct()
+    )
+    vistos = {fila[0] for fila in vistos_q.all()}
+
+    agentes = []
+    for slug in sorted(set(perfiles) | vistos | set(abiertos)):
+        inicios = abiertos.get(slug, [])
+        # El más antiguo: si hay dos pasos abiertos, el que decide si esto lleva
+        # colgado demasiado tiempo es el que lleva más esperando.
+        desde = min(inicios) if inicios else None
+        if desde is not None and desde.tzinfo is None:
+            desde = desde.replace(tzinfo=timezone.utc)
+
+        if slug not in perfiles:
+            estado = "no_configurado"
+        elif desde is None:
+            estado = "disponible"
+        elif (ahora - desde).total_seconds() > SWARM_STALE_AFTER_S:
+            estado = "incierto"
+        else:
+            estado = "ejecutando"
+
+        agentes.append({
+            "name": slug,
+            "label": perfiles.get(slug) or slug,
+            "state": estado,
+            "open_steps": len(inicios),
+            "since": desde.isoformat() if desde else None,
+            "criterion": SWARM_CRITERIA[estado],
+        })
+
+    return {
+        "stale_after_s": SWARM_STALE_AFTER_S,
+        "criteria": SWARM_CRITERIA,
+        "agents": agentes,
     }
 
 

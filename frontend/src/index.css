@@ -1884,6 +1884,48 @@ textarea.input { resize: vertical; min-height: 80px; line-height: var(--leading-
   border-bottom: 1px solid var(--border-subtle);
 }
 
+/* Estado del enjambre (T16.4): un agente por tarjeta, su estado derivado. */
+.metrics-swarm-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--space-3);
+}
+
+.metrics-swarm-agent {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  cursor: help;
+}
+
+.metrics-swarm-pulse {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  animation: swarm-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes swarm-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: .25; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .metrics-swarm-pulse { animation: none; }
+}
+
+/* Magnitud que no se pudo consultar (T16.6): ni cero ni dato. */
+.metrics-stat-tile[data-unavailable] {
+  border-style: dashed;
+  background: var(--bg-inset);
+}
+
 /* Ejecuciones del proyecto (T17.1): una fila por pasada del pipeline. */
 .metrics-exec-thead,
 .metrics-exec-row {
