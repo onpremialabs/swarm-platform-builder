@@ -1,6 +1,6 @@
 """Portada de proyecto — métricas del enjambre (SPEC-028 / T16.2).
 
-``GET /dashboard/summary`` devuelve en una sola petición las magnitudes de la
+``GET /api/v1/dashboard/summary`` devuelve en una sola petición las magnitudes de la
 portada para el proyecto activo.  El aislamiento es obligatorio: la dependencia
 ``get_project_context`` resuelve y autoriza el proyecto desde la cabecera
 ``X-Project-Id``, igual que el resto de rutas que leen datos del proyecto.
@@ -14,7 +14,7 @@ from app.platform.project_access import get_project_context
 from app.platform.project_context import ProjectContext
 from app.platform.summary import project_articles_summary, project_summary
 
-router = APIRouter(prefix="/dashboard", tags=["dashboard"])
+router = APIRouter(prefix="/api/v1/dashboard", tags=["dashboard"])
 
 
 @router.get("/summary")

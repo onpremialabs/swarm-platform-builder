@@ -227,6 +227,17 @@ export default function MetricsDashboardPage() {
         </button>
       </div>
 
+      {/* ERROR — arriba para que sea imposible ignorarlo */}
+      {error && (
+        <div style={{ padding: 'var(--space-4)', background: 'var(--error-tint)',
+          border: '1px solid var(--error)', borderRadius: 'var(--radius-md)',
+          color: 'var(--error)', fontSize: 'var(--font-size-sm)',
+          display: 'flex', alignItems: 'center', gap: 8 }}>
+          <XCircle size={16} style={{ flexShrink: 0 }} />
+          {error}
+        </div>
+      )}
+
       {/* TILES GLOBALES (AC2 — cada tile dice qué cuenta y de dónde sale) */}
       <div className="metrics-tiles-grid">
         <StatTile icon={<Activity size={20} />}    label="Tokens totales (7 días)"
@@ -342,6 +353,13 @@ export default function MetricsDashboardPage() {
               <span></span>
             </div>
 
+            {articleRows.length === 0 && (
+              <div style={{ padding: 'var(--space-5)', textAlign: 'center',
+                color: 'var(--text-muted)', fontSize: 'var(--font-size-sm)' }}>
+                No hay ejecuciones registradas en los últimos {summary?.window_days ?? 7} días.
+                Ejecuta un artículo desde el Flow Designer para ver sus métricas aquí.
+              </div>
+            )}
             {articleRows.map(row => (
               <div key={row.id} className="metrics-art-item">
 
@@ -452,12 +470,6 @@ export default function MetricsDashboardPage() {
         </div>
       )}
 
-      {error && (
-        <div style={{ padding: 'var(--space-4)', background: 'var(--error-tint)', border: '1px solid var(--error)',
-          borderRadius: 'var(--radius-md)', color: 'var(--error)', fontSize: 'var(--font-size-sm)' }}>
-          {error}
-        </div>
-      )}
 
     </div>
   );

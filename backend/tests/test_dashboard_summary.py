@@ -1,4 +1,4 @@
-"""Endpoint GET /dashboard/summary — aislamiento por proyecto (SPEC-028 / T16.2).
+"""Endpoint GET /api/v1/dashboard/summary — aislamiento por proyecto (SPEC-028 / T16.2).
 
 AC1: el endpoint usa get_project_context y devuelve solo datos del proyecto activo.
 AC5: cada artículo en la lista muestra su estado real del pipeline (desde agent_run_steps).
@@ -31,13 +31,15 @@ from app.models import (  # noqa: E402
 
 @pytest_asyncio.fixture(autouse=True)
 async def setup_db():
+    # El pool mantiene abierto el fichero SQLite: en Windows un unlink sobre un
+    # fichero abierto lanza PermissionError, así que se cierra antes de borrar.
+    await engine.dispose()
     if TEST_DB_PATH.exists():
         TEST_DB_PATH.unlink()
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     yield
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
+    await engine.dispose()
 
 
 @pytest_asyncio.fixture
@@ -94,12 +96,12 @@ async def test_summary_devuelve_solo_datos_del_proyecto_activo(dos_proyectos):
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         # Autenticar
-        resp = await ac.post("/auth/token", data={"username": "admin@test", "password": "pw"})
+        resp = await ac.post("/api/v1/auth/login", json={"email": "admin@test", "password": "pw"})
         assert resp.status_code == 200, resp.text
         token = resp.json()["access_token"]
         headers = {"Authorization": f"Bearer {token}", "X-Project-Id": str(p1.id)}
 
-        resp = await ac.get("/dashboard/summary", headers=headers)
+        resp = await ac.get("/api/v1/dashboard/summary", headers=headers)
         assert resp.status_code == 200, resp.text
         body = resp.json()
 
@@ -121,11 +123,11 @@ async def test_summary_proyecto_b_no_ve_proyecto_a(dos_proyectos):
     p2 = datos["p2"]
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
-        resp = await ac.post("/auth/token", data={"username": "admin@test", "password": "pw"})
+        resp = await ac.post("/api/v1/auth/login", json={"email": "admin@test", "password": "pw"})
         token = resp.json()["access_token"]
         headers = {"Authorization": f"Bearer {token}", "X-Project-Id": str(p2.id)}
 
-        resp = await ac.get("/dashboard/summary", headers=headers)
+        resp = await ac.get("/api/v1/dashboard/summary", headers=headers)
         assert resp.status_code == 200
         body = resp.json()
 
@@ -142,11 +144,11 @@ async def test_summary_incluye_articulos_con_estado_del_pipeline(dos_proyectos):
     p1 = datos["p1"]
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
-        resp = await ac.post("/auth/token", data={"username": "admin@test", "password": "pw"})
+        resp = await ac.post("/api/v1/auth/login", json={"email": "admin@test", "password": "pw"})
         token = resp.json()["access_token"]
         headers = {"Authorization": f"Bearer {token}", "X-Project-Id": str(p1.id)}
 
-        resp = await ac.get("/dashboard/summary", headers=headers)
+        resp = await ac.get("/api/v1/dashboard/summary", headers=headers)
         assert resp.status_code == 200
         body = resp.json()
 
@@ -165,13 +167,13 @@ async def test_summary_sin_proyecto_devuelve_422():
     from app.main import app
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
-        resp = await ac.post("/auth/token", data={"username": "admin@test", "password": "pw"})
+        resp = await ac.post("/api/v1/auth/login", json={"email": "admin@test", "password": "pw"})
         # Si no hay usuario puede ser 422 directamente; en cualquier caso sin proyecto falla.
         # Si la autenticación falla, solo verificamos que no es 200.
         token_resp = resp.json()
         if "access_token" in token_resp:
             token = token_resp["access_token"]
-            resp2 = await ac.get("/dashboard/summary",
+            resp2 = await ac.get("/api/v1/dashboard/summary",
                                  headers={"Authorization": f"Bearer {token}"})
             assert resp2.status_code in (400, 403, 404, 422)
 
@@ -196,11 +198,11 @@ async def test_anomalias_detectan_paso_fallido(dos_proyectos):
         await s.commit()
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
-        resp = await ac.post("/auth/token", data={"username": "admin@test", "password": "pw"})
+        resp = await ac.post("/api/v1/auth/login", json={"email": "admin@test", "password": "pw"})
         token = resp.json()["access_token"]
         headers = {"Authorization": f"Bearer {token}", "X-Project-Id": str(p1.id)}
 
-        resp = await ac.get("/dashboard/summary", headers=headers)
+        resp = await ac.get("/api/v1/dashboard/summary", headers=headers)
         assert resp.status_code == 200
         body = resp.json()
 

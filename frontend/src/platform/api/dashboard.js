@@ -16,5 +16,5 @@ export const dashboardApi = {
    *   anomalies              : 4 condiciones enumeradas (0 = «comprobado, ningún caso»)
    *   articles               : estado real del pipeline por artículo (desde agent_run_steps)
    */
-  getSummary: () => api.get('/dashboard/summary').then(r => r.data),
+  getSummary: () => api.get('/api/v1/dashboard/summary').then(r => r.data),
 };
