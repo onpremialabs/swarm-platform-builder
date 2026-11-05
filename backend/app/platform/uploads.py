@@ -18,17 +18,20 @@ _SIGNATURES: Tuple[Tuple[int, bytes, str], ...] = (
     (0, b"\xff\xd8\xff", "jpeg"),
     (0, b"GIF87a", "gif"),
     (0, b"GIF89a", "gif"),
+    # docx/xlsx/pptx are ZIP archives (PK\x03\x04)
+    (0, b"PK\x03\x04", "zip"),
 )
 
 # Extension → the content types that may legitimately back it.
 _EXTENSION_TYPES: Dict[str, Set[str]] = {
-    ".pdf": {"pdf"},
-    ".txt": {"text"},
-    ".md": {"text"},
-    ".png": {"png"},
-    ".jpg": {"jpeg"},
+    ".pdf":  {"pdf"},
+    ".txt":  {"text"},
+    ".md":   {"text"},
+    ".docx": {"zip"},
+    ".png":  {"png"},
+    ".jpg":  {"jpeg"},
     ".jpeg": {"jpeg"},
-    ".gif": {"gif"},
+    ".gif":  {"gif"},
     ".webp": {"webp"},
 }
 
