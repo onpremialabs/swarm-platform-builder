@@ -43,4 +43,26 @@
 
 - [x] AC4: el bucle revisor→redactor se muestra explícitamente en la UI.
 - [x] AC5 parcial: no hay porcentaje derivado de tokens ni de tiempo.
-- [ ] AC5 completo: requiere T18.4 (evento SSE de progreso fraccionado por sección).
+- [x] AC5 completo: T18.4 (#367) ya está hecha — ver más abajo.
+
+---
+
+## 2026-11-05 — AC5 completo al cerrarse T18.4
+
+Cuando se escribió esto, la mitad fraccional de AC5 no se podía cumplir: ningún
+agente emitía unidades de trabajo, así que la interfaz mostraba estado
+indeterminado y «X / Y agentes». Eso **ya satisfacía el criterio** —lo que AC5
+exige es no fingir precisión—, pero dejaba su primera rama sin ejercitar.
+
+Con T18.4 (#367) el Redactor emite `progress` al detectar el encabezado de cada
+sección, y `TraceabilityPage` pinta «sección N de M» cuando llega ese evento y
+una barra indeterminada cuando no. Las dos ramas del criterio están cubiertas:
+
+- **Con unidades reales** → progreso fraccional, derivado de un hecho observado.
+- **Sin unidades** → indeterminado, que es la respuesta honesta.
+
+La prohibición sigue respetada: no hay ningún porcentaje derivado de tokens
+emitidos ni de tiempo transcurrido, y hay dos tests en
+`tests/test_progress_units.py` que fallarían si alguien lo introdujera.
+
+Con esto se cierra también la dependencia formal de #369 sobre #367.
