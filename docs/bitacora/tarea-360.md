@@ -52,9 +52,33 @@ más inserción, cadena intacta, pasos sin hash, reejecución y reanudación. Y 
 integración contra la base real: editar `output_text` de un paso directamente en la
 tabla hace que el endpoint devuelva `intact: false` señalando al redactor.
 
+### Tres estados, no dos — corregido al probar con datos reales
+
+La primera versión devolvía `intact: true|false`. Contra la base de desarrollo,
+cuyos 65 pasos son todos anteriores a T17.2, el informe salía `intact: false` y la
+pestaña lo pintaba como **«cadena rota»**.
+
+No había nada roto: no había nada que comprobar. Era exactamente el alarmismo que
+esta tarea dice evitar, y de los que entrenan a ignorar la alarma cuando alguna vez
+sea de verdad. El fallo no lo cazó ningún test porque el que cubría pasos sin hash
+usaba una ejecución **mixta** —dos encadenados y uno sin— y ahí sí quedaba algo
+verificado.
+
+`verify_chain` devuelve ahora `status`: `intacta`, `rota` o `sin_cadena`. El
+endpoint agrega con el mismo criterio —«rota» manda; si no hay ni una cadena que
+comprobar se dice eso— y la interfaz pinta los tres distintos: escudo verde, escudo
+de aviso, o icono informativo con el texto de que no hay con qué comprobarlo.
+
+`intact` se mantiene y vale solo para `intacta`: una ejecución sin cadena tampoco
+puede afirmarse íntegra.
+
+Dos tests nuevos: una ejecución entera sin cadena no es una cadena rota, y los tres
+estados se distinguen.
+
 ### Definition of Done
 
 - [x] AC5: detecta modificado, borrado e insertado, y dice cuál y en qué posición.
 - [x] AC5: test que altera una fila y test que borra una del medio.
 - [x] AC7: reejecución y reanudación no dan falso positivo.
 - [x] El endpoint hereda el control de acceso de `/explain`.
+- [x] «Sin cadena» no se presenta como «rota».

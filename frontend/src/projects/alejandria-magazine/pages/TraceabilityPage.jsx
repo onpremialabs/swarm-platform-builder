@@ -828,22 +828,41 @@ export default function TraceabilityPage() {
 
             {integrity?.available && (
               <>
-                {(integrity.executions || []).map(ej => (
-                  <div key={ej.run_number} className={`trace-notice ${ej.intact ? 'trace-notice-info' : 'trace-notice-warning'}`}>
+                {(integrity.executions || []).map(ej => {
+                  // Tres estados, no dos: una ejecución sin un solo hash no está
+                  // rota, está sin comprobar. Pintarla de rojo sería alarmismo.
+                  const rota    = ej.status === 'rota';
+                  const sinCadena = ej.status === 'sin_cadena';
+                  return (
+                  <div key={ej.run_number}
+                    className={`trace-notice ${rota ? 'trace-notice-warning' : 'trace-notice-info'}`}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                      {ej.intact
-                        ? <ShieldCheck size={16} style={{ color: 'var(--status-success)' }} />
-                        : <ShieldAlert size={16} style={{ color: 'var(--status-warning)' }} />}
+                      {rota
+                        ? <ShieldAlert size={16} style={{ color: 'var(--status-warning)' }} />
+                        : sinCadena
+                          ? <Info size={16} style={{ color: 'var(--text-muted)' }} />
+                          : <ShieldCheck size={16} style={{ color: 'var(--status-success)' }} />}
                       <strong>
                         {ej.runs_total > 1 ? `Pasada ${ej.run_number} de ${ej.runs_total}` : 'Ejecución'}
                         {' — '}
-                        {ej.intact ? 'cadena íntegra' : 'cadena rota'}
+                        {rota ? 'cadena rota' : sinCadena ? 'sin cadena que verificar' : 'cadena íntegra'}
                       </strong>
                     </div>
                     <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-secondary)' }}>
-                      {ej.verified} de {ej.steps} paso{ej.steps !== 1 ? 's' : ''} verificado{ej.verified !== 1 ? 's' : ''}
-                      {ej.unchained > 0 && (
-                        <> · {ej.unchained} sin cadena (anteriores a esta función; no es señal de manipulación)</>
+                      {sinCadena ? (
+                        <>
+                          Sus {ej.steps} paso{ej.steps !== 1 ? 's son anteriores' : ' es anterior'} a la
+                          cadena de integridad, así que no llevan hash. Eso no dice que la traza esté bien
+                          ni que esté mal: dice que no hay con qué comprobarlo. Las ejecuciones nuevas sí
+                          se sellan.
+                        </>
+                      ) : (
+                        <>
+                          {ej.verified} de {ej.steps} paso{ej.steps !== 1 ? 's' : ''} verificado{ej.verified !== 1 ? 's' : ''}
+                          {ej.unchained > 0 && (
+                            <> · {ej.unchained} sin cadena (anteriores a esta función; no es señal de manipulación)</>
+                          )}
+                        </>
                       )}
                     </div>
                     {(ej.issues || []).length > 0 && (
@@ -859,7 +878,8 @@ export default function TraceabilityPage() {
                       </ul>
                     )}
                   </div>
-                ))}
+                  );
+                })}
 
                 {/* AC6: el alcance se dice en la interfaz, no solo en la documentación.
                     Viene del servidor para que no puedan divergir. */}

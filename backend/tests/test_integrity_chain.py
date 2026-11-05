@@ -153,6 +153,39 @@ def test_insertar_una_fila_se_detecta():
     assert informe["issues"], "una inserción debe romper la cadena"
 
 
+def test_una_ejecucion_entera_sin_cadena_no_es_una_cadena_rota():
+    """El caso de los datos que ya existían: ni un solo paso lleva hash.
+
+    Colapsarlo en `intact: False` lo pintaba como «cadena rota» en la interfaz.
+    No hay nada roto: no hay nada que comprobar, y decir lo contrario entrena a
+    ignorar la alarma cuando alguna vez sea de verdad.
+    """
+    pasos = [_Paso(step_index=i) for i in range(5)]
+    for p in pasos:
+        p.content_hash = None
+        p.hash_version = None
+
+    informe = ex.verify_chain(pasos)
+    assert informe["status"] == "sin_cadena"
+    assert informe["intact"] is False, "tampoco se puede afirmar que esté íntegra"
+    assert informe["issues"] == []
+    assert informe["unchained"] == 5
+    assert informe["verified"] == 0
+
+
+def test_los_tres_estados_se_distinguen():
+    intacta = _encadenar([_Paso(step_index=i) for i in range(3)])
+    assert ex.verify_chain(intacta)["status"] == "intacta"
+
+    rota = _encadenar([_Paso(step_index=i) for i in range(3)])
+    rota[1].output_text = "editado"
+    assert ex.verify_chain(rota)["status"] == "rota"
+
+    sin_cadena = [_Paso(step_index=0)]
+    sin_cadena[0].content_hash = None
+    assert ex.verify_chain(sin_cadena)["status"] == "sin_cadena"
+
+
 def test_un_paso_sin_hash_no_se_cuenta_como_manipulado():
     """Filas anteriores a T17.2: ausencia de prueba no es prueba de manipulación."""
     pasos = _encadenar([_Paso(step_index=i) for i in range(2)])

@@ -385,11 +385,24 @@ def verify_chain(pasos: List[Any]) -> Dict[str, Any]:
         anterior = guardado
 
     verificados = len(pasos) - sin_cadena
+
+    # Tres estados, no dos. Una ejecución anterior a T17.2 no tiene ni un hash:
+    # no hay nada roto, no hay nada que comprobar. Colapsarlo en `intact: False`
+    # la pintaba como cadena rota, que es el alarmismo que esta función existe
+    # para evitar —y entrena a ignorar la alarma cuando sí sea de verdad—.
+    if problemas:
+        estado = "rota"
+    elif verificados == 0:
+        estado = "sin_cadena"
+    else:
+        estado = "intacta"
+
     return {
         "steps": len(pasos),
         "verified": verificados,
         "unchained": sin_cadena,
-        "intact": not problemas and verificados > 0,
+        "status": estado,
+        "intact": estado == "intacta",
         "issues": problemas,
         "canon_version": CANON_VERSION,
     }

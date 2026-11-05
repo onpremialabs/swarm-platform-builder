@@ -1037,10 +1037,22 @@ async def verify_article_integrity(
         informe["runs_total"] = len(ejecuciones)
         informes.append(informe)
 
+    # Mismo criterio que por ejecución: «rota» manda, y si no hay ni una cadena
+    # que comprobar se dice eso y no «rota» (ver `verify_chain`).
+    if any(i["status"] == "rota" for i in informes):
+        estado = "rota"
+    elif informes and all(i["status"] == "sin_cadena" for i in informes):
+        estado = "sin_cadena"
+    elif informes:
+        estado = "intacta"
+    else:
+        estado = "sin_cadena"
+
     return {
         "article_id": str(article_id),
         "executions": informes,
-        "intact": all(i["intact"] for i in informes) if informes else False,
+        "status": estado,
+        "intact": estado == "intacta",
         "available": bool(pasos),
         "scope": {
             "guarantees": (
