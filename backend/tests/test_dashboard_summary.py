@@ -179,6 +179,41 @@ async def test_summary_sin_proyecto_devuelve_422():
 
 
 @pytest.mark.asyncio
+async def test_consumo_por_agente_trae_tokens_y_latencia(dos_proyectos):
+    """El desglose por agente lleva tokens y latencia, no solo el número de pasos.
+
+    La portada los pintaba siempre a cero porque el endpoint devolvía únicamente
+    los nombres de los agentes y el cliente no tenía de dónde sacar el resto.
+    """
+    from app.main import app
+
+    p1 = dos_proyectos["p1"]
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        resp = await ac.post("/api/v1/auth/login", json={"email": "admin@test", "password": "pw"})
+        token = resp.json()["access_token"]
+        headers = {"Authorization": f"Bearer {token}", "X-Project-Id": str(p1.id)}
+
+        resp = await ac.get("/api/v1/dashboard/summary", headers=headers)
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+
+    redactor = next(a for a in body["by_agent"] if a["name"] == "redactor")
+    assert redactor["tokens_in"] == 100
+    assert redactor["tokens_out"] == 200
+    assert redactor["tokens_total"] == 300
+    assert redactor["latency_ms"] == 1500.0
+    assert redactor["runs"] == 1
+
+    # El mismo desglose, por artículo, para la fila desplegable de la tabla.
+    art = body["articles"][0]
+    assert art["latency_ms"] == 1500.0
+    ag = next(a for a in art["agents"] if a["name"] == "redactor")
+    assert ag["tokens_total"] == 300
+    assert ag["latency_ms"] == 1500.0
+
+
+@pytest.mark.asyncio
 async def test_anomalias_detectan_paso_fallido(dos_proyectos):
     """AC3: un paso con status='error' incrementa el contador failed_step."""
     from app.main import app

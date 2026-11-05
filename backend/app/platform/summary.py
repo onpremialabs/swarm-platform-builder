@@ -10,6 +10,9 @@ Las magnitudes definidas (AC2):
 - articles_analyzed: artículos distintos con al menos un paso terminado en 7 días
 - agent_runs_total: filas de agent_runs para el proyecto en 7 días
 - failed_steps: pasos con status = 'error' o 'failed'
+- by_agent: el mismo consumo (ejecuciones, tokens, latencia, errores) agrupado por
+  agente. Se agrega aquí, no en el cliente: la fila ya trae el agente y sus
+  tokens, y el cliente solo recibe el resumen, no los pasos.
 - Ventana temporal por defecto: últimos 7 días (anclada en el servidor, no en el cliente).
 
 Anomalías definidas (AC3) — cada condición tiene su propio contador:
@@ -101,8 +104,29 @@ async def project_summary(session: AsyncSession, project_id: UUID) -> dict:
         if r.agent_name not in _NO_RAG_AGENTS and not (r.rag_sources or [])
     )
 
+    # -- consumo acumulado por agente -------------------------------------------
+    # Se agrega aquí y no en el cliente: la fila de agent_run_steps ya trae el
+    # agente, sus tokens y su latencia, y el cliente solo recibe el resumen.
+    por_agente: dict[str, dict] = {}
+    for r in steps:
+        ag = por_agente.setdefault(r.agent_name, {
+            "name": r.agent_name,
+            "runs": 0, "tokens_in": 0, "tokens_out": 0,
+            "latency_ms": 0.0, "errors": 0,
+        })
+        ag["runs"] += 1
+        ag["tokens_in"] += r.tokens_in or 0
+        ag["tokens_out"] += r.tokens_out or 0
+        ag["latency_ms"] += r.latency_ms or 0.0
+        if r.status not in _completed and r.status != "running":
+            ag["errors"] += 1
+    for ag in por_agente.values():
+        ag["tokens_total"] = ag["tokens_in"] + ag["tokens_out"]
+        ag["latency_ms"] = round(ag["latency_ms"], 1)
+
     return {
         "window_days": WINDOW_DAYS,
+        "by_agent": sorted(por_agente.values(), key=lambda a: a["name"]),
         "tokens_in": tokens_in,
         "tokens_out": tokens_out,
         "tokens_total": tokens_in + tokens_out,
@@ -157,25 +181,46 @@ async def project_articles_summary(session: AsyncSession, project_id: UUID) -> l
     by_article: dict[UUID, dict] = {}
     for r in rows:
         aid = r.article_id
-        if aid not in by_article:
-            by_article[aid] = {
-                "article_id": str(aid),
-                "tokens_in": 0,
-                "tokens_out": 0,
-                "agents_run": set(),
-                "failed": False,
-                "last_run": None,
-            }
-        by_article[aid]["tokens_in"] += r.tokens_in or 0
-        by_article[aid]["tokens_out"] += r.tokens_out or 0
-        by_article[aid]["agents_run"].add(r.agent_name)
-        if r.status not in {"completed", "running"}:
-            by_article[aid]["failed"] = True
-        by_article[aid]["last_run"] = r.created_at
+        art = by_article.setdefault(aid, {
+            "article_id": str(aid),
+            "tokens_in": 0,
+            "tokens_out": 0,
+            "latency_ms": 0.0,
+            "agents_run": set(),
+            # Desglose por agente: lo que la fila desplegable de la tabla enseña.
+            "agents": {},
+            "failed": False,
+            "last_run": None,
+        })
+        art["tokens_in"] += r.tokens_in or 0
+        art["tokens_out"] += r.tokens_out or 0
+        art["latency_ms"] += r.latency_ms or 0.0
+        art["agents_run"].add(r.agent_name)
+        fallo = r.status not in {"completed", "running"}
+        if fallo:
+            art["failed"] = True
+        art["last_run"] = r.created_at
+
+        ag = art["agents"].setdefault(r.agent_name, {
+            "name": r.agent_name,
+            "runs": 0, "tokens_in": 0, "tokens_out": 0,
+            "latency_ms": 0.0, "errors": 0,
+        })
+        ag["runs"] += 1
+        ag["tokens_in"] += r.tokens_in or 0
+        ag["tokens_out"] += r.tokens_out or 0
+        ag["latency_ms"] += r.latency_ms or 0.0
+        if fallo:
+            ag["errors"] += 1
 
     result = []
     for item in by_article.values():
         item["agents_run"] = sorted(item["agents_run"])
         item["tokens_total"] = item["tokens_in"] + item["tokens_out"]
+        item["latency_ms"] = round(item["latency_ms"], 1)
+        for ag in item["agents"].values():
+            ag["tokens_total"] = ag["tokens_in"] + ag["tokens_out"]
+            ag["latency_ms"] = round(ag["latency_ms"], 1)
+        item["agents"] = sorted(item["agents"].values(), key=lambda a: a["name"])
         result.append(item)
     return result

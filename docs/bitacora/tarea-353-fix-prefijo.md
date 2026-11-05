@@ -60,9 +60,40 @@ ciclo de FKs `users` ↔ `projects`.
 
 Los cinco tests pasan ahora de verdad, y con ellos AC6 queda realmente cubierto.
 
+### Segundo fallo: el consumo por agente salía siempre a cero
+
+Con la portada ya cargando, las tarjetas de «Consumo acumulado por agente»
+mostraban el número de ejecuciones pero **0 tokens y 0 de latencia**, y lo mismo
+la columna de latencia de cada artículo y su fila desplegable.
+
+No era falta de datos: `project_articles_summary` devolvía `agents_run`, una lista
+de **nombres** de agente y nada más. El cliente inicializaba
+`{ runs: 0, tokens: 0, latencyMs: 0 }` y solo incrementaba `runs`, porque no tenía
+de dónde sacar el resto. Los ceros estaban escritos en el propio código, con un
+comentario que lo reconocía («Tokens por agente no disponible a nivel global»).
+
+El dato sí estaba: la consulta ya leía `agent_name`, `tokens_in`, `tokens_out` y
+`latency_ms` de cada paso, y descartaba todo menos el nombre.
+
+Se agrega ahora en el servidor, que es donde está la fila:
+
+- `project_summary` devuelve `by_agent`: ejecuciones, tokens y latencia por agente.
+- `project_articles_summary` devuelve `latency_ms` por artículo y `agents` con el
+  mismo desglose, que es lo que pinta la fila desplegable.
+- `MetricsDashboardPage` lee esos campos en vez de fabricar los ceros.
+
+Se mantiene el diseño de una sola petición: agregarlo en el cliente habría exigido
+devolverle los pasos, o volver a las N llamadas a `/explain` que T16.2 quitó.
+
+`test_consumo_por_agente_trae_tokens_y_latencia` cubre el caso: comprueba tokens y
+latencia por agente, a nivel de proyecto y de artículo. Un cero vuelve a fallar.
+
+Que `publicador` salga con 0 tokens es correcto: no llama al LLM.
+
 ### Definition of Done
 
 - [x] La portada muestra los datos del proyecto en desarrollo.
 - [x] El router sigue la convención `/api/v1` del resto del backend.
-- [x] Los 5 tests de T16.2 pasan ejecutando el endpoint, no solo importándolo.
+- [x] Las tarjetas por agente muestran tokens y latencia reales.
+- [x] Los 6 tests de T16.2 pasan ejecutando el endpoint, no solo importándolo.
 - [x] `scripts/check_async_states.py` y `npm run build` en verde.

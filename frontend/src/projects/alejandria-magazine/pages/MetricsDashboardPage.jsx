@@ -154,25 +154,14 @@ export default function MetricsDashboardPage() {
   const anomalies       = summary?.anomalies       ?? {};
   const globalErrors    = anomalies.failed_step    ?? 0;
 
-  // Agregado por agente: lo reconstruimos desde los pasos de cada artículo del summary
-  const agentAggMap = {};
-  for (const art of (summary?.articles ?? [])) {
-    // summary.articles tiene tokens+agentes; desglose detallado sigue leyendo de /explain
-    for (const agName of (art.agents_run || [])) {
-      if (!agentAggMap[agName]) agentAggMap[agName] = { name: agName, runs: 0, tokens: 0, latencyMs: 0, errors: 0 };
-      agentAggMap[agName].runs++;
-    }
-    if (art.failed) {
-      for (const agName of (art.agents_run || [])) {
-        if (agentAggMap[agName]) agentAggMap[agName].errors++;
-      }
-    }
-  }
-  // Tokens por agente no disponible a nivel global sin /explain; los tiles los tenemos del summary
+  // Consumo por agente: lo agrega el backend desde agent_run_steps (una sola petición).
   const AGENT_ORDER = ['investigador', 'redactor', 'revisor', 'formateador', 'publicador'];
-  const agentAgg = Object.values(agentAggMap).sort(
-    (a, b) => (AGENT_ORDER.indexOf(a.name) + 99) - (AGENT_ORDER.indexOf(b.name) + 99)
-  );
+  const agentAgg = (summary?.by_agent ?? [])
+    .map(a => ({
+      name: a.name, runs: a.runs, tokens: a.tokens_total,
+      latencyMs: a.latency_ms, errors: a.errors,
+    }))
+    .sort((a, b) => (AGENT_ORDER.indexOf(a.name) + 99) - (AGENT_ORDER.indexOf(b.name) + 99));
 
   // Mapa de artículo para enriquecer la tabla con títulos del store
   const articleById = Object.fromEntries(articles.map(a => [String(a.id), a]));
@@ -183,7 +172,7 @@ export default function MetricsDashboardPage() {
     .map(sa => {
       const art = articleById[sa.article_id] || {};
       const tokens    = sa.tokens_total ?? 0;
-      const latencyMs = 0; // latencia por artículo no agregada en este endpoint
+      const latencyMs = sa.latency_ms ?? 0;
       const failed    = sa.failed ?? false;
 
       return {
@@ -192,7 +181,9 @@ export default function MetricsDashboardPage() {
         status: art.status || 'draft',
         tokens, latencyMs, errors: failed ? 1 : 0,
         agentBreakdown: Object.fromEntries(
-          (sa.agents_run || []).map(n => [n, { tokens: 0, latencyMs: 0, runs: 1 }])
+          (sa.agents || []).map(a => [a.name, {
+            tokens: a.tokens_total, latencyMs: a.latency_ms, runs: a.runs,
+          }])
         ),
         hasMetrics: true,
         last_run: sa.last_run,
