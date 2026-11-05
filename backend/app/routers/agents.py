@@ -50,6 +50,8 @@ from app.platform.capabilities.rag import (
     EmbeddingDimensionMismatch, embed_vector_size,
 )
 from app.modules.agents.adapters.doc_metadata import extract_doc_metadata
+from app.platform.engine.graph import InvalidVariant, restrict_to
+from app.platform.run_config import FORMAT_MODES
 from app.platform.project_access import (
     get_optional_project_context, get_project_context, load_project_context,
     usuario_actual,
@@ -772,6 +774,37 @@ async def run_agent_pipeline(
                 },
             )
 
+        # La selección de agentes es una **variante del GraphSpec** (SPEC-030 /
+        # T18.2 / AC2), y se valida con las mismas comprobaciones que al cargar el
+        # proyecto. Esto es distinto de `validate_sequence`, que mira las reglas de
+        # flujo: aquí lo que se comprueba es que la forma resultante se pueda
+        # ejecutar —por ejemplo, que no quede un bucle de revisión cuyo destino se
+        # ha quitado—. Antes de empezar y con el motivo; nunca en el minuto ocho.
+        try:
+            restrict_to(alejandria.package().graph, req.flow_sequence)
+        except InvalidVariant as error:
+            raise HTTPException(
+                status_code=422,
+                detail={"message": "La selección de agentes no es ejecutable",
+                        "reason": str(error)},
+            )
+
+        # El modo de formato se valida contra lo declarado (AC6): el que no está
+        # disponible se rechaza **con su motivo**, no con un error genérico.
+        modo = FORMAT_MODES.get(req.format_mode)
+        if modo is None:
+            raise HTTPException(
+                status_code=422,
+                detail={"message": f"Modo de formato desconocido: {req.format_mode!r}",
+                        "available": [m for m, d in FORMAT_MODES.items() if d["available"]]},
+            )
+        if not modo["available"]:
+            raise HTTPException(
+                status_code=422,
+                detail={"message": f"El modo '{modo['label']}' no está disponible",
+                        "reason": modo["detail"]},
+            )
+
     # Use provided keywords if given; otherwise extract from title as fallback
     title = article.title
     if req.keywords:
@@ -864,6 +897,10 @@ async def run_agent_pipeline(
         # the already-generated content instead of an empty draft.
         initial_draft_text=article.body or "",
         article_outline=req.article_outline,
+        # Parametros de esta ejecucion (SPEC-030 / AC3, AC6, AC7).
+        swarm_notes=req.swarm_notes,
+        reference_doc_id=req.reference_doc_id,
+        format_mode=req.format_mode,
         resume=resume,
     )
 

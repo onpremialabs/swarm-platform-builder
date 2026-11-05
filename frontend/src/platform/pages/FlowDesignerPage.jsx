@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { runTarget } from '../runTarget';
+import { DEFAULT_FORMAT_MODE, FORMAT_MODES, MAX_SWARM_NOTES } from '../runConfig';
 import Modal from '../components/ui/Modal';
 import { EmptyState } from '../components/ui/states';
 import {
@@ -56,6 +57,9 @@ export default function FlowDesignerPage() {
   const [runKeywordInput, setRunKeywordInput] = React.useState('');
   const [runDescription, setRunDescription] = React.useState('');
   const [runOutline, setRunOutline] = React.useState('');
+  // Parámetros de esta ejecución (SPEC-030 / T18.3, T18.5).
+  const [runNotes, setRunNotes] = React.useState('');
+  const [runFormatMode, setRunFormatMode] = React.useState(DEFAULT_FORMAT_MODE);
   const [showAdvanced, setShowAdvanced] = React.useState(false);
   // RAG source selection for the run
   const [runDocs, setRunDocs] = React.useState([]);
@@ -392,6 +396,8 @@ export default function FlowDesignerPage() {
           keywords: runKeywords,
           contextDescription: runDescription,
           articleOutline: runOutline,
+          swarmNotes: runNotes,
+          formatMode: runFormatMode,
         }
       });
     } catch (err) {
@@ -576,6 +582,76 @@ export default function FlowDesignerPage() {
                 <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', marginTop: 4 }}>
                   El <strong>Investigador</strong> la usa para afinar la búsqueda semántica. El <strong>Redactor</strong> la recibe como instrucción de enfoque en el prompt.
                 </div>
+              </div>
+
+              {/* Notas del enjambre (SPEC-030 / T18.3 / AC3) */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <label htmlFor="run-notes" style={{ fontSize: 'var(--font-size-sm)', fontWeight: 500 }}>
+                  Notas para el enjambre
+                  <span style={{ fontWeight: 400, color: 'var(--text-muted)', marginLeft: 6 }}>— opcional</span>
+                </label>
+                <textarea
+                  id="run-notes"
+                  className="input"
+                  rows={3}
+                  maxLength={MAX_SWARM_NOTES}
+                  placeholder="Ej: Evita comparaciones con el estudio de 2019; el revisor anterior las marcó como poco sólidas."
+                  value={runNotes}
+                  onChange={e => setRunNotes(e.target.value)}
+                  style={{ resize: 'vertical', fontSize: 'var(--font-size-sm)' }}
+                />
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8,
+                  fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>
+                  <span>
+                    Se pasan como <strong>dato</strong>, no como instrucción: el agente las lee
+                    como contexto y no cambian sus reglas. Quedan en la traza.
+                  </span>
+                  <span style={{ fontFamily: 'var(--font-mono)', flexShrink: 0,
+                    color: runNotes.length >= MAX_SWARM_NOTES ? 'var(--warning)' : undefined }}>
+                    {runNotes.length}/{MAX_SWARM_NOTES}
+                  </span>
+                </div>
+              </div>
+
+              {/* Modo de aprendizaje del formato (SPEC-030 / T18.5 / AC6) */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <span style={{ fontSize: 'var(--font-size-sm)', fontWeight: 500 }}>
+                  Cómo se aprende el formato
+                </span>
+                <div style={{ display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
+                  {Object.entries(FORMAT_MODES).map(([clave, modo]) => (
+                    <label key={clave}
+                      title={modo.detail}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 6,
+                        fontSize: 'var(--font-size-sm)',
+                        cursor: modo.available ? 'pointer' : 'not-allowed',
+                        opacity: modo.available ? 1 : 0.55,
+                      }}>
+                      <input
+                        type="radio"
+                        name="format-mode"
+                        value={clave}
+                        checked={runFormatMode === clave}
+                        disabled={!modo.available}
+                        onChange={() => setRunFormatMode(clave)}
+                      />
+                      {modo.label}
+                      {!modo.available && (
+                        <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>
+                          — no disponible
+                        </span>
+                      )}
+                    </label>
+                  ))}
+                </div>
+                {/* El motivo se enseña, no se esconde: una opción que no aparece
+                    parece no existir, y esta existe y se está decidiendo. */}
+                {!FORMAT_MODES[runFormatMode]?.available ? null : (
+                  <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>
+                    {FORMAT_MODES.finetune.label}: {FORMAT_MODES.finetune.detail}
+                  </div>
+                )}
               </div>
 
               <button

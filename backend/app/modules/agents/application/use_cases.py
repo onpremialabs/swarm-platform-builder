@@ -298,6 +298,22 @@ def make_node_wrapper(agent_name: str, run_fn):
             """Emit a word-by-word token SSE event for visual typing."""
             publish_event(article_id, {"type": "token", "agent": agent_name, "token": token})
 
+        def emit_progress_fn(current: int, total: int, unit: str = "") -> None:
+            """Progreso **fraccional** del agente (SPEC-030 / T18.4 / AC5).
+
+            Lo emite solo quien conoce sus unidades de trabajo de verdad. Quien no
+            las conoce no llama a esto, y la interfaz lo muestra indeterminado:
+            una barra indeterminada dice «no sé cuánto falta», que es cierto,
+            mientras que un porcentaje inventado tiene la precisión de un dato y
+            el valor de una suposición.
+            """
+            if total <= 0 or current < 0:
+                return
+            publish_event(article_id, {
+                "type": "progress", "agent": agent_name,
+                "current": min(current, total), "total": total, "unit": unit,
+            })
+
         async def request_decision_fn(payload: Dict[str, Any]) -> str:
             """Pause this node and await a user decision (human-in-the-loop)."""
             return await request_user_decision(article_id, payload)
@@ -311,6 +327,7 @@ def make_node_wrapper(agent_name: str, run_fn):
         enriched_state = dict(state)
         enriched_state["_log"] = log_fn
         enriched_state["_emit_token"] = emit_token_fn
+        enriched_state["_emit_progress"] = emit_progress_fn
         enriched_state["_request_decision"] = request_decision_fn
         # La ejecución en curso, para que quien persista un informe lo ligue a ella.
         enriched_state["_run_id"] = run_id
@@ -526,6 +543,11 @@ class Orchestrator:
         context_description: str = "",
         initial_draft_text: str = "",
         article_outline: str = "",
+        # Parámetros de la ejecución (SPEC-030 / AC3, AC6, AC7). Con valor por
+        # defecto: una llamada que no los pase sigue funcionando igual.
+        swarm_notes: str = "",
+        reference_doc_id: Optional[str] = None,
+        format_mode: str = "rag",
         resume: bool = False,
     ) -> Dict[str, Any]:
         """Execute the compiled LangGraph flow and return the final state.
@@ -575,6 +597,11 @@ class Orchestrator:
             agent_settings=agent_settings or {},
             context_description=context_description,
             article_outline=article_outline,
+            # Parametros de la ejecucion: los lee quien ejecuta y acaban en la
+            # traza via `params_of`, para que dos pasadas se distingan (AC7).
+            swarm_notes=swarm_notes,
+            reference_doc_id=reference_doc_id,
+            format_mode=format_mode,
         )
 
         verb = "Resuming" if resume else "Starting"

@@ -95,6 +95,11 @@ export default function TraceabilityPage() {
   const runKeywords        = location.state?.keywords || [];
   const contextDescription = location.state?.contextDescription || '';
   const articleOutline     = location.state?.articleOutline || '';
+  // Parámetros de esta ejecución (SPEC-030 / T18.5). Viajan en el estado de
+  // navegación como el resto: el lienzo los recoge y la ejecución los usa.
+  const swarmNotes       = location.state?.swarmNotes || '';
+  const referenceDocId   = location.state?.referenceDocId || null;
+  const formatMode       = location.state?.formatMode || 'rag';
 
   // ── Estado de ejecución ──
   const [steps, setSteps] = useState(
@@ -102,6 +107,8 @@ export default function TraceabilityPage() {
   );
   // iterationCount: cuántas veces ha arrancado cada agente — detecta el bucle revisor→redactor.
   const [iterationCount, setIterationCount] = useState({});
+  // Progreso fraccional por agente, solo para quien lo emite (T18.4 / AC5).
+  const [agentProgress, setAgentProgress] = useState({});
   const [logs, setLogs]         = useState([]);
   const [preview, setPreview]   = useState('');
   const [done, setDone]         = useState(false);
@@ -270,6 +277,15 @@ export default function TraceabilityPage() {
           } else if (data.type === 'token') {
             setPreview(cur => cur + data.token);
 
+          } else if (data.type === 'progress') {
+            // Progreso fraccional (T18.4 / AC5). Solo lo emite quien conoce sus
+            // unidades reales; los demás no mandan nada y se quedan
+            // indeterminados, que es la respuesta honesta.
+            setAgentProgress(prev => ({
+              ...prev,
+              [data.agent]: { current: data.current, total: data.total, unit: data.unit || '' },
+            }));
+
           } else if (data.type === 'agent_end') {
             setAgentTimings(prev => {
               const ag = prev[data.agent] || {};
@@ -364,6 +380,9 @@ export default function TraceabilityPage() {
         flow_sequence: flowSequence, agent_settings: agentSettings,
         keywords: runKeywords, context_description: contextDescription,
         article_outline: articleOutline,
+        swarm_notes: swarmNotes,
+        reference_doc_id: referenceDocId,
+        format_mode: formatMode,
       };
       const request = isResume ? agentsApi.resume(articleId, payload) : agentsApi.run(articleId, payload);
       request.catch(() => toast.error(isResume ? 'Error al reanudar' : 'Error al iniciar el pipeline'));
@@ -382,7 +401,7 @@ export default function TraceabilityPage() {
     setSteps(flowSequence.map(id => ({ id, status: 'waiting', output: '' })));
     setLogs([]); setPreview(''); setDone(false); setPipelineFailed(false);
     setCanResume(false); setCancelled(false); setCancelling(false);
-    setAgentTimings({}); setStartTimeMs(null); setElapsed('—');
+    setAgentTimings({}); setAgentProgress({}); setStartTimeMs(null); setElapsed('—');
     setTraceData(null); startTimeMsRef.current = null;
     resumeRef.current = false; pipelineStarted.current = false;
     setRunCount(c => c + 1);
@@ -626,12 +645,32 @@ export default function TraceabilityPage() {
                         {STATUS_LABEL[step.status] || step.status}
                       </span>
                     </div>
-                    {/* Barra indeterminada — no se deriva un % de tokens ni de tiempo (T18.6 AC5) */}
-                    {step.status === 'running' && (
-                      <div className="trace-step-progress-bar">
-                        <div className="trace-step-progress-fill animate-pulse" />
-                      </div>
-                    )}
+                    {/* AC5: fraccional **solo** si el agente emite unidades reales.
+                        Si no las emite, indeterminado — nunca un % de tokens ni de tiempo. */}
+                    {step.status === 'running' && (() => {
+                      const avance = agentProgress[step.id];
+                      if (!avance || !avance.total) {
+                        return (
+                          <div className="trace-step-progress-bar">
+                            <div className="trace-step-progress-fill animate-pulse" />
+                          </div>
+                        );
+                      }
+                      const pct = Math.round((avance.current / avance.total) * 100);
+                      return (
+                        <>
+                          <div className="trace-step-progress-bar">
+                            <div className="trace-step-progress-fill"
+                              style={{ width: `${pct}%`, transition: 'width .3s' }} />
+                          </div>
+                          <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', marginTop: 3 }}>
+                            {avance.unit === 'secciones'
+                              ? `sección ${avance.current} de ${avance.total}`
+                              : `${avance.current} de ${avance.total} ${avance.unit}`.trim()}
+                          </div>
+                        </>
+                      );
+                    })()}
                   </div>
                 );
               })}
