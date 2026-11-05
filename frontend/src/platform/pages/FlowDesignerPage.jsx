@@ -60,6 +60,10 @@ export default function FlowDesignerPage() {
   // Parámetros de esta ejecución (SPEC-030 / T18.3, T18.5).
   const [runNotes, setRunNotes] = React.useState('');
   const [runFormatMode, setRunFormatMode] = React.useState(DEFAULT_FORMAT_MODE);
+  // Referencia de formato acotada a este paper (T18.1 / AC1). Se guarda el File y
+  // se sube **despues** de crear el articulo: hasta entonces no hay a que atarlo.
+  const [runReference, setRunReference] = React.useState(null);
+  const [uploadingRef, setUploadingRef] = React.useState(false);
   const [showAdvanced, setShowAdvanced] = React.useState(false);
   // RAG source selection for the run
   const [runDocs, setRunDocs] = React.useState([]);
@@ -357,6 +361,23 @@ export default function FlowDesignerPage() {
         const creado = await target.create(titleValue);
         articleId = creado.id;
       }
+      // La referencia se indexa acotada a ESTE articulo, que es lo que evita que
+      // los siguientes papers hereden su estilo. Si falla, se avisa y se sigue:
+      // perder la referencia degrada el resultado, no lo impide.
+      let referenceDocId = null;
+      if (runReference) {
+        setUploadingRef(true);
+        try {
+          const subido = await agentsApi.uploadLibraryDocument(
+            runReference, null, null, null, articleId);
+          referenceDocId = subido?.doc_id || null;
+        } catch {
+          toast.error('No se pudo indexar la referencia; se ejecuta sin ella');
+        } finally {
+          setUploadingRef(false);
+        }
+      }
+
       setShowRunModal(false);
       const agentNodes = nodes.filter(n => n.type === 'agent');
       // En el orden en que se ejecutan: el de las aristas, que es el que se validó.
@@ -398,6 +419,7 @@ export default function FlowDesignerPage() {
           articleOutline: runOutline,
           swarmNotes: runNotes,
           formatMode: runFormatMode,
+          referenceDocId,
         }
       });
     } catch (err) {
@@ -610,6 +632,29 @@ export default function FlowDesignerPage() {
                     color: runNotes.length >= MAX_SWARM_NOTES ? 'var(--warning)' : undefined }}>
                     {runNotes.length}/{MAX_SWARM_NOTES}
                   </span>
+                </div>
+              </div>
+
+              {/* Referencia de formato acotada a este paper (SPEC-030 / T18.1 / AC1) */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <label htmlFor="run-reference" style={{ fontSize: 'var(--font-size-sm)', fontWeight: 500 }}>
+                  Documento de referencia
+                  <span style={{ fontWeight: 400, color: 'var(--text-muted)', marginLeft: 6 }}>— opcional</span>
+                </label>
+                <input
+                  id="run-reference"
+                  type="file"
+                  accept=".txt,.md,.pdf,.docx"
+                  className="input"
+                  onChange={e => setRunReference(e.target.files?.[0] || null)}
+                  style={{ fontSize: 'var(--font-size-sm)' }}
+                />
+                <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>
+                  {runReference
+                    ? <>Se indexará <strong>solo para este artículo</strong>: los demás papers del
+                       proyecto no lo recuperarán.</>
+                    : <>Una plantilla de estilo o un paper modelo. Queda acotado a este artículo,
+                       así que no contamina la biblioteca del proyecto.</>}
                 </div>
               </div>
 

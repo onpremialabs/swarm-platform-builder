@@ -284,16 +284,40 @@ async def upload_to_rag_library(
     collection: str | None = Form(None),
     chunk_size: int | None = Form(None),
     chunk_overlap: int | None = Form(None),
+    article_id: str | None = Form(None),
     token_data=Depends(require_redactor),
     project: ProjectContext = Depends(get_project_context),
+    session: AsyncSession = Depends(get_session),
 ):
     """Sube un documento a la biblioteca compartida **del proyecto activo**.
 
     «Compartida» significa compartida entre los agentes del proyecto, no entre
     proyectos: antes era una sola biblioteca global y el bucket `__library__` se
     leía desde cualquier pipeline (SPEC-013 / T8.5 / AC6).
+
+    Con ``article_id`` el documento queda **acotado a ese paper** (SPEC-030 /
+    T18.1 / AC1): lo recuperan los agentes al generarlo y no aparece en las
+    recuperaciones de los demás. Es lo que permite subir la plantilla de estilo de
+    un artículo sin que los siguientes la hereden.
     """
     from app.core.config import settings
+
+    # Acotar a un artículo **de otro proyecto** sería una vía para plantar un
+    # documento en su espacio: el aislamiento de T8.5 no puede depender de lo que
+    # mande el cliente. 404 y no 403, por el mismo motivo que en el resto del
+    # repo: la respuesta no debe distinguir «existe pero no es tuyo» de «no existe».
+    alcance_articulo: str | None = None
+    if article_id:
+        try:
+            uuid_articulo = UUID(str(article_id))
+        except ValueError:
+            raise HTTPException(status_code=422, detail="article_id no es un UUID")
+        destino = (await session.execute(
+            select(ArticleModel).where(ArticleModel.id == uuid_articulo)
+        )).scalars().first()
+        if destino is None or destino.project_id != project.project_id:
+            raise HTTPException(status_code=404, detail="Article not found")
+        alcance_articulo = str(uuid_articulo)
 
     from app.platform.uploads import validate_upload
 
@@ -333,6 +357,7 @@ async def upload_to_rag_library(
             api_key=settings.QDRANT_API_KEY,
             doc_title=metadata.get("title", ""),
             doc_authors=metadata.get("authors", ""),
+            article_id=alcance_articulo,
         )
     except EmbeddingDimensionMismatch as error:
         raise HTTPException(status_code=409, detail=str(error))

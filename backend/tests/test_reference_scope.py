@@ -160,3 +160,30 @@ async def test_elegir_un_doc_a_mano_no_salta_el_acotamiento(coleccion, monkeypat
 
 async def _falso() -> bool:
     return False
+
+
+# ── La subida acotada no puede plantar en otro proyecto ────────────────────
+
+def test_el_endpoint_de_subida_acepta_article_id():
+    """La vía de un solo paso existe: subir y acotar en la misma petición."""
+    import inspect
+    from app.routers.agents import upload_to_rag_library
+
+    assert "article_id" in inspect.signature(upload_to_rag_library).parameters
+
+
+def test_la_subida_valida_que_el_articulo_sea_del_proyecto():
+    """Acotar a un artículo ajeno sería plantar un documento en su espacio.
+
+    El aislamiento de T8.5 no puede depender de lo que mande el cliente, así que
+    el `article_id` se comprueba contra el proyecto resuelto por la cabecera.
+    """
+    import inspect
+    from app.routers import agents
+
+    fuente = inspect.getsource(agents.upload_to_rag_library)
+    assert "destino.project_id != project.project_id" in fuente, (
+        "la subida debe comprobar que el artículo es del proyecto activo"
+    )
+    # 404 y no 403: la respuesta no distingue «existe pero no es tuyo» de «no existe».
+    assert "404" in fuente

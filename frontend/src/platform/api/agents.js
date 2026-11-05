@@ -109,12 +109,17 @@ export const agentsApi = {
       params: collection ? { collection } : {},
     }).then(r => r.data),
 
-  uploadLibraryDocument: (file, collection, chunkSize, chunkOverlap) => {
+  // `articleId` acota el documento a **ese** paper (SPEC-030 / T18.1 / AC1): los
+  // agentes lo recuperan al generarlo y no aparece en los demás. Sin él, el
+  // documento es compartido por todo el proyecto, que es el comportamiento de
+  // siempre y el que contamina si se usa para una plantilla de un solo paper.
+  uploadLibraryDocument: (file, collection, chunkSize, chunkOverlap, articleId) => {
     const form = new FormData();
     form.append('file', file);
     if (collection) form.append('collection', collection);
     if (chunkSize != null) form.append('chunk_size', String(chunkSize));
     if (chunkOverlap != null) form.append('chunk_overlap', String(chunkOverlap));
+    if (articleId) form.append('article_id', String(articleId));
     return api.post('/api/v1/agents/rag/library/upload', form, {
       headers: { 'Content-Type': 'multipart/form-data' },
     }).then(r => r.data);

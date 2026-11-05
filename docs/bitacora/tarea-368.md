@@ -33,13 +33,23 @@ Si divergen, la interfaz enseñaría un tope o una opción que el servidor no ac
 el error llegaría al ejecutar en vez de al escribir: molesto, no peligroso. Lo
 contrario —que el cliente decidiera qué es válido— sí lo sería.
 
-### Qué no se hizo
+### La subida en un paso
 
-- **La subida de la referencia desde esta pantalla.** El acotamiento por documento
-  funciona y está probado (T18.1), y el endpoint acepta `reference_doc_id`, pero el
-  selector que sube un fichero y lo ata a este paper en un paso no está: hoy se
-  sube por la pantalla de documentos y se pasa el identificador. Queda como trabajo
-  de interfaz, no de mecanismo.
+El selector de fichero está en el panel de ejecución. El orden importa y no es
+obvio: **hasta que no se crea el artículo no hay a qué atar la referencia**, así
+que el `File` se guarda en el estado y se sube justo después de `target.create()`,
+con el `article_id` recién obtenido, antes de navegar.
+
+`POST /api/v1/agents/rag/library/upload` acepta ahora `article_id` y **comprueba
+que el artículo sea del proyecto activo**. Sin esa comprobación, acotar a un
+artículo ajeno sería una vía para plantar un documento en el espacio de otro
+proyecto: el aislamiento de T8.5 no puede depender de lo que mande el cliente.
+Responde 404 y no 403, por el mismo motivo que el resto del repo — la respuesta no
+debe distinguir «existe pero no es tuyo» de «no existe».
+
+Si la indexación falla se avisa y la ejecución **sigue sin la referencia**: perder
+la plantilla degrada el resultado, no lo impide, y abortar aquí tiraría un artículo
+ya creado.
 
 ### Definition of Done
 
@@ -47,4 +57,5 @@ contrario —que el cliente decidiera qué es válido— sí lo sería.
 - [x] AC6: el modo elegido queda registrado en la ejecución.
 - [x] AC7: referencia, agentes, notas y modo quedan en la traza.
 - [x] La selección de agentes se valida antes de arrancar (vía T18.2).
-- [ ] Subida de la referencia en un paso desde esta pantalla.
+- [x] Subida de la referencia en un paso desde esta pantalla, acotada al artículo
+      y con el proyecto comprobado.
