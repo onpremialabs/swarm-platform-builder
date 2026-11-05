@@ -20,6 +20,17 @@ function fmt(ms) {
   return `${Math.floor(s / 60)} min ${Math.round(s % 60)} s`;
 }
 
+// Latencia de agente, siempre en segundos. `fmt` cambia de unidad según la
+// magnitud, y eso rompe la comparación entre agentes: el publicador, que no
+// llama al LLM, salía en ms al lado de agentes medidos en minutos.
+function fmtSeg(ms) {
+  if (!ms || ms <= 0) return '—';
+  const s = (ms / 1000).toLocaleString('es-ES', {
+    minimumFractionDigits: 1, maximumFractionDigits: 1,
+  });
+  return `${s} s`;
+}
+
 function fmtNum(n) {
   return (n ?? 0).toLocaleString('es-ES');
 }
@@ -107,11 +118,11 @@ function AgentCard({ data }) {
         </div>
         <div className="metrics-agent-stat">
           <span className="metrics-agent-stat-label">Latencia media</span>
-          <span className="metrics-agent-stat-val">{fmt(avgLat)}</span>
+          <span className="metrics-agent-stat-val">{fmtSeg(avgLat)}</span>
         </div>
         <div className="metrics-agent-stat">
           <span className="metrics-agent-stat-label">Latencia total</span>
-          <span className="metrics-agent-stat-val">{fmt(data.latencyMs)}</span>
+          <span className="metrics-agent-stat-val">{fmtSeg(data.latencyMs)}</span>
         </div>
       </div>
     </div>
@@ -438,7 +449,7 @@ export default function MetricsDashboardPage() {
                             {fmtNum(ag.tokens)}
                           </span>
                           <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--font-size-xs)', color: 'var(--text-secondary)' }}>
-                            {fmt(ag.latencyMs)}
+                            {fmtSeg(ag.latencyMs)}
                           </span>
                           <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>
                             {ag.runs}
