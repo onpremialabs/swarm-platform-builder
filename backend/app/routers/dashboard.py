@@ -13,18 +13,24 @@ esta misma spec persigue en el AC3—. Ahora cada agregación va en su propio in
 y la respuesta declara en ``sections`` cuáles pudieron calcularse. Lo que no se
 pudo preguntar se dice; no se rellena con ceros.
 """
+import asyncio
+import json
 import logging
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_session
+from app.core.stream_auth import consume_project_ticket, issue_project_ticket
+from app.platform.bus import get_bus
 from app.platform.project_access import get_project_context
 from app.platform.project_context import ProjectContext
 from app.platform.summary import (
     project_articles_summary, project_executions, project_summary,
     project_swarm_state,
 )
+from app.routers.auth import get_current_user
 
 logger = logging.getLogger(__name__)
 
@@ -110,3 +116,58 @@ async def get_dashboard_summary(
         "executions": executions,
         "sections": sections,
     }
+
+
+@router.post("/log-ticket")
+async def create_project_log_ticket(
+    project: ProjectContext = Depends(get_project_context),
+    token_data=Depends(get_current_user),
+):
+    """Ticket de un solo uso para el log en vivo del proyecto (T17.5).
+
+    Mismo motivo que el de artículo: `EventSource` no manda cabecera
+    `Authorization`, y poner el JWT en el query string lo filtra a logs, historial
+    y proxies. El ticket queda atado a **este** proyecto, ya autorizado por
+    `get_project_context`.
+    """
+    ticket = await issue_project_ticket(token_data["user_id"], str(project.project_id))
+    return {"ticket": ticket}
+
+
+@router.get("/log-stream")
+async def stream_project_log(
+    ticket: str | None = None,
+    project: ProjectContext = Depends(get_project_context),
+):
+    """Log en vivo del proyecto activo (SPEC-029 / T17.5 / AC2).
+
+    **El filtro es de servidor.** El bus entrega a este flujo solo los eventos de
+    artículos vinculados a este proyecto: uno de otro proyecto no llega al
+    cliente ni siquiera para descartarse en el navegador. Filtrar en el cliente
+    habría significado mandárselo primero, que es exactamente la fuga que AC2
+    quiere evitar en la vista pensada para auditar.
+
+    Un artículo sin vincular no emite aquí. Ante la duda no se entrega: perder
+    una línea del log molesta; entregarla al proyecto ajeno rompe T8.5.
+    """
+    user_id = await consume_project_ticket(ticket, str(project.project_id)) if ticket else None
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Ticket de stream ausente o no válido")
+
+    async def eventos():
+        async with get_bus().subscribe_project(project.project_id) as cola:
+            try:
+                while True:
+                    try:
+                        evento = await asyncio.wait_for(cola.get(), timeout=20)
+                    except asyncio.TimeoutError:
+                        # Comentario SSE: mantiene viva la conexión a través de
+                        # proxies que cortan por inactividad, sin inventarse un
+                        # evento que el cliente tendría que aprender a ignorar.
+                        yield ": keep-alive\n\n"
+                        continue
+                    yield f"data: {json.dumps(evento, default=str)}\n\n"
+            except asyncio.CancelledError:
+                raise
+
+    return StreamingResponse(eventos(), media_type="text/event-stream")

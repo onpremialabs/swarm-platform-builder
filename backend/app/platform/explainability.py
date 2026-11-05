@@ -25,6 +25,8 @@ observar no puede romper lo observado.
 """
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 from contextlib import contextmanager
 from contextvars import ContextVar
@@ -245,6 +247,152 @@ def group_executions(pasos: List[Any]) -> List[List[Any]]:
             ejecuciones.append([])
         ejecuciones[-1].append(paso)
     return ejecuciones
+
+
+# ── Cadena de integridad (SPEC-029 / T17.2 / AC4) ───────────────────────────
+
+#: Versión de la serialización canónica. Va **en la fila**, no solo aquí: si
+#: mañana cambia qué campos entran o cómo se formatean, las cadenas ya escritas
+#: tienen que seguir verificándose con la versión que las produjo. Sin este
+#: número, un cambio de formato convertiría toda la traza vieja en «manipulada».
+CANON_VERSION: int = 1
+
+#: Ancla del primer paso de cada ejecución (AC4: «ancla en un valor conocido»).
+#: Es un valor fijo y público: no aporta secreto, aporta que la cadena empiece en
+#: algo definido en vez de en nada, para que insertar un paso al principio rompa
+#: el enlace igual que insertarlo en medio.
+ANCLA_GENESIS: str = "0" * 64
+
+#: Qué entra en el hash, en este orden. Explícito y no «todo lo que haya», para
+#: que añadir una columna a la tabla no invalide en silencio las cadenas previas:
+#: ampliar esta lista obliga a subir CANON_VERSION.
+_CAMPOS_CANONICOS = (
+    "article_id", "project_id", "agent_name", "step_index", "iteration",
+    "status", "error_message", "model", "params", "input_digest",
+    "output_text", "rag_sources", "tokens_in", "tokens_out", "latency_ms",
+    "decision", "rationale",
+)
+
+#: Fuera del hash, a propósito:
+#:   * `id` y `run_id` son claves sustitutas, no contenido.
+#:   * `correlation_id` sirve para cruzar logs y puede faltar.
+#:   * `created_at` no entra porque no sobrevive de forma fiable al viaje de ida
+#:     y vuelta por SQLite —precisión y zona horaria varían— y una cadena que da
+#:     falsos positivos por eso entrena a ignorar la alarma. La **posición** de
+#:     cada paso sí queda protegida, pero por el encadenado (`prev_hash`), que es
+#:     el mecanismo que AC5 necesita para detectar borrados e inserciones.
+#: Esto es parte de lo que la pestaña de integridad debe declarar (AC6).
+
+
+def _normalizar(clave: str, valor: Any) -> Any:
+    """Lleva un valor a una forma estable entre escritura y verificación.
+
+    Los UUID se comparan como texto porque el driver puede devolverlos como
+    objeto o como cadena según de dónde venga la fila. Los flotantes se redondean
+    a una décima: el único que entra es `latency_ms`, y su dígito dieciséis no
+    dice nada que merezca un falso positivo.
+    """
+    if valor is None:
+        return None
+    if clave in ("article_id", "project_id"):
+        return str(valor)
+    if isinstance(valor, float):
+        return round(valor, 1)
+    return valor
+
+
+def canonical_form(paso: Any, *, version: int = CANON_VERSION) -> str:
+    """Serialización canónica de un paso: orden de claves y formato fijos.
+
+    Acepta tanto el `dict` de campos con el que se escribe la fila como la fila
+    ya leída de la base, para que escribir y verificar usen exactamente el mismo
+    código. Dos implementaciones que «deberían coincidir» acaban no coincidiendo.
+    """
+    def leer(clave: str) -> Any:
+        bruto = paso.get(clave) if isinstance(paso, dict) else getattr(paso, clave, None)
+        return _normalizar(clave, bruto)
+
+    datos = {clave: leer(clave) for clave in _CAMPOS_CANONICOS}
+    datos["__v"] = version
+    # `sort_keys` para que el orden no dependa del dict, y separadores sin
+    # espacios para que no dependa del formateador.
+    return json.dumps(datos, sort_keys=True, separators=(",", ":"),
+                      ensure_ascii=False, default=str)
+
+
+def compute_hash(paso: Any, prev_hash: Optional[str], *,
+                 version: int = CANON_VERSION) -> str:
+    """`sha256(canónico(paso) || hash_anterior)` (AC4).
+
+    El hash anterior entra **dentro** del digest, no al lado: así cada eslabón
+    depende de todos los anteriores y no se puede recolocar un paso sin que el
+    resto deje de cuadrar.
+    """
+    material = f"{canonical_form(paso, version=version)}|{prev_hash or ANCLA_GENESIS}"
+    return hashlib.sha256(material.encode("utf-8")).hexdigest()
+
+
+def verify_chain(pasos: List[Any]) -> Dict[str, Any]:
+    """Verifica la cadena de **una** ejecución (AC5).
+
+    Recibe los pasos de una sola ejecución, en orden cronológico — tal y como los
+    deja `group_executions`. Agrupar por otro criterio haría que dos ejecuciones
+    del mismo artículo parecieran una cadena rota (AC7).
+
+    Devuelve qué se comprobó y, si algo no cuadra, **cuál** paso y en qué
+    posición. Un informe que solo dijera «la cadena está rota» obligaría a
+    revisar la ejecución entera a mano.
+    """
+    problemas: List[Dict[str, Any]] = []
+    sin_cadena = 0
+    anterior: Optional[str] = None
+
+    for posicion, paso in enumerate(pasos):
+        guardado = getattr(paso, "content_hash", None)
+        version = getattr(paso, "hash_version", None) or CANON_VERSION
+
+        if not guardado:
+            # Paso anterior a T17.2, o escrito cuando el hashing falló. No es
+            # manipulación: es ausencia de prueba, y decir lo contrario sería
+            # exactamente la confianza infundada que AC6 quiere evitar.
+            sin_cadena += 1
+            anterior = None
+            continue
+
+        esperado_prev = getattr(paso, "prev_hash", None)
+        if anterior is not None and esperado_prev != anterior:
+            problemas.append({
+                "position": posicion,
+                "step_index": getattr(paso, "step_index", None),
+                "agent_name": getattr(paso, "agent_name", None),
+                "problem": "enlace_roto",
+                "detail": (
+                    "El paso no enlaza con el anterior: falta un paso por medio, "
+                    "se insertó uno, o se reordenaron."
+                ),
+            })
+
+        recalculado = compute_hash(paso, esperado_prev, version=version)
+        if recalculado != guardado:
+            problemas.append({
+                "position": posicion,
+                "step_index": getattr(paso, "step_index", None),
+                "agent_name": getattr(paso, "agent_name", None),
+                "problem": "contenido_alterado",
+                "detail": "El contenido del paso no produce el hash que tiene guardado.",
+            })
+
+        anterior = guardado
+
+    verificados = len(pasos) - sin_cadena
+    return {
+        "steps": len(pasos),
+        "verified": verificados,
+        "unchained": sin_cadena,
+        "intact": not problemas and verificados > 0,
+        "issues": problemas,
+        "canon_version": CANON_VERSION,
+    }
 
 
 def aggregate_sources(pasos: Iterable[Any]) -> List[Dict[str, Any]]:
