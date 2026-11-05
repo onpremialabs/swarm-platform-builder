@@ -1884,6 +1884,34 @@ textarea.input { resize: vertical; min-height: 80px; line-height: var(--leading-
   border-bottom: 1px solid var(--border-subtle);
 }
 
+/* Ejecuciones del proyecto (T17.1): una fila por pasada del pipeline. */
+.metrics-exec-thead,
+.metrics-exec-row {
+  display: grid;
+  grid-template-columns: 2fr 110px 90px 90px 90px 90px 130px;
+  gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-2) var(--space-4);
+}
+
+.metrics-exec-thead {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  background: var(--bg-inset);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.metrics-exec-row {
+  border-bottom: 1px solid var(--border-subtle);
+  padding-top: var(--space-3);
+  padding-bottom: var(--space-3);
+}
+.metrics-exec-row:last-child { border-bottom: none; }
+.metrics-exec-row:hover { background: var(--bg-hover); }
+
 .metrics-art-item {
   border-bottom: 1px solid var(--border-subtle);
 }
@@ -1936,6 +1964,8 @@ textarea.input { resize: vertical; min-height: 80px; line-height: var(--leading-
 @media (max-width: 1024px) {
   .metrics-tiles-grid { grid-template-columns: repeat(3, 1fr); }
   .metrics-agent-cards { grid-template-columns: repeat(2, 1fr); }
+  .metrics-exec-thead,
+  .metrics-exec-row { grid-template-columns: 2fr 100px 80px 70px 80px 80px 110px; }
 }
 
 @media (max-width: 768px) {
@@ -1943,4 +1973,6 @@ textarea.input { resize: vertical; min-height: 80px; line-height: var(--leading-
   .metrics-agent-cards { grid-template-columns: 1fr 1fr; }
   .metrics-art-thead { display: none; }
   .metrics-art-row { grid-template-columns: 1fr auto; }
+  .metrics-exec-thead { display: none; }
+  .metrics-exec-row { grid-template-columns: 1fr auto; }
 }

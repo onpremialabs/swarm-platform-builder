@@ -32,11 +32,8 @@ function formatDurationLive(ms) {
 
 const STATUS_LABEL = { waiting: 'Pendiente', running: 'En ejecución', completed: 'Completado', failed: 'Error' };
 
-const AGENT_COLORS = {
-  investigador: 'var(--agent-research)', redactor: 'var(--agent-write)',
-  revisor: 'var(--agent-review)', formateador: 'var(--agent-format)',
-  publicador: 'var(--agent-publish)',
-};
+/** Color del agente según el catálogo del proyecto; el de marca si no está. */
+const agentColor = (name) => agentMeta(name)?.color || 'var(--brand)';
 
 // ─── Gráfico de barras SVG ───────────────────────────────────────────────────
 
@@ -60,7 +57,7 @@ function BarChart({ data, unit }) {
               {d.label || d.name}
             </text>
             <rect x={labelW} y={y} width={barW} height={barH}
-              fill={AGENT_COLORS[d.name] || 'var(--brand)'} rx="4" opacity="0.9" />
+              fill={agentColor(d.name)} rx="4" opacity="0.9" />
             <text x={labelW + barW + 6} y={y + barH * 0.72}
               fontSize="11" fill="var(--text-muted)" fontFamily="var(--font-sans)">
               {displayVal}

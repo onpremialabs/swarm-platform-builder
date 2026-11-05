@@ -35,6 +35,15 @@ function fmtNum(n) {
   return (n ?? 0).toLocaleString('es-ES');
 }
 
+function fmtFecha(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleString('es-ES', {
+    day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit',
+  });
+}
+
 const STATUS_LABEL = {
   draft: 'Borrador', published: 'Publicado', failed: 'Fallido',
   generating: 'Generando', review: 'En revisión',
@@ -46,11 +55,8 @@ const STATUS_CLS = {
   draft: 'badge-draft',
 };
 
-const AGENT_COLORS = {
-  investigador: 'var(--agent-research)', redactor: 'var(--agent-write)',
-  revisor:      'var(--agent-review)',   formateador: 'var(--agent-format)',
-  publicador:   'var(--agent-publish)',
-};
+/** Color del agente según el catálogo del proyecto; gris si no está. */
+const agentColor = (name) => agentMeta(name)?.color || 'var(--text-muted)';
 
 // ─── Tile global ──────────────────────────────────────────────────────────────
 
@@ -88,7 +94,7 @@ function Bar({ value, max, color }) {
 function AgentCard({ data }) {
   const meta   = agentMeta(data.name) || {};
   const Icono  = meta.icon;
-  const color  = AGENT_COLORS[data.name] || 'var(--text-muted)';
+  const color  = agentColor(data.name);
   const avgLat = data.runs > 0 ? Math.round(data.latencyMs / data.runs) : 0;
 
   return (
@@ -210,6 +216,15 @@ export default function MetricsDashboardPage() {
   const maxTokens  = Math.max(...articleRows.map(r => r.tokens),    1);
   const maxLatency = Math.max(...articleRows.map(r => r.latencyMs), 1);
 
+  // Ejecuciones del proyecto (SPEC-029 / T17.1 / AC1): una fila por pasada del
+  // pipeline. La tabla por artículo agrega, y al agregar funde las reejecuciones:
+  // una segunda pasada desaparecía sumada a la primera.
+  const executionRows = (summary?.executions ?? []).map(ex => ({
+    ...ex,
+    title: articleById[ex.article_id]?.title
+      || `Artículo ${String(ex.article_id).slice(0, 8)}`,
+  }));
+
   // ── RENDER ───────────────────────────────────────────────────────────────────
   return (
     <div className="metrics-page">
@@ -255,8 +270,8 @@ export default function MetricsDashboardPage() {
           sub={`en los últimos ${summary?.window_days ?? 7} días`}
           color="var(--agent-format)" />
         <StatTile icon={<Zap size={20} />}          label="Ejecuciones de pipeline"
-          value={fmtNum(summary?.agent_runs_total ?? 0)}
-          sub="filas en agent_runs del proyecto"
+          value={fmtNum(summary?.executions_total ?? 0)}
+          sub="pasadas completas, no pasos"
           color="var(--agent-review)" />
         <StatTile icon={<XCircle size={20} />}      label="Pasos con error"
           value={globalErrors}
@@ -313,6 +328,88 @@ export default function MetricsDashboardPage() {
           </div>
         </section>
       )}
+
+      {/* EJECUCIONES DEL PROYECTO (T17.1 / AC1) — una fila por pasada */}
+      <section>
+        <h3 className="metrics-section-title">
+          <Activity size={16} /> Ejecuciones del proyecto
+        </h3>
+        <div className="metrics-card">
+          <div className="metrics-exec-thead">
+            <span>Ejecución</span>
+            <span>Cuándo</span>
+            <span>Agentes</span>
+            <span>Pasos</span>
+            <span>Tokens</span>
+            <span>Latencia</span>
+            <span>Estado</span>
+          </div>
+
+          {executionRows.length === 0 ? (
+            <div style={{ padding: 'var(--space-5)', textAlign: 'center',
+              color: 'var(--text-muted)', fontSize: 'var(--font-size-sm)' }}>
+              Sin ejecuciones en los últimos {summary?.window_days ?? 7} días.
+            </div>
+          ) : executionRows.map(ex => (
+            <div key={ex.execution_id} className="metrics-exec-row">
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontWeight: 500, fontSize: 'var(--font-size-sm)',
+                  color: 'var(--text-heading)', overflow: 'hidden',
+                  textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {ex.title}
+                </div>
+                {/* «2 de 3» distingue una reejecución de un retroceso inexplicado */}
+                {ex.runs_total > 1 && (
+                  <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--agent-write)' }}>
+                    pasada {ex.run_number} de {ex.runs_total}
+                  </span>
+                )}
+              </div>
+
+              <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-secondary)' }}>
+                {fmtFecha(ex.started_at)}
+              </span>
+
+              <span style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+                {(ex.agents_run || []).map(n => {
+                  const Icono = agentMeta(n)?.icon;
+                  return Icono
+                    ? <Icono key={n} size={13} style={{ color: agentColor(n) }} />
+                    : <span key={n} style={{ fontSize: 'var(--font-size-xs)' }}>{n.slice(0, 3)}</span>;
+                })}
+              </span>
+
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--font-size-xs)' }}>
+                {ex.steps}
+                {ex.loops > 0 && (
+                  <span style={{ color: 'var(--agent-write)' }}> · {ex.loops} bucle{ex.loops !== 1 ? 's' : ''}</span>
+                )}
+              </span>
+
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--font-size-xs)' }}>
+                {fmtNum(ex.tokens_total)}
+              </span>
+
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--font-size-xs)' }}>
+                {fmtSeg(ex.latency_ms)}
+              </span>
+
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
+                {ex.status === 'failed'
+                  ? <span className="badge badge-error" style={{ fontSize: 10 }}>Fallida</span>
+                  : ex.status === 'running'
+                    ? <span className="badge badge-running" style={{ fontSize: 10 }}>En curso</span>
+                    : <CheckCircle size={15} style={{ color: 'var(--success)' }} />}
+                <button className="btn btn-ghost btn-sm"
+                  style={{ fontSize: 'var(--font-size-xs)', padding: '3px 8px' }}
+                  onClick={() => navigate(`/dashboard/execution/${ex.article_id}`, { state: {} })}>
+                  Trazas
+                </button>
+              </span>
+            </div>
+          ))}
+        </div>
+      </section>
 
       {/* TABLA DE ARTÍCULOS */}
       <section>
@@ -442,7 +539,7 @@ export default function MetricsDashboardPage() {
                       return (
                         <div key={name} className="metrics-art-breakdown-row">
                           <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            {Icono && <Icono size={13} style={{ color: AGENT_COLORS[name] || 'var(--text-muted)', flexShrink: 0 }} />}
+                            {Icono && <Icono size={13} style={{ color: agentColor(name), flexShrink: 0 }} />}
                             <span style={{ fontSize: 'var(--font-size-xs)', fontWeight: 500 }}>{meta.label || name}</span>
                           </span>
                           <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--font-size-xs)', color: 'var(--text-secondary)' }}>

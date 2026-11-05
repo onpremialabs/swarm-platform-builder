@@ -161,7 +161,10 @@ export default function App() {
           <Route path="/dashboard" element={
             <ProtectedRoute><RequireProject><DashboardPage /></RequireProject></ProtectedRoute>
           }>
-            <Route index element={<Navigate to="articles" replace />} />
+            {/* El index ya no redirige a «artículos» (SPEC-028 / T16.5): entrar
+                en /dashboard enseña la portada del proyecto. /dashboard/traceability
+                sigue sirviéndola para que el menú y los enlaces guardados valgan. */}
+            <Route index element={<MetricsDashboardPage />} />
             <Route path="flow-designer" element={<FlowDesignerPage />} />
             <Route path="flows"         element={<FlowsPage />} />
             <Route path="agents"        element={<AgentsPage />} />

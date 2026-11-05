@@ -12,7 +12,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_session
 from app.platform.project_access import get_project_context
 from app.platform.project_context import ProjectContext
-from app.platform.summary import project_articles_summary, project_summary
+from app.platform.summary import (
+    project_articles_summary, project_executions, project_summary,
+)
 
 router = APIRouter(prefix="/api/v1/dashboard", tags=["dashboard"])
 
@@ -39,7 +41,9 @@ async def get_dashboard_summary(
     """
     summary = await project_summary(session, project.project_id)
     articles = await project_articles_summary(session, project.project_id)
+    executions = await project_executions(session, project.project_id)
     return {
         **summary,
         "articles": articles,
+        "executions": executions,
     }

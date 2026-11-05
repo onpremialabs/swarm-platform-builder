@@ -6,7 +6,7 @@ AC6: dos proyectos con ejecuciones, la portada de uno no incluye datos del otro.
 """
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from uuid import uuid4
 
@@ -31,14 +31,21 @@ from app.models import (  # noqa: E402
 
 @pytest_asyncio.fixture(autouse=True)
 async def setup_db():
-    # El pool mantiene abierto el fichero SQLite: en Windows un unlink sobre un
-    # fichero abierto lanza PermissionError, así que se cierra antes de borrar.
-    await engine.dispose()
-    if TEST_DB_PATH.exists():
-        TEST_DB_PATH.unlink()
+    """Esquema limpio por test, sin tocar el fichero.
+
+    No se borra `TEST_DB_PATH`: `engine` es un singleton de módulo y lo fija el
+    primer test que importe `app.core.database`, que al correr la suite entera no
+    tiene por qué ser este. Borrando el fichero se vaciaba uno que el engine no
+    estaba usando y las filas del test anterior seguían ahí —`UNIQUE constraint
+    failed: users.email`—; en Windows, además, el unlink fallaba con el pool
+    abierto. Vaciar el esquema vale para las dos cosas.
+    """
     async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
     yield
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
     await engine.dispose()
 
 
@@ -211,6 +218,56 @@ async def test_consumo_por_agente_trae_tokens_y_latencia(dos_proyectos):
     ag = next(a for a in art["agents"] if a["name"] == "redactor")
     assert ag["tokens_total"] == 300
     assert ag["latency_ms"] == 1500.0
+
+
+@pytest.mark.asyncio
+async def test_reejecucion_aparece_como_dos_ejecuciones(dos_proyectos):
+    """AC1 (T17.1): una segunda pasada es su propia fila, no se funde con la primera.
+
+    La portada agrupaba por artículo, así que reejecutar uno sumaba sus tokens a la
+    misma fila y la pasada desaparecía de la vista.
+    """
+    from app.main import app
+
+    p1 = dos_proyectos["p1"]
+    a1 = dos_proyectos["a1"]
+    base = datetime.now(timezone.utc)
+
+    # Segunda pasada del pipeline sobre el mismo artículo: step_index vuelve a 0.
+    async with AsyncSessionLocal() as s:
+        for idx, agente in enumerate(["investigador", "redactor"]):
+            s.add(AgentRunStepModel(
+                article_id=a1.id, project_id=p1.id,
+                agent_name=agente, step_index=idx, iteration=0,
+                status="completed", tokens_in=50, tokens_out=70,
+                latency_ms=900.0, rag_sources=[],
+                created_at=base + timedelta(minutes=idx + 1),
+            ))
+        await s.commit()
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        resp = await ac.post("/api/v1/auth/login", json={"email": "admin@test", "password": "pw"})
+        token = resp.json()["access_token"]
+        headers = {"Authorization": f"Bearer {token}", "X-Project-Id": str(p1.id)}
+
+        resp = await ac.get("/api/v1/dashboard/summary", headers=headers)
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+
+    del_articulo = [e for e in body["executions"] if e["article_id"] == str(a1.id)]
+    assert len(del_articulo) == 2, "la reejecución se fundió con la primera pasada"
+    assert {e["run_number"] for e in del_articulo} == {1, 2}
+    assert all(e["runs_total"] == 2 for e in del_articulo)
+
+    primera = next(e for e in del_articulo if e["run_number"] == 1)
+    segunda = next(e for e in del_articulo if e["run_number"] == 2)
+    assert primera["steps"] == 1 and primera["tokens_total"] == 300
+    assert segunda["steps"] == 2 and segunda["tokens_total"] == 240
+    assert segunda["agents_run"] == ["investigador", "redactor"]
+
+    # La magnitud de la portada cuenta pasadas, no filas de agent_runs (una por paso).
+    assert body["executions_total"] == 2
+    assert body["steps_total"] == 3
 
 
 @pytest.mark.asyncio

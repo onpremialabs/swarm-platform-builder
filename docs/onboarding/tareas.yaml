@@ -426,9 +426,9 @@ tareas:
     - api-dashboard
     - trace
   T16.2:
-    corto: GET /dashboard/summary
+    corto: GET /api/v1/dashboard/summary
     alcance: >-
-      <code>backend/app/routers/dashboard.py</code> y <code>platform/summary.py</code>: <code>GET /dashboard/summary</code>
+      <code>backend/app/routers/dashboard.py</code> y <code>platform/summary.py</code>: <code>GET /api/v1/dashboard/summary</code>
       compone una consulta por magnitud y responde todo junto, autenticado y resuelto por <code>get_project_context</code>.
       Los papers recientes muestran el estado real del pipeline y los tokens desde <code>agent_runs</code>.
     archivos:

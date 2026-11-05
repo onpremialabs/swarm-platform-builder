@@ -8,7 +8,9 @@ Las magnitudes definidas (AC2):
 - latency_ms: **mediana** de los pasos del proyecto (latencia de paso de agente,
   no de petición HTTP); reportado como p50 en la respuesta para ser explícitos.
 - articles_analyzed: artículos distintos con al menos un paso terminado en 7 días
-- agent_runs_total: filas de agent_runs para el proyecto en 7 días
+- executions_total: pasadas del pipeline, separadas por `step_index` volviendo a 0.
+  No son filas de `agent_runs`: ahí se mina un run_id **por paso**, así que contar
+  esa tabla daba el número de pasos disfrazado de número de ejecuciones.
 - failed_steps: pasos con status = 'error' o 'failed'
 - by_agent: el mismo consumo (ejecuciones, tokens, latencia, errores) agrupado por
   agente. Se agrega aquí, no en el cliente: la fila ya trae el agente y sus
@@ -31,8 +33,8 @@ from uuid import UUID
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.agent_run import AgentRunModel
 from app.models.agent_run_step import AgentRunStepModel
+from app.platform.explainability import group_executions
 
 # Presupuestos declarados (AC3 — no incrustados en la consulta).
 MAX_REVIEW_LOOPS: int = 3
@@ -41,6 +43,19 @@ WINDOW_DAYS: int = 7
 
 # Agentes que no hacen RAG y deben excluirse del conteo rag_empty.
 _NO_RAG_AGENTS = frozenset({"publicador", "formateador"})
+
+
+def _por_articulo(pasos) -> dict:
+    """Agrupa pasos por artículo conservando el orden en que vienen.
+
+    `group_executions` parte una secuencia **de un solo artículo**: separa por
+    `step_index` volviendo a 0, y mezclar artículos haría que el paso 0 del
+    siguiente cortara la ejecución del anterior.
+    """
+    agrupado: dict = {}
+    for paso in pasos:
+        agrupado.setdefault(paso.article_id, []).append(paso)
+    return agrupado
 
 
 async def project_summary(session: AsyncSession, project_id: UUID) -> dict:
@@ -62,11 +77,17 @@ async def project_summary(session: AsyncSession, project_id: UUID) -> dict:
             AgentRunStepModel.rag_sources,
             AgentRunStepModel.agent_name,
             AgentRunStepModel.article_id,
+            # `group_executions` separa las pasadas por este campo.
+            AgentRunStepModel.step_index,
         ).where(
             and_(
                 AgentRunStepModel.project_id == project_id,
                 AgentRunStepModel.created_at >= since,
             )
+        ).order_by(
+            AgentRunStepModel.article_id,
+            AgentRunStepModel.created_at,
+            AgentRunStepModel.step_index,
         )
     )
     steps = steps_q.all()
@@ -77,20 +98,13 @@ async def project_summary(session: AsyncSession, project_id: UUID) -> dict:
     latency_p50 = statistics.median(latencies) if latencies else 0.0
     articles_analyzed = len({r.article_id for r in steps if r.article_id})
 
-    # -- agent_runs del proyecto en la ventana -----------------------------------
-    runs_q = await session.execute(
-        select(func.count(AgentRunModel.run_id)).where(
-            and_(
-                AgentRunModel.article_id.in_(
-                    select(AgentRunStepModel.article_id).where(
-                        AgentRunStepModel.project_id == project_id
-                    ).distinct()
-                ),
-                AgentRunModel.started_at >= since,
-            )
-        )
+    # -- ejecuciones del pipeline en la ventana ----------------------------------
+    # Contar filas de `agent_runs` daba el número de **pasos**, no de ejecuciones:
+    # `log_run_start` mina un run_id por paso. Lo que separa dos pasadas es que
+    # `step_index` vuelve a 0, que es el criterio de `group_executions`.
+    executions_total = sum(
+        len(group_executions(pasos)) for pasos in _por_articulo(steps).values()
     )
-    agent_runs_total = runs_q.scalar() or 0
 
     # -- anomalías (AC3) — cuatro condiciones enumeradas -------------------------
     _completed = {"completed"}
@@ -132,7 +146,7 @@ async def project_summary(session: AsyncSession, project_id: UUID) -> dict:
         "tokens_total": tokens_in + tokens_out,
         "latency_p50_ms": round(latency_p50, 1),
         "articles_analyzed": articles_analyzed,
-        "agent_runs_total": agent_runs_total,
+        "executions_total": executions_total,
         "steps_total": len(steps),
         # Anomalías — cuatro condiciones verificadas; 0 significa «comprobado, ningún caso».
         "anomalies": {
@@ -150,6 +164,88 @@ async def project_summary(session: AsyncSession, project_id: UUID) -> dict:
             "max_review_loops": MAX_REVIEW_LOOPS,
         },
     }
+
+
+async def project_executions(session: AsyncSession, project_id: UUID) -> list[dict]:
+    """Las ejecuciones del proyecto, una por pasada del pipeline (SPEC-029 / T17.1 / AC1).
+
+    Un artículo reejecutado tiene varias pasadas en la misma tabla, y agregarlas
+    en una sola fila —que es lo que hace ``project_articles_summary``— esconde
+    justamente lo que AC1 pide ver. Aquí cada pasada es su propia fila, con sus
+    pasos, su estado y su coste.
+
+    La separación la decide ``group_executions``: dos pasadas se distinguen porque
+    ``step_index`` vuelve a 0. **No** se agrupa por ``run_id``, que se mina por
+    paso y no por ejecución, ni por ``correlation_id``, que puede faltar.
+    """
+    since = datetime.now(timezone.utc) - timedelta(days=WINDOW_DAYS)
+
+    rows = (await session.execute(
+        select(AgentRunStepModel).where(
+            and_(
+                AgentRunStepModel.project_id == project_id,
+                AgentRunStepModel.created_at >= since,
+            )
+        ).order_by(
+            AgentRunStepModel.article_id,
+            AgentRunStepModel.created_at,
+            AgentRunStepModel.step_index,
+        )
+    )).scalars().all()
+
+    ejecuciones: list[dict] = []
+    for article_id, pasos in _por_articulo(rows).items():
+        grupos = group_executions(pasos)
+        for numero, grupo in enumerate(grupos, start=1):
+            por_agente: dict[str, dict] = {}
+            for p in grupo:
+                ag = por_agente.setdefault(p.agent_name, {
+                    "name": p.agent_name,
+                    "runs": 0, "tokens_in": 0, "tokens_out": 0,
+                    "latency_ms": 0.0, "errors": 0,
+                })
+                ag["runs"] += 1
+                ag["tokens_in"] += p.tokens_in or 0
+                ag["tokens_out"] += p.tokens_out or 0
+                ag["latency_ms"] += p.latency_ms or 0.0
+                if p.status not in {"completed", "running"}:
+                    ag["errors"] += 1
+            for ag in por_agente.values():
+                ag["tokens_total"] = ag["tokens_in"] + ag["tokens_out"]
+                ag["latency_ms"] = round(ag["latency_ms"], 1)
+
+            tokens_in = sum(p.tokens_in or 0 for p in grupo)
+            tokens_out = sum(p.tokens_out or 0 for p in grupo)
+            fallidos = [p for p in grupo if p.status not in {"completed", "running"}]
+            ejecutando = any(p.status == "running" for p in grupo)
+
+            ejecuciones.append({
+                # Estable entre peticiones: sirve de clave en la tabla del cliente.
+                "execution_id": f"{article_id}:{numero}",
+                "article_id": str(article_id),
+                #: Qué pasada es, y de cuántas: «2 de 3» es lo que distingue una
+                #: reejecución de un retroceso inexplicado.
+                "run_number": numero,
+                "runs_total": len(grupos),
+                "started_at": grupo[0].created_at,
+                "ended_at": grupo[-1].created_at,
+                "steps": len(grupo),
+                # Orden de aparición, que es el del pipeline, no alfabético.
+                "agents_run": list(dict.fromkeys(p.agent_name for p in grupo)),
+                "agents": sorted(por_agente.values(), key=lambda a: a["name"]),
+                "tokens_in": tokens_in,
+                "tokens_out": tokens_out,
+                "tokens_total": tokens_in + tokens_out,
+                "latency_ms": round(sum(p.latency_ms or 0.0 for p in grupo), 1),
+                #: Vueltas del bucle revisor→redactor (0 = aprobado a la primera).
+                "loops": max((p.iteration or 0) for p in grupo),
+                "failed": bool(fallidos),
+                "status": "failed" if fallidos else ("running" if ejecutando else "completed"),
+            })
+
+    # La más reciente primero: es la que explica el texto actual del artículo.
+    ejecuciones.sort(key=lambda e: e["started_at"], reverse=True)
+    return ejecuciones
 
 
 async def project_articles_summary(session: AsyncSession, project_id: UUID) -> list[dict]:

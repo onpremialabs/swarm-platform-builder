@@ -110,11 +110,13 @@ componentes:
   nombre: Portada
   ruta: routers/dashboard.py
   que: >-
-    <strong>Todavía no existe.</strong> Servirá <code>GET /dashboard/summary</code>: las magnitudes de
-    la portada, solo del proyecto activo.
+    Sirve <code>GET /api/v1/dashboard/summary</code>: las magnitudes de la portada, el consumo por
+    agente y las ejecuciones, solo del proyecto activo.
   nuevo: true
   reglas:
   - No reutilizar <code>/metrics</code>, que es anónima y sin proyecto.
+  - 'Bajo <code>/api/v1</code>: el proxy de Vite solo reenvía <code>/api</code>, y fuera de ahí
+    la petición la atiende Vite devolviendo <code>index.html</code> con un 200.'
   relaciones:
   - con: ctx
     como: filtra por proyecto
