@@ -1070,6 +1070,51 @@ async def _articulo_y_pasos(article_id, token_data, project, session):
     return article, pasos
 
 
+def _history_metadata(group, number, total):
+    from app.platform.summary import _execution_outcome
+    return {
+        "id": str(group[0].id), "run_number": number, "runs_total": total,
+        "started_at": group[0].created_at, "last_step_at": group[-1].created_at,
+        **explainability.totals_of(group), **_execution_outcome(group),
+    }
+
+
+@router.get("/{article_id}/history")
+async def article_trace_history(
+    article_id: UUID, token_data=Depends(get_current_user),
+    project: ProjectContext | None = Depends(get_optional_project_context),
+    session: AsyncSession = Depends(get_session),
+):
+    article, steps = await _articulo_y_pasos(article_id, token_data, project, session)
+    groups = explainability.group_executions(steps)
+    return {"article_id": article_id, "title": article.title, "executions": [
+        _history_metadata(group, i, len(groups))
+        for i, group in reversed(list(enumerate(groups, start=1)))
+    ]}
+
+
+@router.get("/{article_id}/history/{execution_id}")
+async def article_trace_history_detail(
+    article_id: UUID, execution_id: UUID, token_data=Depends(get_current_user),
+    project: ProjectContext | None = Depends(get_optional_project_context),
+    session: AsyncSession = Depends(get_session),
+):
+    article, steps = await _articulo_y_pasos(article_id, token_data, project, session)
+    groups = explainability.group_executions(steps)
+    for i, group in enumerate(groups, start=1):
+        if group[0].id != execution_id:
+            continue
+        return {
+            "article_id": article_id, "title": article.title,
+            "execution": _history_metadata(group, i, len(groups)),
+            "steps": [AgentRunStepResponse.model_validate(step) for step in group],
+            "sources": explainability.aggregate_sources(group),
+            "integrity": explainability.verify_chain(group),
+            "integrity_scope": "Verifica los pasos conservados. No acredita la calidad del artículo ni protege frente a la reescritura completa de datos y hashes.",
+        }
+    raise HTTPException(404, "Ejecución no encontrada en este artículo")
+
+
 @router.get("/{article_id}/integrity")
 async def verify_article_integrity(
     article_id: UUID,

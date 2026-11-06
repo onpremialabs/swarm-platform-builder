@@ -19,6 +19,11 @@ export const agentsApi = {
   submitDecision: (articleId, decision) =>
     api.post(`/api/v1/agents/${articleId}/decision`, { decision }).then(r => r.data),
 
+  getTraceHistory: (articleId, signal) =>
+    api.get(`/api/v1/agents/${articleId}/history`, { signal }).then(r => r.data),
+  getTraceHistoryDetail: (articleId, executionId, signal) =>
+    api.get(`/api/v1/agents/${articleId}/history/${executionId}`, { signal }).then(r => r.data),
+
   // Get run history
   getRuns: (articleId) =>
     api.get(`/api/v1/agents/${articleId}/runs`).then(r => r.data),

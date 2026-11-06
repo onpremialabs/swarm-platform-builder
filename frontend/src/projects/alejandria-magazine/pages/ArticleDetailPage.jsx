@@ -597,7 +597,7 @@ export default function ArticleDetailPage() {
               </button>
               <button
                 className="btn btn-ghost btn-sm w-full"
-                onClick={() => navigate(`/dashboard/execution/${id}`, { state: {} })}
+                onClick={() => navigate(`/dashboard/articles/${id}/observability`)}
                 aria-label="Ver trazabilidad y métricas de la última ejecución"
               >
                 <FileText size={13} /> Ver trazabilidad

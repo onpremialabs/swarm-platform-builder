@@ -1930,7 +1930,7 @@ textarea.input { resize: vertical; min-height: 80px; line-height: var(--leading-
 .metrics-exec-thead,
 .metrics-exec-row {
   display: grid;
-  grid-template-columns: 2fr 110px 90px 90px 90px 90px 130px;
+  grid-template-columns: 2fr 110px 90px 90px 90px 90px 70px 60px;
   gap: var(--space-3);
   align-items: center;
   padding: var(--space-2) var(--space-4);
@@ -1951,6 +1951,9 @@ textarea.input { resize: vertical; min-height: 80px; line-height: var(--leading-
   padding-top: var(--space-3);
   padding-bottom: var(--space-3);
 }
+.metrics-exec-state-heading { text-align: center; }
+.metrics-exec-state { display: flex; align-items: center; justify-content: center; }
+.metrics-exec-actions { display: flex; justify-content: flex-end; }
 .metrics-exec-row:last-child { border-bottom: none; }
 .metrics-exec-row:hover { background: var(--bg-hover); }
 
@@ -2007,7 +2010,7 @@ textarea.input { resize: vertical; min-height: 80px; line-height: var(--leading-
   .metrics-tiles-grid { grid-template-columns: repeat(3, 1fr); }
   .metrics-agent-cards { grid-template-columns: repeat(2, 1fr); }
   .metrics-exec-thead,
-  .metrics-exec-row { grid-template-columns: 2fr 100px 80px 70px 80px 80px 110px; }
+  .metrics-exec-row { grid-template-columns: 2fr 100px 80px 70px 80px 80px 60px 50px; }
 }
 
 @media (max-width: 768px) {

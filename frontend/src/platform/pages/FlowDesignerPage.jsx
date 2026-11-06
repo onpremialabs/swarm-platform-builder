@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { runTarget } from '../runTarget';
-import { DEFAULT_FORMAT_MODE, FORMAT_MODES, MAX_SWARM_NOTES } from '../runConfig';
+import { DEFAULT_FORMAT_MODE, MAX_SWARM_NOTES } from '../runConfig';
 import Modal from '../components/ui/Modal';
 import { EmptyState } from '../components/ui/states';
 import {
@@ -59,10 +59,10 @@ export default function FlowDesignerPage() {
   const [runOutline, setRunOutline] = React.useState('');
   // Parámetros de esta ejecución (SPEC-030 / T18.3, T18.5).
   const [runNotes, setRunNotes] = React.useState('');
-  const [runFormatMode, setRunFormatMode] = React.useState(DEFAULT_FORMAT_MODE);
   // Referencia de formato acotada a este paper (T18.1 / AC1). Se guarda el File y
   // se sube **despues** de crear el articulo: hasta entonces no hay a que atarlo.
   const [runReference, setRunReference] = React.useState(null);
+  const runReferenceRef = useRef(null);
   const [uploadingRef, setUploadingRef] = React.useState(false);
   const [showAdvanced, setShowAdvanced] = React.useState(false);
   // RAG source selection for the run
@@ -418,7 +418,7 @@ export default function FlowDesignerPage() {
           contextDescription: runDescription,
           articleOutline: runOutline,
           swarmNotes: runNotes,
-          formatMode: runFormatMode,
+          formatMode: DEFAULT_FORMAT_MODE,
           referenceDocId,
         }
       });
@@ -637,18 +637,36 @@ export default function FlowDesignerPage() {
 
               {/* Referencia de formato acotada a este paper (SPEC-030 / T18.1 / AC1) */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <label htmlFor="run-reference" style={{ fontSize: 'var(--font-size-sm)', fontWeight: 500 }}>
+                <label id="run-reference-label" style={{ fontSize: 'var(--font-size-sm)', fontWeight: 500 }}>
                   Documento de referencia
                   <span style={{ fontWeight: 400, color: 'var(--text-muted)', marginLeft: 6 }}>— opcional</span>
                 </label>
                 <input
+                  ref={runReferenceRef}
                   id="run-reference"
                   type="file"
+                  aria-labelledby="run-reference-label"
                   accept=".txt,.md,.pdf,.docx"
-                  className="input"
                   onChange={e => setRunReference(e.target.files?.[0] || null)}
-                  style={{ fontSize: 'var(--font-size-sm)' }}
+                  style={{ display: 'none' }}
                 />
+                <button type="button" className="btn btn-ghost btn-sm"
+                  onClick={() => runReferenceRef.current?.click()} disabled={uploadingRef}
+                  aria-label={runReference ? 'Cambiar documento de referencia' : 'Subir documento de referencia'}
+                  style={{ marginBottom: 8 }}>
+                  <Upload size={13} /> {runReference ? 'Cambiar documento' : 'Subir documento'}
+                </button>
+                {runReference && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8,
+                    border: '1px solid var(--border-default)', borderRadius: 'var(--radius-sm)',
+                    padding: '6px 12px', fontSize: 'var(--font-size-xs)' }}>
+                    <span style={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}>{runReference.name}</span>
+                    <button type="button" className="btn btn-ghost btn-sm" aria-label="Quitar documento de referencia"
+                      onClick={() => { setRunReference(null); if (runReferenceRef.current) runReferenceRef.current.value = ''; }}>
+                      Quitar
+                    </button>
+                  </div>
+                )}
                 <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>
                   {runReference
                     ? <>Se indexará <strong>solo para este artículo</strong>: los demás papers del
@@ -656,47 +674,6 @@ export default function FlowDesignerPage() {
                     : <>Una plantilla de estilo o un paper modelo. Queda acotado a este artículo,
                        así que no contamina la biblioteca del proyecto.</>}
                 </div>
-              </div>
-
-              {/* Modo de aprendizaje del formato (SPEC-030 / T18.5 / AC6) */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <span style={{ fontSize: 'var(--font-size-sm)', fontWeight: 500 }}>
-                  Cómo se aprende el formato
-                </span>
-                <div style={{ display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
-                  {Object.entries(FORMAT_MODES).map(([clave, modo]) => (
-                    <label key={clave}
-                      title={modo.detail}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 6,
-                        fontSize: 'var(--font-size-sm)',
-                        cursor: modo.available ? 'pointer' : 'not-allowed',
-                        opacity: modo.available ? 1 : 0.55,
-                      }}>
-                      <input
-                        type="radio"
-                        name="format-mode"
-                        value={clave}
-                        checked={runFormatMode === clave}
-                        disabled={!modo.available}
-                        onChange={() => setRunFormatMode(clave)}
-                      />
-                      {modo.label}
-                      {!modo.available && (
-                        <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>
-                          — no disponible
-                        </span>
-                      )}
-                    </label>
-                  ))}
-                </div>
-                {/* El motivo se enseña, no se esconde: una opción que no aparece
-                    parece no existir, y esta existe y se está decidiendo. */}
-                {!FORMAT_MODES[runFormatMode]?.available ? null : (
-                  <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>
-                    {FORMAT_MODES.finetune.label}: {FORMAT_MODES.finetune.detail}
-                  </div>
-                )}
               </div>
 
               <button

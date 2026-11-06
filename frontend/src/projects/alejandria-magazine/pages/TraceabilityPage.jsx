@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { agentMeta } from '../catalog';
 import { EmptyState } from '../../../platform/components/ui/states';
-import { useParams, useLocation, useNavigate } from 'react-router-dom';
+import { Navigate, useParams, useLocation, useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import {
   CheckCircle, XCircle, Clock, Loader, ArrowLeft, FileText, UserPlus,
@@ -87,10 +87,19 @@ function MetricTile({ icon, label, value, color }) {
 export default function TraceabilityPage() {
   const { articleId } = useParams();
   const location = useLocation();
+  return location.state?.flowSequence?.length
+    ? <LiveTraceabilityPage />
+    : <Navigate to={`/dashboard/articles/${articleId}/observability`} replace />;
+}
+
+function LiveTraceabilityPage() {
+  const { articleId } = useParams();
+  const location = useLocation();
   const navigate = useNavigate();
   const { fetchArticle, assignReviewer } = useArticleStore();
 
   const flowSequence       = location.state?.flowSequence || [];
+  const returnToTraceability = location.state?.returnTo === '/dashboard/traceability' || flowSequence.length === 0;
   const agentSettings      = location.state?.agentSettings || {};
   const runKeywords        = location.state?.keywords || [];
   const contextDescription = location.state?.contextDescription || '';
@@ -492,9 +501,9 @@ export default function TraceabilityPage() {
       {/* CABECERA */}
       <div className="trace-header">
         <button className="btn btn-ghost btn-sm"
-          onClick={() => navigate('/dashboard/flow-designer')}
+          onClick={() => navigate(returnToTraceability ? '/dashboard/traceability' : '/dashboard/flow-designer')}
           style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 4 }}>
-          <ArrowLeft size={13} /> Volver al diseñador
+          <ArrowLeft size={13} /> {returnToTraceability ? 'Volver a trazabilidad' : 'Volver al diseñador'}
         </button>
         <div style={{ flex: 1 }}>
           <h2 className="trace-title">Trazabilidad y observabilidad</h2>
