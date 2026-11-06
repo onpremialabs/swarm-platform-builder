@@ -1115,6 +1115,48 @@ async def article_trace_history_detail(
     raise HTTPException(404, "Ejecución no encontrada en este artículo")
 
 
+@router.get("/{article_id}/status")
+async def article_run_status(
+    article_id: UUID,
+    token_data=Depends(get_current_user),
+    project: ProjectContext | None = Depends(get_optional_project_context),
+    session: AsyncSession = Depends(get_session),
+):
+    """Si este artículo se está ejecutando ahora y con qué (SPEC-030 / T18.7).
+
+    La vista en vivo se construía con lo que le pasaba el Flow Designer en el
+    estado de navegación. Eso se pierde al cambiar de pestaña o al recargar, y
+    entonces la página caía en modo histórico **aunque el pipeline siguiera
+    corriendo**: enseñaba la traza guardada y no había forma de volver a mirar.
+
+    Con esto el servidor es la fuente: devuelve la secuencia de agentes y cuál
+    corre ahora, así que la pantalla se reconstruye sola desde cualquier sitio
+    —otra pestaña, otro equipo, después de un F5—.
+    """
+    article, _ = await _articulo_y_pasos(article_id, token_data, project, session)
+
+    try:
+        info = await get_bus().get_run_info(article_id)
+    except Exception:
+        logger.warning("No se pudo consultar el estado de ejecución", exc_info=True)
+        info = None
+
+    if info is None:
+        # No está corriendo. Se dice así y no con un 404: «este artículo no
+        # ejecuta nada» es una respuesta, no la ausencia de una.
+        return {"article_id": str(article_id), "running": False,
+                "flow_sequence": [], "current_agent": None, "started_at": None}
+
+    return {
+        "article_id": str(article_id),
+        "running": True,
+        "flow_sequence": info.get("flow_sequence") or [],
+        "current_agent": info.get("current_agent"),
+        "started_at": info.get("started_at"),
+        "resumed": bool(info.get("resumed")),
+    }
+
+
 @router.get("/{article_id}/integrity")
 async def verify_article_integrity(
     article_id: UUID,

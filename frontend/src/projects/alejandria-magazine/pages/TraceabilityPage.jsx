@@ -118,6 +118,8 @@ function LiveTraceabilityPage() {
   const [iterationCount, setIterationCount] = useState({});
   // Progreso fraccional por agente, solo para quien lo emite (T18.4 / AC5).
   const [agentProgress, setAgentProgress] = useState({});
+  // Llegamos a una ejecución ya en marcha, sin haberla lanzado desde el lienzo.
+  const [recuperada, setRecuperada] = useState(false);
   const [logs, setLogs]         = useState([]);
   const [preview, setPreview]   = useState('');
   const [done, setDone]         = useState(false);
@@ -189,9 +191,44 @@ function LiveTraceabilityPage() {
     finally { setTraceLoading(false); }
   }, [articleId]);
 
-  // Cargar al montar si no hay pipeline activo (modo "Ver trazabilidad")
+  // Al montar sin estado de navegación hay **dos** situaciones distintas, y
+  // antes se trataban como una sola: puede que el artículo no esté ejecutando
+  // nada —modo histórico, correcto— o puede que sí lo esté y simplemente
+  // hayamos perdido la secuencia al cambiar de pestaña. Esa segunda caía en
+  // histórico y no había forma de volver a mirar la ejecución en curso.
+  //
+  // Se le pregunta al servidor, que es quien lo sabe (SPEC-030 / T18.7).
   useEffect(() => {
-    if (flowSequence.length === 0) loadTrace();
+    if (flowSequence.length > 0) return;   // venimos del lienzo: ya hay estado
+
+    let cancelado = false;
+    (async () => {
+      try {
+        const estado = await agentsApi.getRunStatus(articleId);
+        if (cancelado) return;
+        if (estado?.running && (estado.flow_sequence || []).length > 0) {
+          // Se reconstruyen las tarjetas y el SSE engancha solo: los eventos
+          // siguen llegando desde que se suscribe.
+          setSteps(estado.flow_sequence.map(id => ({
+            id,
+            status: id === estado.current_agent ? 'running' : 'waiting',
+            output: '',
+          })));
+          setRecuperada(true);
+          if (estado.started_at) {
+            const inicio = new Date(estado.started_at).getTime();
+            if (!Number.isNaN(inicio)) startTimeMsRef.current = inicio;
+          }
+          addLog('Reconectado a una ejecución en curso', 'info', null);
+          return;
+        }
+      // mejor-esfuerzo: si no se puede preguntar, se cae al modo histórico, que
+      // es lo que había antes de esto y sigue siendo útil.
+      } catch { }
+      if (!cancelado) loadTrace();
+    })();
+
+    return () => { cancelado = true; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Recargar al finalizar + incrementar key de ExplainPanel
@@ -381,6 +418,9 @@ function LiveTraceabilityPage() {
 
   // ── Disparar pipeline ──
   useEffect(() => {
+    // Al recuperar una ejecución en curso **no** se relanza nada: el pipeline
+    // ya corre en el servidor. Solo se escucha.
+    if (recuperada) { pipelineStarted.current = true; return; }
     if (flowSequence.length > 0 && !pipelineStarted.current) {
       pipelineStarted.current = true;
       const isResume = resumeRef.current;

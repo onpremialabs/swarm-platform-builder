@@ -81,6 +81,12 @@ graphify-out/
 *.db-journal
 *.db-wal
 *.db-shm
+# Artefactos de ejecución del backend: cerrojos y marcas que crea el proceso al
+# correr. No son del repositorio y además están **abiertos** mientras el backend
+# vive, así que `git add -A` falla con «Permission denied» al intentar indexarlos.
+backend/data/runtime-owners/
+*.lock
+
 # Copias de respaldo: `*.db` no las cubre porque el sufijo va **después** de la
 # extensión (`dev.db.bak-...`), y una copia de la base trae los mismos datos que
 # la base. Se coló una así al resellar una migración.

@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import contextlib
 import datetime
 import re
 import time
@@ -387,6 +388,9 @@ def make_node_wrapper(agent_name: str, run_fn):
             return await request_user_decision(article_id, payload)
 
         publish_event(article_id, {"type": "agent_start", "agent": agent_name})
+        # Quién corre **ahora**, para quien llegue a mitad de la ejecución.
+        with contextlib.suppress(Exception):
+            await get_bus().update_run_info(article_id, current_agent=agent_name)
 
         run_id = None
 
@@ -732,7 +736,16 @@ class Orchestrator:
         if current_task is not None:
             active_tasks[article_id] = current_task
             bus.register_cancel_handler(article_id, current_task.cancel)
-        await bus.mark_running(article_id)
+        # Qué se está ejecutando, no solo que algo lo está (T18.7): es lo que
+        # permite reconstruir la vista en vivo al volver a ella. Antes esto solo
+        # existía en `location.state` del navegador y navegar fuera lo perdía.
+        await bus.mark_running(article_id, {
+            "flow_sequence": list(flow_sequence),
+            "current_agent": None,
+            "started_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "project_id": str(project.project_id) if project else None,
+            "resumed": bool(resume),
+        })
         # Log en vivo del proyecto (SPEC-029 / T17.5 / AC2): sin este vínculo los
         # eventos del artículo no se encaminan a ningún flujo de proyecto. Aquí
         # y no en el endpoint porque es donde se conoce el proyecto de verdad.

@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import copy
 import json
 import logging
 import time
@@ -65,7 +66,7 @@ class InProcessBus:
 
     def __init__(self) -> None:
         self._subscribers: Dict[str, list[asyncio.Queue]] = {}
-        self._running: set[str] = set()
+        self._running: Dict[str, dict] = {}
         self._decisions: Dict[str, "asyncio.Future[str]"] = {}
         self._cancels: Dict[str, Any] = {}
         self._tickets: Dict[str, tuple[dict, float]] = {}
@@ -155,14 +156,44 @@ class InProcessBus:
 
     # -- presencia --------------------------------------------------------- #
 
-    async def mark_running(self, article_id: uuid.UUID) -> None:
-        self._running.add(str(article_id))
+    async def mark_running(self, article_id: uuid.UUID, info: Optional[dict] = None) -> None:
+        """Marca el artículo como en ejecución, con qué se está ejecutando.
+
+        El `info` —la secuencia de agentes y cuál corre ahora— es lo que permite
+        reconstruir la vista en vivo al volver a ella (SPEC-030 / T18.7). Antes
+        solo vivía en `location.state` del navegador, así que navegar a otra
+        pestaña la perdía aunque el pipeline siguiera corriendo: el servidor sabía
+        que había algo en marcha pero no podía decir **qué**.
+        """
+        self._running[str(article_id)] = dict(info or {})
 
     async def clear_running(self, article_id: uuid.UUID) -> None:
-        self._running.discard(str(article_id))
+        self._running.pop(str(article_id), None)
 
     async def is_running(self, article_id: uuid.UUID) -> bool:
         return str(article_id) in self._running
+
+    async def update_run_info(self, article_id: uuid.UUID, **campos) -> None:
+        """Actualiza parte del `info` sin pisar el resto (p. ej. el agente actual).
+
+        Si el artículo ya no está en ejecución no se reabre: una carrera entre el
+        cierre y un último evento no debe resucitar la marca.
+        """
+        actual = self._running.get(str(article_id))
+        if actual is not None:
+            actual.update(campos)
+
+    async def get_run_info(self, article_id: uuid.UUID) -> Optional[dict]:
+        info = self._running.get(str(article_id))
+        # Copia **profunda**: `dict(info)` comparte las listas de dentro, así que
+        # quien leyera la secuencia de agentes podía modificar el estado del bus
+        # sin querer. En el camino de Redis esto sale gratis porque se
+        # deserializa; aquí hay que hacerlo a mano.
+        return copy.deepcopy(info) if info is not None else None
+
+    async def running_articles(self) -> Dict[str, dict]:
+        """Todo lo que está en ejecución, para el aviso persistente del shell."""
+        return copy.deepcopy(self._running)
 
     # -- cancelación ------------------------------------------------------- #
 
@@ -358,14 +389,61 @@ class RedisBus(InProcessBus):
 
     # -- presencia --------------------------------------------------------- #
 
-    async def mark_running(self, article_id: uuid.UUID) -> None:
-        await self._redis.set(_RUNNING.format(article_id=article_id), "1", ex=RUNNING_TTL_SECONDS)
+    async def mark_running(self, article_id: uuid.UUID, info: Optional[dict] = None) -> None:
+        """La marca guarda el `info`, no un «1».
+
+        Así `is_running` sigue siendo «¿existe la clave?» y de paso el contenido
+        viaja con ella: un worker distinto del que ejecuta puede contestar qué se
+        está ejecutando sin preguntarle a nadie.
+        """
+        await self._redis.set(
+            _RUNNING.format(article_id=article_id),
+            json.dumps(dict(info or {}), default=str),
+            ex=RUNNING_TTL_SECONDS,
+        )
 
     async def clear_running(self, article_id: uuid.UUID) -> None:
         await self._redis.delete(_RUNNING.format(article_id=article_id))
 
     async def is_running(self, article_id: uuid.UUID) -> bool:
         return bool(await self._redis.exists(_RUNNING.format(article_id=article_id)))
+
+    async def update_run_info(self, article_id: uuid.UUID, **campos) -> None:
+        actual = await self.get_run_info(article_id)
+        if actual is None:
+            return  # ya terminó: no se reabre la marca
+        actual.update(campos)
+        # Se conserva el TTL restante en vez de renovarlo: la marca caduca a la
+        # hora de **empezar**, no a la hora del último evento, que con un agente
+        # colgado la mantendría viva indefinidamente.
+        ttl = await self._redis.ttl(_RUNNING.format(article_id=article_id))
+        await self._redis.set(
+            _RUNNING.format(article_id=article_id),
+            json.dumps(actual, default=str),
+            ex=ttl if ttl and ttl > 0 else RUNNING_TTL_SECONDS,
+        )
+
+    async def get_run_info(self, article_id: uuid.UUID) -> Optional[dict]:
+        crudo = await self._redis.get(_RUNNING.format(article_id=article_id))
+        if not crudo:
+            return None
+        try:
+            return json.loads(crudo)
+        except (TypeError, ValueError):
+            # Marca de una versión anterior, que guardaba «1». Sigue significando
+            # «está en ejecución»; simplemente no sabe decir con qué.
+            return {}
+
+    async def running_articles(self) -> Dict[str, dict]:
+        fuera: Dict[str, dict] = {}
+        async for clave in self._redis.scan_iter(match=_RUNNING.format(article_id="*")):
+            aid = str(clave).rsplit(":", 1)[-1]
+            crudo = await self._redis.get(clave)
+            try:
+                fuera[aid] = json.loads(crudo) if crudo else {}
+            except (TypeError, ValueError):
+                fuera[aid] = {}
+        return fuera
 
     # -- control (cancelación y decisión) ---------------------------------- #
 

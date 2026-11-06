@@ -56,6 +56,13 @@ export const agentsApi = {
     URL.revokeObjectURL(url);
   },
 
+  // Si este articulo se esta ejecutando ahora y con que (SPEC-030 / T18.7).
+  // Es lo que permite reconstruir la vista en vivo al volver a ella: la
+  // secuencia de agentes venia en el estado de navegacion y se perdia al
+  // cambiar de pestania, aunque el pipeline siguiera corriendo.
+  getRunStatus: (articleId) =>
+    api.get(`/api/v1/agents/${articleId}/status`).then(r => r.data),
+
   // Agent definitions
   getDefinitions: () =>
     api.get('/api/v1/agents/definitions').then(r => r.data),
