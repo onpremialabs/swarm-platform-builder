@@ -44,8 +44,8 @@ propia PR, así que en un repositorio con un solo mantenedor un `1` bloquea el
 100% de las PR y deja el proyecto sin salida. La política sigue siendo 1; lo que
 falta es una segunda persona que pueda ejercerla. **En cuanto haya un segundo
 revisor, sube ese número a `1`** —es una línea del JSON— y reimporta. Mientras
-tanto la revisión efectiva la aportan la review automática de Claude
-(`.github/workflows/claude-code-review.yml`) y los checks obligatorios.
+tanto la revisión efectiva la aportan los checks obligatorios (la review
+automática de Claude se retiró el 2026-11-06).
 
 **`edd-gate` NO está entre los checks obligatorios, y es deliberado.**
 `.github/workflows/edd-gate.yml` tiene filtro de rutas: solo corre en las PR que

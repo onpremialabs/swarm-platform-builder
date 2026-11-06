@@ -216,8 +216,8 @@ hook: crea una rama con prefijo y abre PR.
 frontend, validación de specs (`scripts/validate_specs.py`), auditoría de
 dependencias (`pip-audit` + `npm audit`, job `deps-audit`) y escaneo de secretos
 (gitleaks). Dependabot está **desactivado** (2026-11-06): las dependencias se
-actualizan a mano. Hay además review automática de Claude y un digest diario
-(`.github/workflows/claude-*.yml`).
+actualizan a mano. No hay workflows que usen tokens de Claude: la review
+automática y el digest diario se retiraron el 2026-11-06.
 
 ## Evaluación (`backend/evals/`) — dos harness, dos preguntas
 
