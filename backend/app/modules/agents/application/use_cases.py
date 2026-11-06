@@ -241,6 +241,61 @@ async def _hash_anterior(session, article_id, step_index: int) -> str | None:
     return fila[0] if fila else None
 
 
+async def close_orphan_runs() -> int:
+    """Cierra los pasos que quedaron abiertos de un arranque anterior.
+
+    Una cancelación o un fallo cierran su fila desde dentro. Lo que no puede
+    cerrarse desde dentro es un proceso que muere de golpe —`SIGKILL`, un corte de
+    luz, cerrar la ventana— y esas filas se quedan en `running` para siempre,
+    haciendo que el agente aparezca como «incierto» indefinidamente (T16.4).
+
+    Se llama al arrancar: si este proceso acaba de empezar, nada de lo que dejó
+    abierto el anterior sigue vivo.
+
+    **Con varios workers esto no es cierto**, así que solo se cierran las filas
+    más antiguas que `SWARM_STALE_AFTER_S` —el mismo umbral con el que la portada
+    ya deja de llamarlas «ejecutando»—. Una ejecución legítima más larga que eso
+    se marcaría por error; a cambio, lo que de verdad murió deja de mentir. El
+    umbral es el mismo a propósito: dos criterios distintos para la misma pregunta
+    acabarían discrepando.
+    """
+    from app.platform.summary import SWARM_STALE_AFTER_S
+
+    corte = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(
+        seconds=SWARM_STALE_AFTER_S)
+    try:
+        async with AsyncSessionLocal() as session:
+            huerfanas = (await session.execute(
+                select(AgentRunModel).where(
+                    AgentRunModel.status == "running",
+                    AgentRunModel.finished_at.is_(None),
+                    AgentRunModel.started_at < corte,
+                )
+            )).scalars().all()
+
+            for fila in huerfanas:
+                fila.status = "interrupted"
+                fila.error_message = (
+                    "El proceso terminó sin cerrar este paso; se cerró al arrancar."
+                )
+                fila.finished_at = datetime.datetime.now(datetime.timezone.utc)
+                session.add(fila)
+
+            if huerfanas:
+                await session.commit()
+                logger.warning(
+                    "Cerrados %d paso(s) que quedaron abiertos de un arranque anterior",
+                    len(huerfanas),
+                    extra={"event": "orphan_runs_closed", "count": len(huerfanas)},
+                )
+            return len(huerfanas)
+    except Exception:
+        # Limpiar no puede impedir arrancar: como mucho se queda un «incierto»,
+        # que es lo que había antes de esta función.
+        logger.warning("No se pudieron cerrar los pasos huérfanos", exc_info=True)
+        return 0
+
+
 async def log_run_step(**campos) -> None:
     """Persiste un paso de la traza de explicabilidad (SPEC-014 / T9.1 / AC1).
 
@@ -422,16 +477,33 @@ def make_node_wrapper(agent_name: str, run_fn):
             res["current_step_index"] = state.get("current_step_index", 0) + 1
             return res
         except asyncio.CancelledError:
+            # `CancelledError` hereda de `BaseException`, no de `Exception`: el
+            # `except` de abajo **no** la ve. Sin esta rama, cancelar una ejecución
+            # dejaba su fila de `agent_runs` abierta para siempre, y el estado del
+            # enjambre (T16.4) mostraba ese agente como «incierto» indefinidamente.
+            # Cancelar es un botón de la interfaz: el caso no era raro, era uno por
+            # cada cancelación.
+            logger.info("Agente %s cancelado", agent_name)
             _estado_agente = "cancelled"
+
             async def close_cancelled():
                 await log_run_end(run_id, {}, "cancelled", error_message="Pipeline cancelado o backend detenido")
+                # La traza registra la cancelación: AC1 de T9.1 pide el paso
+                # «cuando termina **o se cancela**», y dónde se cortó es justo lo
+                # que se pregunta después.
                 await log_run_step(**_paso_comun, status="cancelled",
                     error_message="Pipeline cancelado o backend detenido",
                     rag_sources=_acumulador.rag_sources,
                     tokens_in=_acumulador.tokens_in, tokens_out=_acumulador.tokens_out,
                     latency_ms=(time.perf_counter() - _inicio_agente) * 1000)
+
             if run_id is not None:
+                # `shield` y no un `await` pelado: estamos **dentro** de una tarea
+                # ya cancelada, y un await sin proteger se cancelaría a su vez
+                # dejando la fila abierta — el mismo fallo que esta rama arregla.
                 await asyncio.shield(close_cancelled())
+            # Se vuelve a lanzar siempre: tragarse una cancelación deja la tarea
+            # viva y es peor que el problema que arregla.
             raise
         except Exception as e:
             _estado_agente = "failed"

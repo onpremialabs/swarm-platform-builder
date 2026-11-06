@@ -297,6 +297,12 @@ async def _seed_demo_content_if_enabled(session, project_id) -> None:
 async def lifespan(app: FastAPI):
     # Initialize DB tables on startup
     await init_db()
+    # Pasos que quedaron abiertos porque el proceso anterior murió de golpe
+    # (SPEC-028 / T16.4): si no se cierran, su agente aparece como «incierto»
+    # para siempre en el estado del enjambre.
+    from app.modules.agents.application.use_cases import close_orphan_runs
+
+    await close_orphan_runs()
     await ensure_local_admin_user()
     await ensure_dev_users()
     project_id = await ensure_alejandria_magazine_project()
