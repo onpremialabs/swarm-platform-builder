@@ -1,7 +1,7 @@
 """Cadena de suministro: dependencias pineadas y escaneadas (SPEC-020 / T6.2-T6.3).
 
-AC2: la CI escanea dependencias (`pip-audit` + `npm audit`) y Dependabot cubre
-backend, frontend y GitHub Actions.
+AC2: la CI escanea dependencias (`pip-audit` + `npm audit`). Dependabot se
+desactivó el 2026-11-06 por decisión del mantenedor (ver la bitácora).
 AC3: las dependencias están pineadas con lockfile/hashes y **la CI instala desde el
 lock, no desde rangos**.
 
@@ -24,7 +24,6 @@ sys.path.insert(0, str(ROOT_DIR))
 REQUIREMENTS_IN = ROOT_DIR / "requirements.in"
 REQUIREMENTS_LOCK = ROOT_DIR / "requirements.txt"
 CI_WORKFLOW = REPO_DIR / ".github" / "workflows" / "ci.yml"
-DEPENDABOT = REPO_DIR / ".github" / "dependabot.yml"
 
 # "nombre==version" al principio de línea; el resto son hashes y comentarios.
 PINNED_RE = re.compile(r"^(?P<name>[A-Za-z0-9._-]+)(?P<extras>\[[^\]]+\])?==(?P<version>[^\s\\]+)")
@@ -133,7 +132,7 @@ def test_ci_installs_the_frontend_from_its_lockfile():
 
 
 # --------------------------------------------------------------------------- #
-# AC2 — escaneo en CI y Dependabot
+# AC2 — escaneo en CI
 # --------------------------------------------------------------------------- #
 
 def test_ci_has_a_dependency_audit_job():
@@ -165,25 +164,3 @@ def test_ignored_vulnerabilities_are_justified_in_place():
             f"{ignored} se ignora sin explicación en el propio workflow"
         )
 
-
-def test_dependabot_covers_the_three_ecosystems():
-    """Las Actions también traen código de terceros, y son las que más se olvidan."""
-    config = yaml.safe_load(DEPENDABOT.read_text(encoding="utf-8"))
-    ecosistemas = {u["package-ecosystem"] for u in config["updates"]}
-    assert {"pip", "npm", "github-actions"} <= ecosistemas, f"faltan: {ecosistemas}"
-
-
-def test_dependabot_points_at_the_real_directories():
-    config = yaml.safe_load(DEPENDABOT.read_text(encoding="utf-8"))
-    directorios = {u["package-ecosystem"]: u["directory"] for u in config["updates"]}
-    assert directorios["pip"] == "/backend"
-    assert directorios["npm"] == "/frontend"
-    assert (REPO_DIR / "backend" / "requirements.in").exists()
-    assert (REPO_DIR / "frontend" / "package.json").exists()
-
-
-@pytest.mark.parametrize("ecosystem", ["pip", "npm", "github-actions"])
-def test_dependabot_runs_on_a_schedule(ecosystem):
-    config = yaml.safe_load(DEPENDABOT.read_text(encoding="utf-8"))
-    update = next(u for u in config["updates"] if u["package-ecosystem"] == ecosystem)
-    assert update["schedule"]["interval"] in {"daily", "weekly", "monthly"}

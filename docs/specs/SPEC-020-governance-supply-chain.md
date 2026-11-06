@@ -39,6 +39,9 @@ de datos/PII.
 - [ ] **AC2** — *Given* la CI, *Then* incluye escaneo de dependencias
   (`pip-audit` + `npm audit`) y Dependabot está configurado para backend,
   frontend y GitHub Actions.
+  *(2026-11-06: Dependabot se desactivó por decisión del mantenedor; el escaneo
+  `pip-audit` + `npm audit` de la CI se mantiene y las actualizaciones pasan a
+  hacerse a mano.)*
 - [ ] **AC3** — *Given* las dependencias, *Then* están **pineadas** con
   lockfile/hashes (pip-tools/uv + `package-lock.json`) y la CI instala desde el
   lock, no desde rangos.

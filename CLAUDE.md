@@ -215,8 +215,8 @@ hook: crea una rama con prefijo y abre PR.
 `.github/workflows/ci.yml` corre en cada PR: `pytest` backend, `npm run build`
 frontend, validación de specs (`scripts/validate_specs.py`), auditoría de
 dependencias (`pip-audit` + `npm audit`, job `deps-audit`) y escaneo de secretos
-(gitleaks). Dependabot (`.github/dependabot.yml`) actualiza backend, frontend y
-Actions cada semana. Hay además review automática de Claude y un digest diario
+(gitleaks). Dependabot está **desactivado** (2026-11-06): las dependencias se
+actualizan a mano. Hay además review automática de Claude y un digest diario
 (`.github/workflows/claude-*.yml`).
 
 ## Evaluación (`backend/evals/`) — dos harness, dos preguntas
