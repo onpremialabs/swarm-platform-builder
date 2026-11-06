@@ -15,6 +15,7 @@ from app.core.errors import install_error_handling
 from app.core.logging_config import configure_logging, request_id_middleware
 from app.platform.metrics import metrics_middleware
 from app.platform.tracing import setup_tracing, tracing_middleware
+from app.platform.run_lifecycle import start_run_lifecycle, stop_run_lifecycle
 from app.core.security import hash_password
 
 # Structured logging (JSON in prod, human-readable in debug) + correlation ids.
@@ -304,7 +305,12 @@ async def lifespan(app: FastAPI):
     # gated behind DEBUG.
     if settings.DEBUG and project_id is not None:
         await _seed_default_rag_document(project_id)
-    yield
+    monitor = await start_run_lifecycle()
+    try:
+        yield
+    finally:
+        from app.modules.agents.application.use_cases import active_tasks
+        await stop_run_lifecycle(monitor, list(active_tasks.values()))
 
 
 app = FastAPI(title="AlejandrIA Magazine API", version="0.1.0", lifespan=lifespan)
