@@ -41,7 +41,7 @@ Components that reference semantic vars switch automatically — no per-componen
 | Brand / accent | `--brand`, `--accent`, `--brand-tint` | Blue `#0176D3`; accent violet for AI moments only |
 | Surfaces | `--bg-canvas/surface/raised/sunken/inset/shell` | Canvas = faint blue-grey; surfaces = white (light) |
 | Text | `--text-heading/primary/body/secondary/muted/link` | Ink navy heads, never pure black |
-| Borders | `--border-subtle/default/strong/brand/focus` | Hairline 1px default |
+| Borders | `--border-subtle/default/strong/control/brand/focus` | Hairline 1px default; `control` outlines inputs, secondary buttons and toggles (3:1) |
 | Status | `--success/warning/error/info` + `-bg` | Always value + pale tint pair |
 | Editorial status | `--status-*` | draft/review/approved/published/rejected |
 | Agents | `--agent-research/write/review/format/publish` | One hue per editorial agent |
@@ -63,7 +63,7 @@ Components that reference semantic vars switch automatically — no per-componen
 single `--measure` (68ch) centered block.
 
 **Actions** — One primary (`btn-primary`, brand fill + `shadow-brand`) per view.
-Secondary = white + `border-strong`. Ghost for tertiary. `btn-accent` (violet) is
+Secondary = white + `border-control`. Ghost for tertiary. `btn-accent` (violet) is
 reserved for AI/generative actions. Destructive = `btn-danger` (red tint → solid on
 hover). Hover darkens one step; active darkens two + `translateY(1px)`.
 

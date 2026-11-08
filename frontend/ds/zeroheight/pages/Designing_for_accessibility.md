@@ -9,10 +9,10 @@ La accesibilidad en Alexandria Magazine no es una capa añadida al final — est
 Los pares de color semántico están pre-verificados. Si usas los tokens documentados en las superficies documentadas, el contraste es correcto. No uses primitivos directamente en UI de producto — los semánticos están ahí precisamente para esto.
 
 **Lo que el sistema garantiza:**
-- `--text-body` sobre `--bg-surface`: 12.6:1 — AAA
-- `--text-secondary` sobre `--bg-surface`: 5.9:1 — AA
-- `--text-link` (brand) sobre blanco: 4.8:1 — AA
-- Blanco sobre `--brand`: 4.6:1 — AA
+- `--text-body` sobre `--bg-surface`: 11.48:1 — AAA
+- `--text-secondary` sobre `--bg-surface`: 5.44:1 — AA
+- `--text-link` (brand) sobre blanco: 4.63:1 — AA
+- Blanco sobre `--brand`: 4.63:1 — AA
 - Dark theme: todos los valores han subido de tono para mantener AA en superficies oscuras
 
 **Lo que debes verificar tú:**

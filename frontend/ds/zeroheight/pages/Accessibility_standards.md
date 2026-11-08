@@ -10,16 +10,17 @@ Alexandria Magazine cumple **WCAG 2.1 Level AA** en toda la interfaz de producto
 
 | Par de colores | Ratio | Nivel |
 |---|---|---|
-| `--text-body` (#2E3A4D) sobre `--bg-surface` (#FFF) | 12.6:1 | AAA |
-| `--text-heading` (#0B1B33) sobre `--bg-surface` (#FFF) | 18.2:1 | AAA |
-| `--text-secondary` (#5C6B7E) sobre `--bg-surface` (#FFF) | 5.9:1 | AA |
-| `--text-link` (#0176D3) sobre `--bg-surface` (#FFF) | 4.8:1 | AA |
-| Blanco sobre `--brand` (#0176D3) | 4.6:1 | AA |
+| `--text-body` (#2E3A4D) sobre `--bg-surface` (#FFF) | 11.48:1 | AAA |
+| `--text-heading` (#0B1B33) sobre `--bg-surface` (#FFF) | 17.23:1 | AAA |
+| `--text-secondary` (#5C6B7E) sobre `--bg-surface` (#FFF) | 5.44:1 | AA |
+| `--text-link` (#0176D3) sobre `--bg-surface` (#FFF) | 4.63:1 | AA |
+| Blanco sobre `--brand` (#0176D3) | 4.63:1 | AA |
 
 **Texto grande (≥ 24px o ≥ 19px bold): mínimo 3:1**
 
 **UI no-texto (bordes, iconos, marks de chart): mínimo 3:1**
-- `--border-strong` (#D8DDE6) sobre blanco: 2.1:1 — usar con `--text-body` en el mismo input para contexto
+- `--border-control` (#7B8CAA) sobre blanco: 3.40:1 — contorno de inputs, botones secundarios y toggles
+- `--border-strong` (#D8DDE6) sobre blanco: 1.36:1 — solo separadores decorativos, nunca el contorno de un control
 - Los iconos Lucide heredan `currentColor` — siempre tiene contraste suficiente con el texto del contexto
 
 **Nunca confiar solo en el color (WCAG 1.4.1).** Todo estado visual tiene además: etiqueta de texto + icono Lucide.

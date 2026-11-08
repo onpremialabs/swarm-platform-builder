@@ -43,10 +43,11 @@ Las superficies de la app viven en una gama de grises azulados muy tenues. El ca
 | `--neutral-10` | `#F4F6F9` | Link Water | Canvas de la app |
 | `--neutral-15` | `#EEF1F6` | White Lilac | Inset, separadores muy suaves |
 | `--neutral-20` | `#E0E5EE` | Steam | Bordes por defecto |
-| `--neutral-30` | `#D8DDE6` | Geyser | Bordes fuertes (inputs, btn-secondary) |
+| `--neutral-30` | `#D8DDE6` | Geyser | Separadores fuertes, hover de cards |
 | `--neutral-40` | `#C9CFDB` | — | Neutral medio |
 | `--neutral-50` | `#AAB2C2` | — | Muted neutral |
-| `--neutral-60` | `#8793A5` | — | Placeholder, texto muted |
+| `--neutral-60` | `#8793A5` | — | Ejes de gráficos; no llega a AA como texto |
+| `--neutral-65` | `#657286` | — | Placeholder, texto muted (mínimo AA) |
 | `--neutral-70` | `#5C6B7E` | — | Texto secundario / labels |
 | `--neutral-80` | `#44546A` | — | Secondary fuerte |
 | `--neutral-90` | `#2E3A4D` | — | Body text (tema claro) |
@@ -72,8 +73,9 @@ Las superficies de la app viven en una gama de grises azulados muy tenues. El ca
 | `--text-heading` | `--ink-100` | Todos los headings |
 | `--text-body` | `--neutral-90` | Texto de cuerpo por defecto |
 | `--text-secondary` | `--neutral-70` | Metadatos, labels de campo |
-| `--text-muted` | `--neutral-60` | Placeholder, hints, disabled |
+| `--text-muted` | `--neutral-65` | Placeholder, hints, disabled |
 | `--text-link` | `--blue-60` | Enlaces interactivos |
+| `--border-control` | `#7B8CAA` | Contorno de inputs, botones secundarios y toggles |
 
 ---
 
@@ -138,10 +140,10 @@ Los colores de estado siempre se usan en pares: **valor pleno** para el texto/ic
 
 | Estado | Token valor | Hex | Token tint | Hex tint |
 |---|---|---|---|---|
-| Success | `--success` | `#2E844A` | `--success-bg` | `#EBF7EE` |
-| Warning | `--warning` | `#C47D04` | `--warning-bg` | `#FDF3E3` |
+| Success | `--success` | `#1F6135` | `--success-bg` | `#EBF7EE` |
+| Warning | `--warning` | `#946004` | `--warning-bg` | `#FDF3E3` |
 | Error | `--error` | `#BA0517` | `--error-bg` | `#FEEEEC` |
-| Info | `--info` | `#0176D3` | `--info-bg` | `#EAF4FF` |
+| Info | `--info` | `#005FB2` | `--info-bg` | `#EAF4FF` |
 
 ```css
 /* Alerta de error — siempre: tint bg + color fg + icono */
@@ -162,10 +164,10 @@ El ciclo de vida del artículo (`borrador → en_revisión → aprobado → publ
 
 | Estado | Token CSS | Hex | Label |
 |---|---|---|---|
-| Borrador | `--status-draft` | `#8793A5` | Borrador |
-| En revisión | `--status-review` | `#C47D04` | En revisión |
-| Aprobado | `--status-approved` | `#2E844A` | Aprobado |
-| Publicado | `--status-published` | `#0176D3` | Publicado |
+| Borrador | `--status-draft` | `#5C6B7E` | Borrador |
+| En revisión | `--status-review` | `#946004` | En revisión |
+| Aprobado | `--status-approved` | `#1F6135` | Aprobado |
+| Publicado | `--status-published` | `#005FB2` | Publicado |
 | Rechazado | `--status-rejected` | `#BA0517` | Rechazado |
 
 ```jsx
@@ -209,11 +211,11 @@ Todos los tokens semánticos están pre-verificados contra sus superficies docum
 
 | Par | Ratio | Nivel |
 |---|---|---|
-| `--text-body` sobre `--bg-surface` | 12.6:1 | AAA |
-| `--text-heading` sobre `--bg-surface` | 18.2:1 | AAA |
-| `--brand` (link) sobre blanco | 4.8:1 | AA |
-| Blanco sobre `--brand` (btn-primary) | 4.6:1 | AA |
-| `--text-secondary` sobre `--bg-surface` | 5.9:1 | AA |
-| `--status-draft` sobre `--bg-surface` | 3.4:1 | AA (large) |
+| `--text-body` sobre `--bg-surface` | 11.48:1 | AAA |
+| `--text-heading` sobre `--bg-surface` | 17.23:1 | AAA |
+| `--brand` (link) sobre blanco | 4.63:1 | AA |
+| Blanco sobre `--brand` (btn-primary) | 4.63:1 | AA |
+| `--text-secondary` sobre `--bg-surface` | 5.44:1 | AA |
+| `--status-draft` sobre `--bg-surface` | 5.44:1 | AA |
 
 > Nunca usar solo color para comunicar estado. Siempre: color + etiqueta de texto + icono Lucide.

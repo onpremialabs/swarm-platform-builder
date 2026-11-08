@@ -7,10 +7,11 @@ binding for anything built with this design system.
 ## 1 · Colour & contrast (1.4.3, 1.4.11, 1.4.1)
 - **Text contrast** ≥ **4.5:1** (normal) / **3:1** (large ≥ 24px or 19px bold). The
   semantic text tokens are pre-checked against their intended surfaces — keep the
-  documented pairings (`--text-body` on `--bg-surface` = 12.6:1 AAA; `--brand` link on
-  white = 4.8:1 AA; `#fff` on `--brand` = 4.6:1 AA).
+  documented pairings (`--text-body` on `--bg-surface` = 11.48:1 AAA; `--brand` link on
+  white = 4.63:1 AA; `#fff` on `--brand` = 4.63:1 AA).
 - **Non-text contrast** ≥ **3:1** for UI component boundaries, icons, focus rings, chart
-  marks, and form borders. `--border-strong` is the minimum for interactive borders.
+  marks, and form borders. Interactive borders use `--border-control` (3.40:1 on white);
+  `--border-strong` (1.36:1) is for decorative separators only.
 - **Never rely on colour alone** (1.4.1). Article status = colour **+ label + Lucide
   icon**. Chart series carry labels/legend; the categorical palette is ordered for
   adjacent contrast and is colour-blind aware, but always pair with direct labels.
@@ -19,8 +20,8 @@ binding for anything built with this design system.
 
 ## 2 · Focus & keyboard (2.1.1, 2.4.7, 2.4.3)
 - Everything operable is reachable and operable by **keyboard**; no traps.
-- **Visible focus**: the 3px `--focus-ring` (brand at 25–40% alpha) on every focusable
-  control. Never `outline: none` without an equivalent. Don't suppress `:focus-visible`.
+- **Visible focus**: a 2px `--border-focus` outline with 2px offset on every focusable
+  control; inputs add the 3px `--focus-ring`. Never `outline: none` without an equivalent. Don't suppress `:focus-visible`.
 - **Logical tab order** follows reading/DOM order. Modals trap focus while open, restore
   it on close, and close on `Esc`.
 - Drag interactions (Flow Designer node placement, palette drag) must have a

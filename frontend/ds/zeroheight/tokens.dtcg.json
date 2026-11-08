@@ -43,7 +43,8 @@
         "30": { "$value": "#d8dde6", "$type": "color", "$description": "Geyser — strong borders" },
         "40": { "$value": "#c9cfdb", "$type": "color", "$description": "Mid neutral" },
         "50": { "$value": "#aab2c2", "$type": "color", "$description": "Muted neutral" },
-        "60": { "$value": "#8793a5", "$type": "color", "$description": "Muted / placeholder text" },
+        "60": { "$value": "#8793a5", "$type": "color", "$description": "Chart axis; below AA as text" },
+        "65": { "$value": "#657286", "$type": "color", "$description": "Muted / placeholder text — lowest step reaching AA" },
         "70": { "$value": "#5c6b7e", "$type": "color", "$description": "Secondary text" },
         "80": { "$value": "#44546a", "$type": "color", "$description": "Strong secondary" },
         "90": { "$value": "#2e3a4d", "$type": "color", "$description": "Body text (light theme)" }
@@ -98,6 +99,7 @@
         "hover":    { "$value": "{color.primitive.blue.70}", "$type": "color", "$description": "Brand button / link hover state" },
         "active":   { "$value": "{color.primitive.blue.80}", "$type": "color", "$description": "Brand button / link active/pressed state" },
         "tint":     { "$value": "{color.primitive.blue.05}", "$type": "color", "$description": "Brand tint background — selected rows, active nav items" },
+        "on-tint":  { "$value": "{color.primitive.blue.70}", "$type": "color", "$description": "Small brand text on its tint — published badge" },
         "on":       { "$value": "#ffffff", "$type": "color", "$description": "Text/icon on brand-filled surfaces" }
       },
 
@@ -122,27 +124,29 @@
         "primary":   { "$value": "{color.primitive.ink.90}", "$type": "color", "$description": "Primary body text" },
         "body":      { "$value": "{color.primitive.neutral.90}", "$type": "color", "$description": "Default body text (14px UI)" },
         "secondary": { "$value": "{color.primitive.neutral.70}", "$type": "color", "$description": "Labels, captions, metadata" },
-        "muted":     { "$value": "{color.primitive.neutral.60}", "$type": "color", "$description": "Placeholder, hints, disabled" },
+        "muted":     { "$value": "{color.primitive.neutral.65}", "$type": "color", "$description": "Placeholder, hints, disabled" },
         "link":      { "$value": "{color.primitive.blue.60}", "$type": "color", "$description": "Interactive links" },
         "on-brand":  { "$value": "#ffffff", "$type": "color", "$description": "Text on brand-filled backgrounds" },
+        "on-error":  { "$value": "#ffffff", "$type": "color", "$description": "Text on error-filled backgrounds" },
         "inverse":   { "$value": "#ffffff", "$type": "color", "$description": "Text on dark/inverse surfaces" }
       },
 
       "border": {
         "subtle":  { "$value": "{color.primitive.neutral.15}", "$type": "color", "$description": "Hairline dividers, very subtle separators" },
         "default": { "$value": "{color.primitive.neutral.20}", "$type": "color", "$description": "Standard 1px border — Steam" },
-        "strong":  { "$value": "{color.primitive.neutral.30}", "$type": "color", "$description": "Inputs, secondary buttons — Geyser" },
+        "strong":  { "$value": "{color.primitive.neutral.30}", "$type": "color", "$description": "Decorative strong separators, card hover — Geyser" },
+        "control": { "$value": "#7b8caa", "$type": "color", "$description": "Outline of inputs, secondary buttons and toggles — 3:1 on white" },
         "brand":   { "$value": "{color.primitive.blue.60}", "$type": "color", "$description": "Brand-coloured border — active inputs, selection" },
         "focus":   { "$value": "{color.primitive.blue.60}", "$type": "color", "$description": "Focus ring base color" }
       },
 
       "status": {
         "success": {
-          "default": { "$value": "{color.primitive.green.60}", "$type": "color", "$description": "Success state — Aprobado, Publicado" },
+          "default": { "$value": "{color.primitive.green.70}", "$type": "color", "$description": "Success state — Aprobado, Publicado" },
           "background": { "$value": "{color.primitive.green.05}", "$type": "color", "$description": "Success tint surface" }
         },
         "warning": {
-          "default": { "$value": "{color.primitive.amber.60}", "$type": "color", "$description": "Warning state — needs attention" },
+          "default": { "$value": "{color.primitive.amber.70}", "$type": "color", "$description": "Warning state — needs attention" },
           "background": { "$value": "{color.primitive.amber.05}", "$type": "color", "$description": "Warning tint surface" }
         },
         "error": {
@@ -150,17 +154,17 @@
           "background": { "$value": "{color.primitive.red.05}", "$type": "color", "$description": "Error tint surface" }
         },
         "info": {
-          "default": { "$value": "{color.primitive.blue.60}", "$type": "color", "$description": "Informational state" },
+          "default": { "$value": "{color.primitive.blue.70}", "$type": "color", "$description": "Informational state" },
           "background": { "$value": "{color.primitive.blue.05}", "$type": "color", "$description": "Info tint surface" }
         }
       },
 
       "editorial-status": {
         "$description": "Article lifecycle states — draft → in_review → approved → published. Always pair with label and icon.",
-        "draft":     { "$value": "{color.primitive.neutral.60}", "$type": "color", "$description": "Borrador — grey, not yet submitted" },
-        "review":    { "$value": "{color.primitive.amber.60}", "$type": "color", "$description": "En revisión — amber, under peer review" },
-        "approved":  { "$value": "{color.primitive.green.60}", "$type": "color", "$description": "Aprobado — green, cleared for publication" },
-        "published": { "$value": "{color.primitive.blue.60}", "$type": "color", "$description": "Publicado — brand blue, live" },
+        "draft":     { "$value": "{color.primitive.neutral.70}", "$type": "color", "$description": "Borrador — grey, not yet submitted" },
+        "review":    { "$value": "{color.primitive.amber.70}", "$type": "color", "$description": "En revisión — amber, under peer review" },
+        "approved":  { "$value": "{color.primitive.green.70}", "$type": "color", "$description": "Aprobado — green, cleared for publication" },
+        "published": { "$value": "{color.primitive.blue.70}", "$type": "color", "$description": "Publicado — brand blue, live" },
         "rejected":  { "$value": "{color.primitive.red.60}", "$type": "color", "$description": "Rechazado — red, requires revision" }
       }
     },

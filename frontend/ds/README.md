@@ -96,13 +96,13 @@ layer is generous and typographic — serif body at a comfortable measure, lots 
   backs selected/active states.
 - **Neutrals — SLDS "cloud" ramp.** Canvas `#F4F6F9` (Link Water), surfaces `#FFFFFF`,
   borders `#E0E5EE` (Steam) / `#D8DDE6` (Geyser). Text: headings `#0B1B33` (ink navy),
-  body `#2E3A4D`, secondary `#5C6B7E`, muted `#8793A5`.
+  body `#2E3A4D`, secondary `#5C6B7E`, muted `#657286`.
 - **Intelligence accent — violet `#6B4FE3`** (continuity with the original brand). Used
   *sparingly*: "Ask AI" actions, generative states, the Redactor agent.
 - **Agent palette**: Investigador `#0D9DDA`, Redactor `#6B4FE3`, Revisor `#C47D04`,
   Formateador `#2E844A`, Publicador `#CB4B3F`. Full value for the mark; the 05 tint
   backs chips & icon tiles.
-- **Semantic**: success `#2E844A`, warning `#C47D04`, error `#BA0517`, info `#0176D3` —
+- **Semantic**: success `#1F6135`, warning `#946004`, error `#BA0517`, info `#005FB2` —
   always paired with a pale tinted surface and deep-ink text.
 - **Imagery vibe**: cool, clean, document/diagram-forward. No warm filters; cover
   imagery (when present) sits behind a subtle ink scrim. Use real images — never
@@ -126,7 +126,7 @@ calm and grid-aligned; generous whitespace over density.
 and inputs use 8px; cards/panels 12px; modals 16px.
 
 **Borders** — Hairline `1px` in `#E0E5EE` is the default separator. Inputs & secondary
-buttons get a `1px` strong border (`#D8DDE6`); focus replaces it with the blue ring.
+buttons get a `1px` control border (`--border-control`, `#7B8CAA`); focus replaces it with the blue ring.
 Color-coded left accents appear only on flow nodes / callouts, never as generic card
 decoration.
 
@@ -147,7 +147,7 @@ spinners for loading; flow edges animate. **No bounces, no parallax.** Respect
   `-1px` lift.
 - *Nav items*: hover = `bg-hover`; active = blue tint fill + blue text + faint blue
   left border.
-- *Focus*: always the 3px blue ring (`--focus-ring`); accent ring for AI controls.
+- *Focus*: a 2px `--border-focus` outline with 2px offset on keyboard focus; inputs add the 3px `--focus-ring`.
 
 **Transparency & blur** — Used only for overlays: modal backdrop = `rgba(0,0,0,.45)`
 with a light `blur(2px)`; sticky toolbars/headers may use `backdrop-filter: blur(12px)`

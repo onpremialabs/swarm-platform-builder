@@ -55,7 +55,7 @@ Cuando un artículo pasa a estado Aprobado, el badge refleja el cambio de estado
 .badge-approved {
   background: var(--success-bg);
   color: var(--success);
-  /* --success = #2E844A sobre --success-bg = #EBF7EE */
+  /* --success = #1F6135 sobre --success-bg = #EBF7EE */
 }
 ```
 

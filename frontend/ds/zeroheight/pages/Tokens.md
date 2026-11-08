@@ -13,7 +13,7 @@ PRIMITIVO                  ESCALA / ALIAS              SEMÁNTICO (usa estos)
 --neutral-10: #f4f6f9      --space-lg: 1.5rem          --bg-surface
 --ink-100: #0b1b33         --radius-md: 0.5rem         --text-heading
 --violet-60: #6b4fe3       --shadow-2: …               --border-default
---green-60: #2e844a        --dur-base: 200ms           --success
+--green-70: #1f6135        --dur-base: 200ms           --success
 ```
 
 ### Capa 1 — Primitivos
@@ -54,7 +54,7 @@ Los tokens con los que construyes UI. Solo estos cambian entre temas. Si usas `v
 | **Accent IA** | `--accent`, `--accent-tint` | Violeta para momentos de IA — uso restringido |
 | **Superficies** | `--bg-canvas`, `--bg-surface`, `--bg-raised`, `--bg-sunken`, `--bg-inset`, `--bg-hover`, `--bg-active`, `--bg-shell` | Jerarquía de superficies |
 | **Texto** | `--text-heading`, `--text-primary`, `--text-body`, `--text-secondary`, `--text-muted`, `--text-link`, `--text-on-brand`, `--text-inverse` | Jerarquía tipográfica |
-| **Bordes** | `--border-subtle`, `--border-default`, `--border-strong`, `--border-brand`, `--border-focus` | Separadores e inputs |
+| **Bordes** | `--border-subtle`, `--border-default`, `--border-strong`, `--border-control`, `--border-brand`, `--border-focus` | Separadores y contorno de controles |
 | **Status feedback** | `--success`, `--success-bg`, `--warning`, `--warning-bg`, `--error`, `--error-bg`, `--info`, `--info-bg` | Feedback de estado |
 | **Estado editorial** | `--status-draft`, `--status-review`, `--status-approved`, `--status-published`, `--status-rejected` | Ciclo de vida del artículo |
 | **Elevation** | `--shadow-1`, `--shadow-2`, `--shadow-3`, `--shadow-4`, `--shadow-brand`, `--focus-ring`, `--focus-ring-accent` | Capas de profundidad |

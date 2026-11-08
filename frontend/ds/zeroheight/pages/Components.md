@@ -37,11 +37,11 @@ Etiquetas de estado compactas. Siempre: tint de color como fondo + full value co
 ```
 
 ### Input / Field
-Label persistente visible + input con border `--border-strong` + estado de error con border `--error` + mensaje de error debajo. Nunca placeholder-only como label.
+Label persistente visible + input con border `--border-control` + estado de error con border `--error` + mensaje de error debajo. Nunca placeholder-only como label.
 
 ```css
 .input {
-  border: 1px solid var(--border-strong);
+  border: 1px solid var(--border-control);
   border-radius: var(--radius-md);
   padding: var(--space-xs) var(--space-sm);
   font-family: var(--font-sans);
@@ -97,7 +97,7 @@ Spinner circular animado en `--brand`. Duración `--dur-slow` (320ms), ease-line
 Tabs horizontales: borde inferior `--border-default`; tab activo = borde inferior 2px `--brand` + texto `--brand`. Transition `--dur-fast`.
 
 ### Toggle / Switch
-Toggle binario. Off = `--border-strong`. On = `--brand`. Handle blanco. 44px de target mínimo.
+Toggle binario. Off = fondo `--neutral-30` con borde `--border-control`. On = `--brand`. Handle blanco. 44px de target mínimo.
 
 ### Divider
 `<hr>` con `border-top: 1px solid var(--border-default)`. Sin margin propio — controlado por el contexto.
