@@ -27,13 +27,13 @@ Fondo azul `--brand` (#0176D3), texto blanco, shadow de marca. Es el botón de m
 
 ### btn-secondary — acción secundaria
 
-Fondo blanco, borde `--border-strong` (#D8DDE6), texto `--text-body`. La alternativa al primario cuando hay dos acciones de igual importancia, pero una es la preferida.
+Fondo blanco, borde `--border-control` (#7B8CAA), texto `--text-body`. La alternativa al primario cuando hay dos acciones de igual importancia, pero una es la preferida.
 
 ```css
 .btn-secondary {
   background: var(--bg-surface);
   color: var(--text-body);
-  border: 1px solid var(--border-strong);
+  border: 1px solid var(--border-control);
 }
 .btn-secondary:hover  { background: var(--bg-hover); border-color: var(--border-brand); }
 .btn-secondary:active { background: var(--bg-active); }
@@ -245,7 +245,7 @@ import { Save, Trash2, Sparkles } from 'lucide-react';
 ## Accesibilidad
 
 - Todos los botones son `<button>` nativos — nunca `<div>` o `<span>` como botón
-- Contraste mínimo: blanco sobre `--brand` = 4.6:1 (AA)
+- Contraste mínimo: blanco sobre `--brand` = 4.63:1 (AA)
 - Focus ring siempre visible — `--focus-ring` de 3px
 - `aria-disabled="true"` + `pointer-events: none` para botones deshabilitados semánticos
 - Botones de solo icono: `aria-label` obligatorio

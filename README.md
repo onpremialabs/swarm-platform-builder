@@ -874,6 +874,7 @@ aplicación).
 │
 ├── frontend/
 │   ├── index.html · index.public.html   # Dos builds de Vite: app y revista pública
+│   ├── ds/                   # Sistema de diseño: tokens, fuentes, guías y ejemplos visuales
 │   └── src/
 │       ├── main.jsx            # Registra el proyecto en el builder al arrancar
 │       ├── platform/           # Builder: cliente HTTP, stores, Flow Designer, agentes, documentos
@@ -1187,6 +1188,7 @@ Las áreas registradas son: `area/security`, `area/infra`, `area/backend`,
 | [docs/bitacora/](docs/bitacora/) | Bitácora de tareas resueltas (una entrada por ejecución). |
 | [docs/governance/data-retention.md](docs/governance/data-retention.md) | Qué se guarda y cuánto tiempo (`RETENTION_*`). |
 | [docs/onboarding/](docs/onboarding/) | Guía interactiva para colaboradores y cómo regenerarla. |
+| [frontend/ds/](frontend/ds/README.md) | Sistema de diseño: marca, fuentes, color, [tokens](frontend/ds/tokens.md), [accesibilidad](frontend/ds/ACCESSIBILITY.md) y ejemplos visuales (`preview/`, `ui_kits/`). Los valores reales están en [`colors_and_type.css`](frontend/ds/colors_and_type.css). |
 
 ### Backlog y GitHub Project
 

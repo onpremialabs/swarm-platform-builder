@@ -105,11 +105,12 @@ var(--bg-inset)             /* #EEF1F6 — áreas hundidas */
 var(--text-heading)         /* #0B1B33 */
 var(--text-body)            /* #2E3A4D */
 var(--text-secondary)       /* #5C6B7E */
-var(--text-muted)           /* #8793A5 */
+var(--text-muted)           /* #657286 */
 
 /* Bordes */
 var(--border-default)       /* #E0E5EE */
-var(--border-strong)        /* #D8DDE6 */
+var(--border-strong)        /* #D8DDE6 — separadores */
+var(--border-control)       /* #7B8CAA — contorno de controles */
 
 /* Espaciado */
 var(--space-xs)             /* 8px */

@@ -80,7 +80,7 @@ Rápido y utilitario. Duración 120–320ms en `cubic-bezier(0.4,0,0.2,1)`. Fade
 
 ## Bordes
 
-Hairline `1px` en `--border-default` (#E0E5EE) es el separador estándar. Inputs y botones secundarios usan `--border-strong` (#D8DDE6). Focus sustituye el borde por el anillo azul. Los acentos de color izquierdo aparecen solo en nodos del Flow Designer y callouts de contenido — nunca como decoración genérica de card.
+Hairline `1px` en `--border-default` (#E0E5EE) es el separador estándar. Inputs y botones secundarios usan `--border-control` (#7B8CAA). Focus sustituye el borde por el anillo azul. Los acentos de color izquierdo aparecen solo en nodos del Flow Designer y callouts de contenido — nunca como decoración genérica de card.
 
 ```css
 /* Card estándar */
