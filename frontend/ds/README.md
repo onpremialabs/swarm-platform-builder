@@ -189,6 +189,7 @@ sans + Lucide icons. No gradient fills, no colored left-border-only cards.
 | Path | What it is |
 |---|---|
 | `README.md` | This file — context, content & visual foundations, iconography, index |
+| `../../docs/public/design-system/index.html` | **Visual reference** of the whole system, by sections (served by the docs site at `/design-system/`). Uses a synced copy of `colors_and_type.css` + `assets/` — after changing a token or logo here, run `python scripts/sync_design_system_docs.py`. |
 | `colors_and_type.css` | **The token source of truth.** Primitive + semantic CSS vars, **light + dark themes**, dataviz palette, the `.prose` Content System, base element styles. Link this in every artifact. |
 | `tokens.md` | Token architecture (primitive → alias → semantic), full token reference, and core design patterns |
 | `ACCESSIBILITY.md` | **WCAG 2.1 AA** rules governing how the system's tokens & components combine (contrast, focus, targets, forms, semantics, motion) |

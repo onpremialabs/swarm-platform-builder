@@ -380,7 +380,7 @@
       </div>
       <div class="panel" style="margin:0">
         <div class="cap">Fuente de verdad</div>
-        <p class="t" style="margin-top:6px"><code>frontend/ds/colors_and_type.css</code>. La app la importa desde <code>src/index.css</code>; esta página también, así que todo valor mostrado aquí es el real.</p>
+        <p class="t" style="margin-top:6px"><code>frontend/ds/colors_and_type.css</code>. La app la importa desde <code>src/index.css</code>; esta página carga una copia idéntica (<code>scripts/sync_design_system_docs.py</code>, vigilada por un test), así que todo valor mostrado aquí es el real.</p>
       </div>
       <div class="panel" style="margin:0">
         <div class="cap">Superficies</div>
@@ -1068,7 +1068,7 @@
     </ul>
     <h3 class="h">Deuda conocida (detectada al generar esta página)</h3>
     <div class="note"><i data-lucide="alert-triangle"></i><span><code>preview/a11y-contrast.html</code> muestra ratios fijos (12.6, 4.8, 4.6, 5.4) que no coinciden con <code>ACCESSIBILITY.md</code> (11.48, 4.63…). La sección 18 de esta página los calcula en vivo.</span></div>
-    <footer class="ft">Generado a partir de <code>frontend/ds/colors_and_type.css</code>, <code>README.md</code>, <code>tokens.md</code>, <code>ACCESSIBILITY.md</code>, <code>ui_kits/studio/studio.css</code> y <code>zeroheight/pages/*</code> · 2026-11-11.</footer>
+    <footer class="ft">Página: <code>docs/public/design-system/index.html</code> (web de docs, <code>/design-system/</code>). Generada a partir de <code>frontend/ds/colors_and_type.css</code>, <code>README.md</code>, <code>tokens.md</code>, <code>ACCESSIBILITY.md</code>, <code>ui_kits/studio/studio.css</code> y <code>zeroheight/pages/*</code> · 2026-11-11. Si cambias un token o un logo en <code>frontend/ds/</code>, ejecuta <code>python scripts/sync_design_system_docs.py</code>.</footer>
   </section>
 
   </div>

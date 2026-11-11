@@ -1,0 +1,500 @@
+/* ============================================================
+   ALEJANDRIA MAGAZINE — DESIGN TOKENS
+   colors_and_type.css
+   ------------------------------------------------------------
+   Foundations for the AlejandrIA Magazine design system.
+   Built on Salesforce Lightning Design System 2 token
+   structure (https://github.com/salesforce-ux/design-system),
+   reframed for a modern scientific content-creation & publishing
+   product. Two registers live here:
+     · PRODUCT  — the Studio app UI (light SLDS-style surfaces)
+     · CONTENT  — the editorial reading layer (serif long-form)
+   Fonts are open-source and loaded from Google Fonts (see top
+   @import). They are AlejandrIA's chosen faces, not substitutes.
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600;8..60,700&family=Source+Sans+3:ital,wght@0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+:root {
+  /* ----------------------------------------------------------
+     1 · PRIMITIVE COLOR PALETTE
+     SLDS "cloud" neutrals + AlejandrIA brand + agent palette
+     ---------------------------------------------------------- */
+
+  /* Brand — AlejandrIA Blue (SLDS2 brand blue family) */
+  --blue-05: #eaf4ff;
+  --blue-10: #d6eaff;
+  --blue-20: #aad5fb;
+  --blue-40: #4ea0ee;
+  --blue-50: #1b96ff;   /* azure / accent */
+  --blue-60: #0176d3;   /* PRIMARY */
+  --blue-70: #005fb2;   /* hover */
+  --blue-80: #014486;   /* active / deep */
+  --blue-95: #022a52;
+
+  /* Ink — deep editorial navy (SLDS Deep Cove / Biscay heritage) */
+  --ink-100: #0b1b33;   /* headings, highest-contrast text */
+  --ink-90:  #16243d;
+  --ink-80:  #1f3a5f;
+
+  /* Neutral cloud ramp (SLDS Link Water / Steam / Geyser) */
+  --neutral-00: #ffffff;
+  --neutral-05: #f8fafc;
+  --neutral-10: #f4f6f9;  /* Link Water — app canvas / surface */
+  --neutral-15: #eef1f6;  /* White Lilac */
+  --neutral-20: #e0e5ee;  /* Steam — borders */
+  --neutral-30: #d8dde6;  /* Geyser — strong border */
+  --neutral-40: #c9cfdb;
+  --neutral-50: #aab2c2;
+  --neutral-60: #8793a5;
+  --neutral-65: #657286;  /* texto atenuado — el escalón mínimo que llega a AA */
+  --neutral-70: #5c6b7e;  /* muted / secondary text */
+  --neutral-80: #44546a;
+  --neutral-90: #2e3a4d;
+
+  /* Intelligence accent — violet (continuity w/ original brand,
+     used sparingly for AI / agent / generative moments) */
+  --violet-05: #f1eefe;
+  --violet-40: #9a82f0;
+  --violet-60: #6b4fe3;
+  --violet-70: #5436c9;
+
+  /* Agent palette — the 5 editorial agents, tuned for light UI */
+  --agent-research:  #0d9dda;  /* Investigador */
+  --agent-write:     #6b4fe3;  /* Redactor     */
+  --agent-review:    #c47d04;  /* Revisor      */
+  --agent-format:    #2e844a;  /* Formateador  */
+  --agent-publish:   #cb4b3f;  /* Publicador   */
+
+  /* Status / feedback (SLDS feedback hues) */
+  --green-05:  #ebf7ee;  --green-60:  #2e844a;  --green-70: #1f6135;
+  --amber-05:  #fdf3e3;  --amber-60:  #c47d04;  --amber-70: #946004;
+  --red-05:    #feeeec;  --red-60:    #ba0517;  --red-70:   #8e030f;
+  --teal-05:   #e6f7f6;  --teal-60:   #06a59a;
+
+  /* ----------------------------------------------------------
+     2 · SEMANTIC COLOR — PRODUCT (Studio app, light)
+     ---------------------------------------------------------- */
+  --brand:            var(--blue-60);
+  --brand-hover:      var(--blue-70);
+  --brand-active:     var(--blue-80);
+  --brand-tint:       var(--blue-05);
+  --brand-on:         #ffffff;
+
+  --accent:           var(--violet-60);
+  --accent-tint:      var(--violet-05);
+
+  /* Backgrounds / surfaces */
+  --bg-canvas:        var(--neutral-10);   /* app background */
+  --bg-surface:       var(--neutral-00);   /* cards, panels */
+  --bg-raised:        var(--neutral-00);
+  --bg-sunken:        var(--neutral-05);
+  --bg-inset:         var(--neutral-15);
+  --bg-hover:         var(--neutral-10);
+  --bg-active:        var(--blue-05);
+  --bg-shell:         #ffffff;             /* top bar / sidebar */
+
+  /* Text */
+  --text-heading:     var(--ink-100);
+  --text-primary:     var(--ink-90);
+  --text-body:        var(--neutral-90);
+  --text-secondary:   var(--neutral-70);
+  --text-muted:       var(--neutral-65);
+  --text-link:        var(--blue-60);
+  --text-on-brand:    #ffffff;
+  --text-inverse:     #ffffff;
+
+  /* Borders */
+  --border-subtle:    var(--neutral-15);
+  --border-default:   var(--neutral-20);
+  --border-strong:    var(--neutral-30);
+  --border-brand:     var(--blue-60);
+  --border-focus:     var(--blue-60);
+  /* Contorno de un **control** (input, toggle, botón secundario). WCAG 2.1
+     SC 1.4.11 le pide 3:1 contra su fondo: `--border-strong` (#d8dde6) da 1.36:1
+     sobre blanco, así que un input blanco sobre un panel blanco no se distingue.
+     Token aparte y no un `--border-strong` más oscuro: ese está publicado en
+     zeroheight con un hex concreto y se usa también en separadores decorativos,
+     que no tienen ese requisito. */
+  --border-control:   #7b8caa;
+
+  /* Status semantics */
+  --success:          var(--green-70);
+  --success-bg:       var(--green-05);
+  --warning:          var(--amber-70);
+  --warning-bg:       var(--amber-05);
+  --error:            var(--red-60);
+  --error-bg:         var(--red-05);
+  --text-on-error:    #ffffff;        /* 6.73:1 sobre --error */
+  --info:             var(--blue-70);
+  --info-bg:          var(--blue-05);
+
+  /* Azul de marca cuando es **texto pequeño sobre su tinte** (badge publicado).
+     `--brand` no se toca: también se usa como fondo, y oscurecerlo repintaría
+     toda la identidad de la aplicación para arreglar una etiqueta. */
+  --brand-on-tint:    var(--blue-70);
+
+  /* Editorial workflow status */
+  --status-draft:     var(--neutral-70);
+  --status-review:    var(--amber-70);
+  --status-approved:  var(--green-70);
+  --status-published: var(--blue-70);
+  --status-rejected:  var(--red-60);
+
+  /* ----------------------------------------------------------
+     3 · TYPOGRAPHY
+     ---------------------------------------------------------- */
+  --font-serif: 'Source Serif 4', Georgia, 'Times New Roman', serif;
+  --font-sans:  'Source Sans 3', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono:  'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+
+  /* Type scale (SLDS font-size aliases, rem) */
+  --text-2xs: 0.6875rem;  /* 11px */
+  --text-xs:  0.75rem;    /* 12px */
+  --text-sm:  0.8125rem;  /* 13px */
+  --text-base:0.875rem;   /* 14px — UI body */
+  --text-md:  1rem;       /* 16px — reading body min */
+  --text-lg:  1.125rem;   /* 18px */
+  --text-xl:  1.25rem;    /* 20px */
+  --text-2xl: 1.5rem;     /* 24px */
+  --text-3xl: 1.75rem;    /* 28px */
+  --text-4xl: 2rem;       /* 32px */
+  --text-5xl: 2.625rem;   /* 42px */
+  --text-6xl: 3.5rem;     /* 56px — editorial hero */
+
+  --weight-regular: 400;
+  --weight-medium:  500;
+  --weight-semibold:600;
+  --weight-bold:    700;
+
+  --leading-tight:  1.2;
+  --leading-snug:   1.35;
+  --leading-normal: 1.5;
+  --leading-relaxed:1.7;   /* long-form reading */
+
+  --tracking-tight: -0.02em;
+  --tracking-snug:  -0.01em;
+  --tracking-normal:0;
+  --tracking-wide:  0.04em;
+  --tracking-caps:  0.07em;  /* uppercase eyebrows */
+
+  /* Content measure (optimal reading line length) */
+  --measure: 68ch;
+  --measure-narrow: 58ch;
+
+  /* ----------------------------------------------------------
+     4 · SPACING (SLDS rem scale)
+     ---------------------------------------------------------- */
+  --space-3xs: 0.125rem; /* 2  */
+  --space-2xs: 0.25rem;  /* 4  */
+  --space-xs:  0.5rem;   /* 8  */
+  --space-sm:  0.75rem;  /* 12 */
+  --space-md:  1rem;     /* 16 */
+  --space-lg:  1.5rem;   /* 24 */
+  --space-xl:  2rem;     /* 32 */
+  --space-2xl: 3rem;     /* 48 */
+  --space-3xl: 4rem;     /* 64 */
+  --space-4xl: 5rem;     /* 80 */
+
+  /* ----------------------------------------------------------
+     5 · RADIUS (SLDS2 — slightly rounder than SLDS1)
+     ---------------------------------------------------------- */
+  --radius-sm:   0.25rem;  /* 4  */
+  --radius-md:   0.5rem;   /* 8  */
+  --radius-lg:   0.75rem;  /* 12 */
+  --radius-xl:   1rem;     /* 16 */
+  --radius-pill: 999px;
+  --radius-circle: 50%;
+
+  /* ----------------------------------------------------------
+     6 · ELEVATION & EFFECTS (light surfaces)
+     ---------------------------------------------------------- */
+  --shadow-1: 0 1px 2px rgba(11,27,51,0.06), 0 1px 1px rgba(11,27,51,0.04);
+  --shadow-2: 0 2px 8px rgba(11,27,51,0.08), 0 1px 2px rgba(11,27,51,0.05);
+  --shadow-3: 0 8px 24px rgba(11,27,51,0.10), 0 2px 6px rgba(11,27,51,0.06);
+  --shadow-4: 0 16px 48px rgba(11,27,51,0.14);
+  --shadow-brand: 0 4px 16px rgba(1,118,211,0.20);
+  --focus-ring: 0 0 0 3px rgba(1,118,211,0.25);
+  --focus-ring-accent: 0 0 0 3px rgba(107,79,227,0.25);
+
+  --border-width: 1px;
+  --border-width-thick: 2px;
+
+  /* Layout constants */
+  --sidebar-w: 248px;
+  --topbar-h: 56px;
+
+  /* Motion (SLDS duration aliases) */
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1); /* @kind other */
+  --ease-out: cubic-bezier(0, 0, 0.2, 1); /* @kind other */
+  --dur-fast: 120ms; /* @kind other */
+  --dur-base: 200ms; /* @kind other */
+  --dur-slow: 320ms; /* @kind other */
+
+  /* ----------------------------------------------------------
+     7 · DATA VISUALISATION
+     Categorical series, sequential & diverging ramps, plus
+     positive/negative semantics for charts. Series are ordered
+     for maximum adjacent contrast and are colour-blind aware.
+     ---------------------------------------------------------- */
+  --viz-1: #0176d3;  /* brand blue   */
+  --viz-2: #06a59a;  /* teal         */
+  --viz-3: #6b4fe3;  /* violet       */
+  --viz-4: #c47d04;  /* amber        */
+  --viz-5: #2e844a;  /* green        */
+  --viz-6: #cb4b3f;  /* coral        */
+  --viz-7: #1b96ff;  /* light azure  */
+  --viz-8: #8793a5;  /* neutral grey */
+
+  /* Sequential (single-hue) — low → high */
+  --viz-seq-1: #eaf4ff;
+  --viz-seq-2: #aad5fb;
+  --viz-seq-3: #4ea0ee;
+  --viz-seq-4: #0176d3;
+  --viz-seq-5: #014486;
+
+  /* Diverging — negative ← neutral → positive */
+  --viz-div-neg: #ba0517;
+  --viz-div-mid: #e0e5ee;
+  --viz-div-pos: #2e844a;
+
+  --viz-positive: #2e844a;
+  --viz-negative: #ba0517;
+  --viz-grid: var(--neutral-20);
+  --viz-axis: var(--neutral-60);
+  --viz-track: var(--neutral-15);
+}
+
+/* ============================================================
+   DARK THEME
+   Apply via <html data-theme="dark"> or class="dark" on any
+   ancestor. Only semantic vars are overridden — primitives and
+   the type/spacing/radius scales are shared across themes.
+   Revives the product's original ink-dark mood, modernised:
+   lighter brand blue for AA contrast, softened surfaces.
+   ============================================================ */
+[data-theme="dark"], .dark {
+  /* Brand — lift for contrast on dark surfaces */
+  --brand:        #2f9bff;
+  --brand-hover:  #54adff;
+  --brand-active: #7cc1ff;
+  --brand-tint:   rgba(47,155,255,0.16);
+  --accent:       #8f74f5;
+  --accent-tint:  rgba(143,116,245,0.18);
+
+  /* Backgrounds / surfaces — deep ink */
+  --bg-canvas:   #0a1120;
+  --bg-surface:  #111c2f;
+  --bg-raised:   #16243a;
+  --bg-sunken:   #0c1424;
+  --bg-inset:    #1a2942;
+  --bg-hover:    rgba(255,255,255,0.05);
+  --bg-active:   rgba(47,155,255,0.16);
+  --bg-shell:    #0e1729;
+
+  /* Text */
+  --text-heading:   #f3f6fc;
+  --text-primary:   #e6ecf6;
+  --text-body:      #d2dcea;
+  --text-secondary: #9aa8c0;
+  --text-muted:     #75849d;
+  --text-link:      #54adff;
+  --text-on-brand:  #04162c;
+  --text-inverse:   #0a1120;
+  --brand-on:       #04162c;  /* sin esto quedaba el #ffffff del claro: 2.90:1 */
+
+  /* Borders */
+  --border-subtle:  rgba(255,255,255,0.06);
+  --border-default: rgba(255,255,255,0.11);
+  --border-strong:  rgba(255,255,255,0.18);
+  --border-brand:   #2f9bff;
+  --border-focus:   #54adff;
+  --border-control: #8793a5;  /* 5.48:1 sobre --bg-surface */
+
+  /* Status — lighter values + translucent tints */
+  --success: #3ecf8e;  --success-bg: rgba(62,207,142,0.15);
+  --warning: #e8b04b;  --warning-bg: rgba(232,176,75,0.15);
+  --error:   #ff6b6b;  --error-bg:   rgba(255,107,107,0.15);
+  --text-on-error: #2a0508;  /* el rojo del tema oscuro es claro: blanco daría 2.78:1 */
+  --info:    #2f9bff;  --info-bg:    rgba(47,155,255,0.15);
+
+  --status-draft:     #8390a7;
+  --status-review:    #e8b04b;
+  --status-approved:  #3ecf8e;
+  --status-published: #2f9bff;
+  --status-rejected:  #ff6b6b;
+
+  /* Tint surfaces used by .prose / callouts in dark */
+  --green-05: rgba(62,207,142,0.13);  --green-70: #6fe6ad;
+  --amber-05: rgba(232,176,75,0.13);  --amber-70: #f3cd84;
+  --red-05:   rgba(255,107,107,0.13); --red-70:   #ff9d9d;
+  --blue-05:  rgba(47,155,255,0.14);  --blue-70:  #7cc1ff; --blue-80: #a9d4ff;
+  --violet-05:rgba(143,116,245,0.16);
+  --neutral-10: #16243a;  --neutral-15: #1a2942;
+  --neutral-20: rgba(255,255,255,0.12);
+
+  /* Elevation — deeper, on black */
+  --shadow-1: 0 1px 2px rgba(0,0,0,0.40);
+  --shadow-2: 0 2px 10px rgba(0,0,0,0.45);
+  --shadow-3: 0 10px 30px rgba(0,0,0,0.50);
+  --shadow-4: 0 20px 56px rgba(0,0,0,0.60);
+  --shadow-brand: 0 4px 20px rgba(47,155,255,0.30);
+  --focus-ring: 0 0 0 3px rgba(47,155,255,0.40);
+
+  /* Dataviz on dark */
+  --viz-1: #2f9bff;  --viz-2: #2cd4c6;  --viz-3: #8f74f5;  --viz-4: #e8b04b;
+  --viz-5: #3ecf8e;  --viz-6: #ff7a6b;  --viz-7: #79c0ff;  --viz-8: #8793a5;
+  --viz-seq-1: #0c2138; --viz-seq-2: #134a7e; --viz-seq-3: #1f74c4; --viz-seq-4: #2f9bff; --viz-seq-5: #7cc1ff;
+  --viz-grid: rgba(255,255,255,0.08);
+  --viz-axis: #6c7c97;
+  --viz-track: rgba(255,255,255,0.08);
+}
+
+/* The .prose ink-on-light values need re-pointing in dark */
+[data-theme="dark"] .prose, .dark .prose { color: var(--text-body); }
+[data-theme="dark"] .prose h1, [data-theme="dark"] .prose h2,
+[data-theme="dark"] .prose h3, [data-theme="dark"] .prose h4,
+[data-theme="dark"] .prose strong,
+.dark .prose h1, .dark .prose h2, .dark .prose h3, .dark .prose h4, .dark .prose strong { color: var(--text-heading); }
+[data-theme="dark"] .prose pre, .dark .prose pre { background: #06101f; }
+
+/* ============================================================
+   SEMANTIC ELEMENT STYLES
+   Drop-in defaults so any document including this file inherits
+   the AlejandrIA voice. Use .ui-* for product, .prose for content.
+   ============================================================ */
+
+.ax-root,
+body.ax {
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+  color: var(--text-body);
+  background: var(--bg-canvas);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* --- Product UI headings (sans) --- */
+.ax h1, .ax h2, .ax h3, .ax h4, .ax h5, .ax h6 {
+  font-family: var(--font-sans);
+  color: var(--text-heading);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-snug);
+  letter-spacing: var(--tracking-snug);
+}
+.ax h1 { font-size: var(--text-3xl); letter-spacing: var(--tracking-tight); }
+.ax h2 { font-size: var(--text-2xl); }
+.ax h3 { font-size: var(--text-xl); }
+.ax h4 { font-size: var(--text-lg); }
+
+.ax code, .ax kbd, .ax pre { font-family: var(--font-mono); }
+.ax a { color: var(--text-link); text-decoration: none; }
+.ax a:hover { text-decoration: underline; }
+
+/* ============================================================
+   CONTENT SYSTEM — .prose
+   Editorial long-form rendering for technical & scientific
+   articles. Serif body, generous measure, scholarly rhythm.
+   ============================================================ */
+.prose {
+  font-family: var(--font-serif);
+  font-size: var(--text-md);
+  line-height: var(--leading-relaxed);
+  color: var(--ink-90);
+  max-width: var(--measure);
+  font-optical-sizing: auto;
+}
+.prose > * + * { margin-top: 1.15em; }
+
+.prose h1, .prose h2, .prose h3, .prose h4 {
+  font-family: var(--font-serif);
+  color: var(--ink-100);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-snug);
+}
+.prose h1 { font-size: var(--text-5xl); margin-top: 0; }
+.prose h2 { font-size: var(--text-3xl); margin-top: 2em; }
+.prose h3 { font-size: var(--text-xl);  margin-top: 1.6em; }
+.prose h4 { font-size: var(--text-lg);  margin-top: 1.4em; font-weight: var(--weight-semibold); }
+.prose p  { margin: 0; text-wrap: pretty; }
+.prose strong { font-weight: var(--weight-bold); color: var(--ink-100); }
+.prose em { font-style: italic; }
+.prose a { color: var(--blue-70); text-decoration: underline; text-underline-offset: 2px; text-decoration-thickness: 1px; text-decoration-color: var(--blue-20); }
+.prose a:hover { text-decoration-color: var(--blue-60); }
+
+.prose ul, .prose ol { padding-left: 1.4em; }
+.prose li { margin: 0.4em 0; }
+.prose li::marker { color: var(--neutral-50); }
+
+/* Inline code & code blocks in content */
+.prose code {
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+  background: var(--neutral-10);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  padding: 0.08em 0.36em;
+  color: var(--blue-80);
+}
+.prose pre {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: 1.65;
+  background: var(--ink-100);
+  color: #d6e2f3;
+  border-radius: var(--radius-md);
+  padding: var(--space-md) var(--space-lg);
+  overflow-x: auto;
+}
+.prose pre code { background: none; border: none; padding: 0; color: inherit; font-size: inherit; }
+
+/* Blockquote / pull quote */
+.prose blockquote {
+  border-left: 3px solid var(--blue-60);
+  padding: 0.2em 0 0.2em 1.2em;
+  color: var(--neutral-80);
+  font-style: italic;
+}
+.prose blockquote p { font-size: 1.05em; }
+
+/* Figures & captions */
+.prose figure { margin: 1.6em 0; }
+.prose figure img { width: 100%; border-radius: var(--radius-md); border: 1px solid var(--border-default); }
+.prose figcaption {
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  margin-top: var(--space-xs);
+  text-align: left;
+}
+.prose figcaption .fig-label { color: var(--blue-60); font-weight: var(--weight-semibold); }
+
+/* Tables */
+.prose table { width: 100%; border-collapse: collapse; font-family: var(--font-sans); font-size: var(--text-sm); }
+.prose thead th {
+  text-align: left;
+  color: var(--text-secondary);
+  font-weight: var(--weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-caps);
+  font-size: var(--text-2xs);
+  padding: var(--space-xs) var(--space-sm);
+  border-bottom: 2px solid var(--border-strong);
+}
+.prose tbody td { padding: var(--space-xs) var(--space-sm); border-bottom: 1px solid var(--border-subtle); color: var(--ink-90); }
+
+/* Horizontal rule */
+.prose hr { border: none; border-top: 1px solid var(--border-default); margin: 2.4em 0; }
+
+/* Drop cap helper (opt-in) */
+.prose .has-dropcap::first-letter {
+  font-weight: var(--weight-bold);
+  font-size: 3.1em;
+  line-height: 0.82;
+  float: left;
+  padding: 0.06em 0.1em 0 0;
+  color: var(--blue-70);
+}
