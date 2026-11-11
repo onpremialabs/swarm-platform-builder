@@ -886,9 +886,10 @@ aplicación).
 │   ├── governance/             # GOVERNANCE, retención de datos, protección de rama…
 │   ├── bitacora/               # Una entrada por tarea resuelta
 │   ├── onboarding/             # Contenido editable de la guía para colaboradores
-│   └── public/onboarding/      # Guía generada (alejandria-por-dentro.html)
+│   ├── public/onboarding/      # Guía generada (alejandria-por-dentro.html)
+│   └── public/design-system/   # Referencia visual del sistema de diseño (copia sincronizada de tokens)
 │
-├── scripts/                    # validate_specs · run-task.sh · build_onboarding · migraciones RAG
+├── scripts/                    # validate_specs · run-task.sh · build_onboarding · sync_design_system_docs · migraciones RAG
 ├── .claude/                    # Agentes de desarrollo, comandos, skills y hooks
 └── qdrant/ · storage/          # Binario de Qdrant y sus datos locales
 ```
@@ -1189,6 +1190,7 @@ Las áreas registradas son: `area/security`, `area/infra`, `area/backend`,
 | [docs/governance/data-retention.md](docs/governance/data-retention.md) | Qué se guarda y cuánto tiempo (`RETENTION_*`). |
 | [docs/onboarding/](docs/onboarding/) | Guía interactiva para colaboradores y cómo regenerarla. |
 | [frontend/ds/](frontend/ds/README.md) | Sistema de diseño: marca, fuentes, color, [tokens](frontend/ds/tokens.md), [accesibilidad](frontend/ds/ACCESSIBILITY.md) y ejemplos visuales (`preview/`, `ui_kits/`). Los valores reales están en [`colors_and_type.css`](frontend/ds/colors_and_type.css). |
+| [docs/public/design-system/](docs/public/design-system/index.html) | **Referencia visual del sistema de diseño**: una página por secciones (color, tipografía, componentes, accesibilidad, tema oscuro…). La sirve la web de docs en `/design-system/`. Ver [docs/guide/design-system.md](docs/guide/design-system.md). |
 
 ### Backlog y GitHub Project
 

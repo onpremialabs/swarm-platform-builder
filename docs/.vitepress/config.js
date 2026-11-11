@@ -23,6 +23,8 @@ export default defineConfig({
       { text: 'Guía', link: '/guide/introduction' },
       { text: 'Proyectos', link: '/projects/alejandria' },
       { text: 'API', link: '/api/endpoints' },
+      // Página estática de docs/public/: target _self para que no la intercepte el router.
+      { text: 'Sistema de diseño', link: '/design-system/index.html', target: '_self' },
       {
         text: 'v0.1.0',
         items: [
@@ -49,6 +51,7 @@ export default defineConfig({
             { text: 'Diseñador de flujos', link: '/guide/flow-designer' },
             { text: 'Base documental RAG', link: '/guide/rag' },
             { text: 'Configuración', link: '/guide/configuration' },
+            { text: 'Sistema de diseño', link: '/guide/design-system' },
           ],
         },
         {
