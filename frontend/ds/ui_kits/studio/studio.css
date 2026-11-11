@@ -64,8 +64,9 @@ button { font-family: inherit; cursor: pointer; }
 .btn-primary { background: var(--brand); color: #fff; box-shadow: var(--shadow-brand); }
 .btn-primary:hover:not(:disabled) { background: var(--brand-hover); }
 .btn-primary:active:not(:disabled) { background: var(--brand-active); transform: translateY(1px); }
-.btn-secondary { background: #fff; color: var(--ink-90); border-color: var(--border-strong); }
-.btn-secondary:hover:not(:disabled) { background: var(--bg-sunken); border-color: var(--neutral-40); }
+.btn-secondary { background: #fff; color: var(--ink-90); border-color: var(--border-control); }
+/* Hover oscurece el contorno: un tono más claro (--neutral-40) bajaría de 3:1 (WCAG 1.4.11). */
+.btn-secondary:hover:not(:disabled) { background: var(--bg-sunken); border-color: var(--neutral-80); }
 .btn-ghost { background: none; color: var(--text-secondary); }
 .btn-ghost:hover:not(:disabled) { background: var(--bg-hover); color: var(--ink-90); }
 .btn-accent { background: var(--accent); color: #fff; }
@@ -79,11 +80,11 @@ button { font-family: inherit; cursor: pointer; }
 /* ---------- Fields ---------- */
 .field { display: flex; flex-direction: column; gap: 6px; }
 .field label { font-size: 12px; font-weight: 600; color: var(--text-secondary); }
-.inp { width: 100%; background: #fff; border: 1px solid var(--border-strong); border-radius: 8px; padding: 9px 12px; font-family: var(--font-sans); font-size: 14px; color: var(--ink-90); outline: none; transition: all var(--dur-fast); }
+.inp { width: 100%; background: #fff; border: 1px solid var(--border-control); border-radius: 8px; padding: 9px 12px; font-family: var(--font-sans); font-size: 14px; color: var(--ink-90); outline: none; transition: all var(--dur-fast); }
 .inp::placeholder { color: var(--text-muted); }
 .inp:focus { border-color: var(--border-focus); box-shadow: var(--focus-ring); }
 textarea.inp { resize: vertical; min-height: 84px; line-height: 1.6; }
-.search { display: flex; align-items: center; gap: 8px; background: #fff; border: 1px solid var(--border-strong); border-radius: 8px; padding: 0 12px; }
+.search { display: flex; align-items: center; gap: 8px; background: #fff; border: 1px solid var(--border-control); border-radius: 8px; padding: 0 12px; }
 .search input { border: none; outline: none; padding: 9px 0; font-family: var(--font-sans); font-size: 14px; flex: 1; color: var(--ink-90); background: none; }
 .search:focus-within { border-color: var(--border-focus); box-shadow: var(--focus-ring); }
 
