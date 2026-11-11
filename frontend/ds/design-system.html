@@ -1,0 +1,1217 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sistema de diseño</title>
+<meta name="description" content="Referencia por secciones del sistema de diseño de Swarm Platform Builder (Studio + Magazine), generada a partir de colors_and_type.css.">
+<link rel="icon" type="image/svg+xml" href="assets/logomark.svg">
+<!-- Única fuente de verdad de los tokens: este documento no redefine ningún valor. -->
+<link rel="stylesheet" href="colors_and_type.css">
+<style>
+  /* ---------- Chrome de la página (solo layout; todo color/tipo sale de tokens) ---------- */
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; scroll-padding-top: 72px; }
+  body {
+    font-family: var(--font-sans); font-size: var(--text-base); line-height: var(--leading-normal);
+    color: var(--text-body); background: var(--bg-canvas);
+    -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+  button { font-family: inherit; cursor: pointer; }
+  :focus-visible { outline: var(--border-width-thick) solid var(--border-focus); outline-offset: 2px; }
+  code, .mono { font-family: var(--font-mono); }
+  .skip { position: absolute; left: -999px; top: 8px; background: var(--brand); color: var(--brand-on); padding: 8px 12px; border-radius: var(--radius-md); z-index: 100; }
+  .skip:focus { left: 8px; }
+
+  .topbar {
+    position: sticky; top: 0; z-index: 50; height: var(--topbar-h);
+    display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 0 20px;
+    background: color-mix(in srgb, var(--bg-shell) 88%, transparent);
+    backdrop-filter: blur(12px); border-bottom: 1px solid var(--border-default);
+  }
+  .brand { display: flex; align-items: center; gap: 11px; text-decoration: none; }
+  .brand img { width: 30px; height: 30px; }
+  .brand .name { font-family: var(--font-serif); font-size: 17px; font-weight: 700; color: var(--text-heading); line-height: 1; }
+  .brand .sub { font-size: 9px; font-weight: 600; color: var(--text-muted); letter-spacing: .3em; margin-top: 3px; display: block; }
+  .tb-actions { display: flex; align-items: center; gap: 8px; }
+  .menu-btn { display: none; }
+
+  .layout { display: grid; grid-template-columns: var(--sidebar-w) minmax(0, 1fr); }
+  .toc {
+    position: sticky; top: var(--topbar-h); height: calc(100vh - var(--topbar-h)); overflow-y: auto;
+    background: var(--bg-shell); border-right: 1px solid var(--border-default); padding: 12px;
+  }
+  .toc .sec { font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .08em; padding: 14px 12px 6px; }
+  .toc a {
+    display: flex; align-items: center; gap: 10px; padding: 7px 12px; border-radius: var(--radius-md);
+    font-size: 13.5px; font-weight: 500; color: var(--text-secondary); text-decoration: none; border: 1px solid transparent;
+    transition: background var(--dur-fast) var(--ease-standard), color var(--dur-fast);
+  }
+  .toc a:hover { background: var(--bg-hover); color: var(--text-primary); }
+  .toc a.active { background: var(--bg-active); color: var(--brand); font-weight: 600; }
+  .toc a .n { font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); width: 16px; }
+  .toc svg { width: 15px; height: 15px; flex-shrink: 0; }
+
+  main { min-width: 0; padding: 32px 40px 96px; }
+  .wrap { max-width: 1040px; margin: 0 auto; }
+  section.ds { padding: 40px 0 8px; border-top: 1px solid var(--border-default); margin-top: 40px; }
+  section.ds:first-of-type { border-top: 0; margin-top: 0; padding-top: 8px; }
+  .eyebrow { font-size: var(--text-2xs); font-weight: 700; letter-spacing: var(--tracking-caps); text-transform: uppercase; color: var(--brand); }
+  h1.title { font-family: var(--font-serif); font-size: var(--text-5xl); line-height: var(--leading-tight); letter-spacing: var(--tracking-tight); color: var(--text-heading); margin-top: 8px; }
+  h2.h { font-family: var(--font-sans); font-size: var(--text-3xl); font-weight: 600; letter-spacing: var(--tracking-tight); color: var(--text-heading); margin-top: 6px; line-height: var(--leading-snug); }
+  h3.h { font-size: var(--text-lg); font-weight: 600; color: var(--text-heading); margin: 28px 0 10px; letter-spacing: var(--tracking-snug); }
+  .lead { font-size: var(--text-lg); color: var(--text-secondary); max-width: 72ch; margin-top: 10px; line-height: 1.55; }
+  p.t { max-width: 75ch; margin-top: 10px; }
+  .t code, td code, li code, .note code { font-size: .86em; background: var(--bg-inset); border: 1px solid var(--border-default); border-radius: var(--radius-sm); padding: .05em .35em; color: var(--text-primary); }
+
+  .panel { background: var(--bg-surface); border: 1px solid var(--border-default); border-radius: var(--radius-lg); box-shadow: var(--shadow-1); padding: 20px; margin-top: 16px; }
+  .panel.canvas { background: var(--bg-canvas); box-shadow: none; }
+  .grid { display: grid; gap: 14px; }
+  .g2 { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+  .g3 { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+  .g4 { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
+  .row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+  .cap { font-size: 10px; font-weight: 700; letter-spacing: var(--tracking-caps); text-transform: uppercase; color: var(--text-muted); }
+  .muted { color: var(--text-muted); }
+  .small { font-size: var(--text-xs); }
+
+  table.ref { width: 100%; border-collapse: collapse; font-size: var(--text-sm); margin-top: 14px; }
+  table.ref th { text-align: left; font-size: var(--text-2xs); font-weight: 700; letter-spacing: var(--tracking-caps); text-transform: uppercase; color: var(--text-secondary); padding: 8px 10px; border-bottom: 2px solid var(--border-strong); }
+  table.ref td { padding: 9px 10px; border-bottom: 1px solid var(--border-subtle); vertical-align: top; color: var(--text-body); }
+  .tbl-scroll { overflow-x: auto; }
+
+  /* ---------- Muestras de color ---------- */
+  .sw { border: 1px solid var(--border-default); border-radius: var(--radius-lg); overflow: hidden; background: var(--bg-surface); }
+  .sw .chip { height: 64px; border-bottom: 1px solid var(--border-subtle); }
+  .sw .meta { padding: 9px 11px; display: flex; flex-direction: column; gap: 2px; }
+  .sw .nm { font-size: 12.5px; font-weight: 600; color: var(--text-heading); }
+  .sw .tk { font-family: var(--font-mono); font-size: 11px; color: var(--text-secondary); }
+  .sw .hx { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); }
+  .ramp { display: flex; border-radius: var(--radius-lg); overflow: hidden; border: 1px solid var(--border-default); margin-top: 12px; }
+  .ramp > div { flex: 1; min-height: 76px; padding: 8px; display: flex; flex-direction: column; justify-content: flex-end; font-family: var(--font-mono); font-size: 10px; }
+
+  /* ---------- Arquitectura ---------- */
+  .tiers { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; margin-top: 16px; }
+  .tier { border: 1px solid var(--border-default); border-radius: var(--radius-lg); background: var(--bg-surface); padding: 16px; position: relative; }
+  .tier h4 { font-size: var(--text-base); font-weight: 600; color: var(--text-heading); display: flex; align-items: center; gap: 8px; }
+  .tier .num { width: 22px; height: 22px; border-radius: var(--radius-sm); background: var(--brand-tint); color: var(--brand-on-tint); font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
+  .tier p { font-size: var(--text-sm); color: var(--text-secondary); margin-top: 6px; }
+  .tier pre { margin-top: 10px; font-family: var(--font-mono); font-size: 11px; background: var(--bg-sunken); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 8px 10px; color: var(--text-primary); white-space: pre-wrap; }
+  .tier.use { border-color: var(--border-brand); box-shadow: 0 0 0 3px var(--brand-tint); }
+
+  /* ---------- Tipografía ---------- */
+  .tscale { display: flex; flex-direction: column; }
+  .tscale .r { display: grid; grid-template-columns: 150px minmax(0,1fr); gap: 16px; align-items: baseline; padding: 10px 0; border-bottom: 1px solid var(--border-subtle); }
+  .tscale .r .k { font-family: var(--font-mono); font-size: 11px; color: var(--text-secondary); }
+  .tscale .r .s { color: var(--text-heading); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .fam { border: 1px solid var(--border-default); border-radius: var(--radius-lg); background: var(--bg-surface); padding: 18px; }
+  .fam .big { font-size: 44px; line-height: 1.1; color: var(--text-heading); margin: 8px 0 6px; }
+  .fam .glyphs { font-size: 15px; color: var(--text-secondary); word-break: break-all; }
+
+  /* ---------- Spacing / radius / elevation / motion ---------- */
+  .sp { display: grid; grid-template-columns: 90px 64px minmax(0,1fr); gap: 12px; align-items: center; padding: 6px 0; font-size: var(--text-sm); }
+  .sp .bar { height: 14px; background: var(--brand); border-radius: 2px; opacity: .85; }
+  .rd-box { height: 80px; background: var(--brand-tint); border: 1.5px solid var(--border-brand); }
+  .el-box { height: 90px; background: var(--bg-surface); border-radius: var(--radius-lg); display: flex; align-items: center; justify-content: center; color: var(--text-secondary); font-size: var(--text-sm); }
+  .mo-track { position: relative; height: 44px; background: var(--bg-inset); border-radius: var(--radius-md); margin-top: 8px; overflow: hidden; }
+  .mo-dot { position: absolute; top: 8px; left: 8px; width: 28px; height: 28px; border-radius: var(--radius-md); background: var(--brand); }
+  .mo-track.go .mo-dot { left: calc(100% - 36px); }
+
+  /* ---------- Componentes (réplica de ui_kits/studio/studio.css con tokens del DS) ---------- */
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; font-size: 13px; font-weight: 600; border-radius: var(--radius-md); padding: 9px 16px; border: 1px solid transparent; transition: all var(--dur-base) var(--ease-standard); white-space: nowrap; min-height: 36px; }
+  .btn svg { width: 15px; height: 15px; }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .btn-primary { background: var(--brand); color: var(--brand-on); box-shadow: var(--shadow-brand); }
+  .btn-primary:hover:not(:disabled) { background: var(--brand-hover); }
+  .btn-primary:active:not(:disabled) { background: var(--brand-active); transform: translateY(1px); }
+  .btn-secondary { background: var(--bg-surface); color: var(--text-primary); border-color: var(--border-control); }
+  .btn-secondary:hover:not(:disabled) { background: var(--bg-sunken); border-color: var(--neutral-80); }
+  .btn-ghost { background: none; color: var(--text-secondary); }
+  .btn-ghost:hover:not(:disabled) { background: var(--bg-hover); color: var(--text-primary); }
+  .btn-accent { background: var(--accent); color: #fff; }
+  .btn-accent:hover:not(:disabled) { background: var(--violet-70); }
+  .btn-danger { background: var(--error-bg); color: var(--error); border-color: color-mix(in srgb, var(--error) 22%, transparent); }
+  .btn-danger:hover:not(:disabled) { background: var(--error); color: var(--text-on-error); }
+  .btn-sm { padding: 6px 12px; font-size: 12px; min-height: 30px; }
+  .btn-lg { padding: 11px 22px; font-size: 14px; }
+  .icon-btn { width: 34px; height: 34px; border-radius: var(--radius-md); border: 1px solid transparent; background: none; color: var(--text-secondary); display: inline-flex; align-items: center; justify-content: center; position: relative; }
+  .icon-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+  .icon-btn svg { width: 17px; height: 17px; }
+  .notif-dot { position: absolute; top: 7px; right: 7px; width: 7px; height: 7px; background: var(--error); border-radius: 50%; border: 1.5px solid var(--bg-surface); }
+
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field label, .field .lb { font-size: 12px; font-weight: 600; color: var(--text-secondary); }
+  .inp { width: 100%; background: var(--bg-surface); border: 1px solid var(--border-control); border-radius: var(--radius-md); padding: 9px 12px; font-family: var(--font-sans); font-size: 14px; color: var(--text-primary); outline: none; transition: all var(--dur-fast); }
+  .inp::placeholder { color: var(--text-muted); }
+  .inp:focus { border-color: var(--border-focus); box-shadow: var(--focus-ring); }
+  .inp[aria-invalid="true"] { border-color: var(--error); }
+  textarea.inp { resize: vertical; min-height: 84px; line-height: 1.6; }
+  .help { font-size: 12px; color: var(--text-muted); }
+  .err { font-size: 12px; color: var(--error); display: flex; align-items: center; gap: 5px; }
+  .err svg { width: 13px; height: 13px; }
+  .search { display: flex; align-items: center; gap: 8px; background: var(--bg-surface); border: 1px solid var(--border-control); border-radius: var(--radius-md); padding: 0 12px; color: var(--text-muted); }
+  .search svg { width: 15px; height: 15px; }
+  .search input { border: none; outline: none; padding: 9px 0; font-family: var(--font-sans); font-size: 14px; flex: 1; color: var(--text-primary); background: none; min-width: 0; }
+  .search:focus-within { border-color: var(--border-focus); box-shadow: var(--focus-ring); }
+
+  .opt { display: flex; align-items: center; gap: 9px; font-size: 13px; color: var(--text-primary); cursor: pointer; }
+  .opt input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+  .cbx, .rd { width: 18px; height: 18px; border: 1.5px solid var(--border-control); display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; background: var(--bg-surface); transition: all var(--dur-fast); }
+  .cbx { border-radius: 5px; color: transparent; }
+  .cbx svg { width: 12px; height: 12px; }
+  .rd { border-radius: 50%; }
+  .opt input:checked + .cbx { background: var(--brand); border-color: var(--brand); color: var(--brand-on); }
+  .opt input:checked + .rd { border-color: var(--brand); border-width: 5px; }
+  .opt input:focus-visible + span { outline: 2px solid var(--border-focus); outline-offset: 2px; }
+  .tg { width: 38px; height: 22px; border-radius: var(--radius-pill); background: var(--bg-inset); border: 1px solid var(--border-control); position: relative; flex-shrink: 0; transition: all var(--dur-base); }
+  .tg::after { content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--bg-surface); box-shadow: var(--shadow-1); border: 1px solid var(--border-control); transition: left var(--dur-base) var(--ease-standard); }
+  .opt input:checked + .tg { background: var(--brand); border-color: var(--brand); }
+  .opt input:checked + .tg::after { left: 18px; border-color: transparent; }
+  .seg { display: inline-flex; gap: 2px; background: var(--bg-inset); border-radius: var(--radius-md); padding: 3px; }
+  .seg button { border: none; background: none; padding: 6px 13px; border-radius: 6px; font-size: 12.5px; font-weight: 500; color: var(--text-secondary); }
+  .seg button[aria-selected="true"] { background: var(--bg-surface); color: var(--text-heading); box-shadow: var(--shadow-1); font-weight: 600; }
+  select.inp { appearance: auto; }
+
+  .badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: var(--radius-pill); font-size: 11px; font-weight: 600; letter-spacing: .03em; }
+  .badge svg { width: 11px; height: 11px; }
+  .b-draft { background: var(--bg-inset); color: var(--status-draft); }
+  .b-review { background: var(--warning-bg); color: var(--status-review); }
+  .b-approved { background: var(--success-bg); color: var(--status-approved); }
+  .b-published { background: var(--brand-tint); color: var(--brand-on-tint); }
+  .b-rejected { background: var(--error-bg); color: var(--red-70); }
+  .tag { background: var(--bg-surface); border: 1px solid var(--border-strong); color: var(--text-secondary); padding: 1px 8px; border-radius: var(--radius-pill); font-size: 10px; font-weight: 600; }
+
+  .alert { display: flex; gap: 11px; border-radius: 10px; padding: 12px 14px; border: 1px solid; align-items: flex-start; }
+  .alert svg { width: 17px; height: 17px; flex-shrink: 0; margin-top: 1px; }
+  .alert .tx { font-size: 13px; line-height: 1.5; flex: 1; }
+  .alert .tx b { font-weight: 600; }
+  .a-info { background: var(--info-bg); border-color: color-mix(in srgb, var(--info) 22%, transparent); color: var(--blue-80); }
+  .a-success { background: var(--success-bg); border-color: color-mix(in srgb, var(--success) 22%, transparent); color: var(--green-70); }
+  .a-warning { background: var(--warning-bg); border-color: color-mix(in srgb, var(--warning) 25%, transparent); color: var(--amber-70); }
+  .a-error { background: var(--error-bg); border-color: color-mix(in srgb, var(--error) 22%, transparent); color: var(--red-70); }
+
+  .toast { display: inline-flex; align-items: center; gap: 10px; background: var(--ink-100); color: #fff; padding: 11px 18px; border-radius: 10px; font-size: 13px; font-weight: 500; box-shadow: var(--shadow-4); }
+  .toast .ic { width: 22px; height: 22px; border-radius: 6px; background: rgba(62,207,142,.2); color: #6ee7a8; display: inline-flex; align-items: center; justify-content: center; }
+  .toast svg { width: 14px; height: 14px; }
+  .toast.show { animation: toastIn .25s var(--ease-out); }
+  @keyframes toastIn { from { opacity: 0; transform: translateY(12px); } }
+
+  .card { background: var(--bg-surface); border: 1px solid var(--border-default); border-radius: var(--radius-lg); box-shadow: var(--shadow-1); }
+  .acard { background: var(--bg-surface); border: 1px solid var(--border-default); border-radius: var(--radius-lg); padding: 18px; box-shadow: var(--shadow-1); display: flex; flex-direction: column; gap: 11px; transition: all var(--dur-base) var(--ease-standard); }
+  .acard:hover { border-color: var(--neutral-40); box-shadow: var(--shadow-2); transform: translateY(-1px); }
+  .acard .at { font-family: var(--font-serif); font-size: 17px; font-weight: 700; color: var(--text-heading); line-height: 1.3; letter-spacing: -0.01em; }
+  .acard .ab { font-family: var(--font-serif); font-size: 13.5px; color: var(--text-body); line-height: 1.55; }
+  .acard .am { display: flex; align-items: center; gap: 9px; font-size: 12px; color: var(--text-muted); margin-top: auto; flex-wrap: wrap; }
+  .acard .am svg { width: 13px; height: 13px; }
+  .avatar { width: 32px; height: 32px; border-radius: 50%; color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; flex-shrink: 0; }
+
+  .modal { background: var(--bg-surface); border-radius: var(--radius-xl); box-shadow: var(--shadow-4); max-width: 480px; overflow: hidden; border: 1px solid var(--border-subtle); }
+  .modal-h { padding: 18px 22px; border-bottom: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: space-between; }
+  .modal-h h4 { font-size: 17px; font-weight: 600; color: var(--text-heading); }
+  .modal-b { padding: 20px 22px; display: flex; flex-direction: column; gap: 14px; }
+  .modal-f { padding: 14px 22px; border-top: 1px solid var(--border-subtle); display: flex; justify-content: flex-end; gap: 10px; }
+  .backdrop-demo { background: rgba(11,27,51,.45); border-radius: var(--radius-lg); padding: 28px 16px; display: flex; justify-content: center; }
+
+  .empty { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 40px 20px; text-align: center; color: var(--text-muted); }
+  .empty .eic { width: 56px; height: 56px; border-radius: var(--radius-xl); background: var(--bg-inset); display: flex; align-items: center; justify-content: center; color: var(--neutral-50); }
+  .empty .eic svg { width: 26px; height: 26px; }
+  .empty h4 { font-size: var(--text-lg); color: var(--text-heading); font-weight: 600; }
+
+  /* Flow Designer */
+  .flow { position: relative; border-radius: var(--radius-lg); border: 1px solid var(--border-default); padding: 34px 24px; overflow-x: auto;
+    background: radial-gradient(circle, var(--neutral-30) 1px, transparent 1px) 0 0 / 22px 22px, var(--bg-canvas); }
+  .flow-row { display: flex; align-items: center; gap: 22px; min-width: max-content; }
+  .node { position: relative; background: var(--bg-surface); border: 1.5px solid var(--border-strong); border-radius: var(--radius-lg); padding: 13px 15px; width: 178px; box-shadow: var(--shadow-2); }
+  .node.sel { border-color: var(--agent-write); box-shadow: 0 0 0 3px rgba(107,79,227,.18), var(--shadow-2); }
+  .node .nhead { display: flex; align-items: center; gap: 9px; }
+  .node .nic { width: 30px; height: 30px; border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .node .nic svg { width: 16px; height: 16px; }
+  .node .nnm { font-size: 14px; font-weight: 600; color: var(--text-heading); }
+  .node .nds { font-size: 11px; color: var(--text-muted); margin-top: 6px; line-height: 1.4; }
+  .node .nbg { display: inline-block; margin-top: 9px; padding: 2px 8px; border-radius: var(--radius-pill); font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
+  .node .handle { position: absolute; width: 9px; height: 9px; border-radius: 50%; background: var(--bg-surface); top: 50%; transform: translateY(-50%); border: 2px solid currentColor; }
+  .edge { width: 28px; height: 2px; background-image: linear-gradient(90deg, var(--neutral-50) 50%, transparent 50%); background-size: 8px 2px; animation: ants .6s linear infinite; flex-shrink: 0; }
+  @keyframes ants { to { background-position: 8px 0; } }
+  .loop-note { display: flex; align-items: center; gap: 8px; margin-top: 18px; font-size: 12px; color: var(--text-secondary); }
+  .loop-note svg { width: 14px; height: 14px; color: var(--agent-review); }
+
+  /* Ejecución */
+  .step { display: flex; align-items: center; gap: 11px; padding: 11px 13px; border-radius: 10px; border: 1px solid var(--border-default); background: var(--bg-surface); }
+  .step.running { border-color: var(--blue-20); background: var(--brand-tint); }
+  .step.done { border-color: color-mix(in srgb, var(--success) 25%, transparent); background: var(--success-bg); }
+  .step .sic { width: 30px; height: 30px; border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .step .sic svg { width: 15px; height: 15px; }
+  .step .snm { font-size: 13px; font-weight: 600; color: var(--text-heading); }
+  .step .sst { font-size: 11px; color: var(--text-muted); }
+  .step .st-r { margin-left: auto; display: flex; align-items: center; }
+  .spin { width: 16px; height: 16px; border: 2px solid var(--blue-20); border-top-color: var(--brand); border-radius: 50%; animation: spin .7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .exec-log { margin-top: 12px; background: var(--ink-100); color: #9fb2cc; font-family: var(--font-mono); font-size: 11.5px; line-height: 1.7; padding: 12px 14px; border-radius: var(--radius-md); overflow-x: auto; white-space: pre; }
+  .exec-log .ok { color: #6ee7a8; } .exec-log .info { color: #6cc0ff; } .exec-log .warn { color: #f3cd84; }
+
+  /* Shell */
+  .shell { border: 1px solid var(--border-default); border-radius: var(--radius-lg); overflow: hidden; display: grid; grid-template-columns: 180px minmax(0,1fr); grid-template-rows: 44px 180px; background: var(--bg-canvas); }
+  .shell .s-side { grid-row: 1 / 3; background: var(--bg-shell); border-right: 1px solid var(--border-default); padding: 10px; display: flex; flex-direction: column; gap: 4px; }
+  .shell .s-top { background: var(--bg-shell); border-bottom: 1px solid var(--border-default); display: flex; align-items: center; padding: 0 14px; font-size: 13px; font-weight: 600; color: var(--text-heading); }
+  .shell .s-main { padding: 14px; display: grid; grid-template-columns: repeat(auto-fill, minmax(120px,1fr)); gap: 10px; align-content: start; }
+  .shell .s-main div { height: 64px; background: var(--bg-surface); border: 1px solid var(--border-default); border-radius: var(--radius-md); }
+  .shell .ni { height: 26px; border-radius: 6px; background: var(--bg-inset); }
+  .shell .ni.a { background: var(--bg-active); }
+  .shell .lbl { font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); padding: 4px; }
+
+  /* Callouts del Content System */
+  .callout { display: flex; gap: 12px; border-radius: 10px; padding: 13px 15px; border: 1px solid; font-family: var(--font-sans); }
+  .callout svg { width: 17px; height: 17px; flex-shrink: 0; margin-top: 3px; }
+  .callout b { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 3px; }
+  .callout span { font-family: var(--font-serif); color: var(--text-body); font-size: 15px; }
+  .callout.note { background: var(--info-bg); border-color: color-mix(in srgb, var(--info) 22%, transparent); color: var(--blue-80); }
+  .callout.method { background: var(--accent-tint); border-color: color-mix(in srgb, var(--accent) 22%, transparent); color: var(--violet-70); }
+  .callout.finding { background: var(--success-bg); border-color: color-mix(in srgb, var(--success) 22%, transparent); color: var(--green-70); }
+  .reader { background: var(--bg-surface); border: 1px solid var(--border-default); border-radius: var(--radius-lg); padding: 40px 24px; }
+  .reader .prose { margin: 0 auto; }
+  .prose sup a { text-decoration: none; font-family: var(--font-sans); font-size: .75em; }
+  .kw { display: flex; flex-wrap: wrap; gap: 6px; font-family: var(--font-sans); }
+
+  /* Contraste */
+  .pair { border: 1px solid var(--border-default); border-radius: 10px; overflow: hidden; background: var(--bg-surface); }
+  .pair .swt { padding: 14px; font-size: 14px; font-weight: 600; }
+  .pair .meta { padding: 8px 12px; background: var(--bg-sunken); display: flex; align-items: center; justify-content: space-between; gap: 8px; border-top: 1px solid var(--border-subtle); }
+  .pair .ratio { font-family: var(--font-mono); font-size: 12px; font-weight: 600; color: var(--text-heading); }
+  .pair .pr { font-size: 11px; color: var(--text-muted); font-family: var(--font-mono); padding: 0 12px 8px; background: var(--bg-sunken); }
+  .verdict { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: var(--radius-pill); }
+  .verdict.ok { color: var(--success); background: var(--success-bg); }
+  .verdict.ko { color: var(--error); background: var(--error-bg); }
+
+  .dodont { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px,1fr)); gap: 12px; margin-top: 14px; }
+  .dd { border: 1px solid var(--border-default); border-radius: var(--radius-lg); background: var(--bg-surface); overflow: hidden; }
+  .dd .hd { padding: 8px 14px; font-size: 11px; font-weight: 700; letter-spacing: var(--tracking-caps); text-transform: uppercase; display: flex; align-items: center; gap: 6px; }
+  .dd .hd svg { width: 14px; height: 14px; }
+  .dd.do .hd { background: var(--success-bg); color: var(--success); }
+  .dd.dont .hd { background: var(--error-bg); color: var(--error); }
+  .dd ul { list-style: none; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; font-size: var(--text-sm); }
+  .checklist { list-style: none; display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+  .checklist li { display: flex; gap: 10px; align-items: flex-start; font-size: var(--text-sm); }
+  .checklist svg { width: 16px; height: 16px; color: var(--success); flex-shrink: 0; margin-top: 2px; }
+
+  .note { display: flex; gap: 10px; padding: 12px 14px; border-radius: 10px; background: var(--warning-bg); border: 1px solid color-mix(in srgb, var(--warning) 25%, transparent); color: var(--text-body); font-size: var(--text-sm); margin-top: 14px; }
+  .note svg { width: 17px; height: 17px; color: var(--warning); flex-shrink: 0; margin-top: 1px; }
+  footer.ft { margin-top: 64px; padding-top: 20px; border-top: 1px solid var(--border-default); font-size: var(--text-xs); color: var(--text-muted); }
+
+  /* ---------- Responsive ---------- */
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: minmax(0,1fr); }
+    .toc { position: fixed; top: var(--topbar-h); left: 0; width: min(280px, 85vw); z-index: 40; transform: translateX(-100%); transition: transform var(--dur-base) var(--ease-standard); box-shadow: var(--shadow-4); }
+    .toc.open { transform: none; }
+    .menu-btn { display: inline-flex; }
+    main { padding: 24px 16px 80px; }
+    h1.title { font-size: var(--text-4xl); }
+    .tiers { grid-template-columns: minmax(0,1fr); }
+    .tscale .r { grid-template-columns: minmax(0,1fr); gap: 2px; }
+    .shell { grid-template-columns: 90px minmax(0,1fr); }
+    .brand .txt { display: none; }
+  }
+</style>
+</head>
+<body>
+<a class="skip" href="#contenido">Saltar al contenido</a>
+
+<header class="topbar">
+  <div class="row" style="gap:6px; flex-wrap:nowrap;">
+    <button class="icon-btn menu-btn" id="menuBtn" aria-label="Abrir índice" aria-expanded="false" aria-controls="toc"><i data-lucide="menu"></i></button>
+    <a class="brand" href="#intro">
+      <img src="assets/logomark.svg" alt="" aria-hidden="true">
+      <span class="txt"><span class="name">Sistema de diseño</span><span class="sub">SWARM PLATFORM BUILDER</span></span>
+    </a>
+  </div>
+  <div class="tb-actions">
+    <div class="seg" role="tablist" aria-label="Tema">
+      <button role="tab" aria-selected="true" data-theme-set="light"><span class="row" style="gap:5px"><i data-lucide="sun" style="width:13px;height:13px"></i>Claro</span></button>
+      <button role="tab" aria-selected="false" data-theme-set="dark"><span class="row" style="gap:5px"><i data-lucide="moon" style="width:13px;height:13px"></i>Oscuro</span></button>
+    </div>
+  </div>
+</header>
+
+<div class="layout">
+  <nav class="toc" id="toc" aria-label="Secciones">
+    <div class="sec">Introducción</div>
+    <a href="#intro"><span class="n">00</span>Visión general</a>
+    <a href="#principios"><span class="n">01</span>Principios</a>
+    <a href="#arquitectura"><span class="n">02</span>Arquitectura de tokens</a>
+    <div class="sec">Fundamentos</div>
+    <a href="#color"><span class="n">03</span>Color</a>
+    <a href="#tipografia"><span class="n">04</span>Tipografía</a>
+    <a href="#espaciado"><span class="n">05</span>Espaciado y layout</a>
+    <a href="#forma"><span class="n">06</span>Radio y bordes</a>
+    <a href="#elevacion"><span class="n">07</span>Elevación</a>
+    <a href="#motion"><span class="n">08</span>Movimiento</a>
+    <a href="#iconos"><span class="n">09</span>Iconografía y marca</a>
+    <div class="sec">Componentes</div>
+    <a href="#acciones"><span class="n">10</span>Botones</a>
+    <a href="#formularios"><span class="n">11</span>Formularios</a>
+    <a href="#estado"><span class="n">12</span>Estado y feedback</a>
+    <a href="#contenedores"><span class="n">13</span>Cards y modales</a>
+    <a href="#agentes"><span class="n">14</span>Agentes y pipeline</a>
+    <div class="sec">Contenido</div>
+    <a href="#prose"><span class="n">15</span>Content System</a>
+    <a href="#dataviz"><span class="n">16</span>Visualización de datos</a>
+    <a href="#voz"><span class="n">17</span>Voz y tono</a>
+    <div class="sec">Calidad</div>
+    <a href="#a11y"><span class="n">18</span>Accesibilidad</a>
+    <a href="#tema"><span class="n">19</span>Tema claro / oscuro</a>
+    <a href="#uso"><span class="n">20</span>Uso y deuda conocida</a>
+  </nav>
+
+  <main id="contenido">
+  <div class="wrap">
+
+  <!-- 00 ───────────────────────────────────────────── -->
+  <section class="ds" id="intro">
+    <div class="eyebrow">00 · Visión general</div>
+    <h1 class="title">Sistema de diseño</h1>
+    <p class="lead">El lenguaje visual compartido de la plataforma: el <b>Studio</b> (el builder donde se diseñan flujos de agentes, se ejecutan y se revisan) y la <b>Magazine</b> (la capa de lectura donde se publica el resultado). Proyecto de referencia: AlejandrIA Magazine.</p>
+    <div class="grid g3" style="margin-top:22px">
+      <div class="panel" style="margin:0">
+        <div class="cap">Base</div>
+        <p class="t" style="margin-top:6px">Estructura de tokens de <b>Salesforce Lightning Design System 2</b> (primitivo → alias → semántico), llevada a una estética editorial y de publicación.</p>
+      </div>
+      <div class="panel" style="margin:0">
+        <div class="cap">Fuente de verdad</div>
+        <p class="t" style="margin-top:6px"><code>frontend/ds/colors_and_type.css</code>. La app la importa desde <code>src/index.css</code>; esta página también, así que todo valor mostrado aquí es el real.</p>
+      </div>
+      <div class="panel" style="margin:0">
+        <div class="cap">Superficies</div>
+        <p class="t" style="margin-top:6px"><b>Studio</b> — sans, compacto, para trabajar. <b>Magazine</b> — serif, generoso, para leer. Dos registros que no se mezclan.</p>
+      </div>
+    </div>
+    <div class="tbl-scroll">
+    <table class="ref">
+      <thead><tr><th>Artefacto</th><th>Ruta</th><th>Qué contiene</th></tr></thead>
+      <tbody>
+        <tr><td>Tokens + Content System</td><td><code>ds/colors_and_type.css</code></td><td>Primitivos, semánticos, tema oscuro, dataviz y la clase <code>.prose</code></td></tr>
+        <tr><td>Referencia de tokens</td><td><code>ds/tokens.md</code></td><td>Arquitectura en tres niveles y patrones de uso</td></tr>
+        <tr><td>Accesibilidad</td><td><code>ds/ACCESSIBILITY.md</code></td><td>Reglas WCAG 2.1 AA vinculantes</td></tr>
+        <tr><td>Tokens DTCG</td><td><code>ds/zeroheight/tokens.dtcg.json</code></td><td>Exportación para zeroheight</td></tr>
+        <tr><td>UI kits</td><td><code>ds/ui_kits/studio</code>, <code>ds/ui_kits/magazine</code></td><td>Prototipos navegables de cada superficie</td></tr>
+        <tr><td>Previews</td><td><code>ds/preview/*.html</code></td><td>Tarjetas individuales por fundamento y componente</td></tr>
+      </tbody>
+    </table>
+    </div>
+  </section>
+
+  <!-- 01 ───────────────────────────────────────────── -->
+  <section class="ds" id="principios">
+    <div class="eyebrow">01 · Principios</div>
+    <h2 class="h">Restricciones activas, no aspiraciones</h2>
+    <p class="t">Cada decisión de diseño responde a alguno de estos cinco principios.</p>
+    <div class="grid g2" style="margin-top:16px">
+      <div class="panel" style="margin:0"><div class="row" style="gap:8px"><i data-lucide="feather" style="width:18px;color:var(--brand)"></i><h3 class="h" style="margin:0">Precisión y calma</h3></div><p class="t">Superficies blancas sobre gris-azulado tenue. Un único color de acción por vista. Sin gradientes, sin neón, sin exclamaciones ni emoji.</p></div>
+      <div class="panel" style="margin:0"><div class="row" style="gap:8px"><i data-lucide="list-tree" style="width:18px;color:var(--brand)"></i><h3 class="h" style="margin:0">Jerarquía editorial</h3></div><p class="t">Sans para el chrome, serif para el contenido. h1 → h2 → h3 sin saltos. El estado del artículo siempre es etiqueta + color + icono.</p></div>
+      <div class="panel" style="margin:0"><div class="row" style="gap:8px"><i data-lucide="file-text" style="width:18px;color:var(--brand)"></i><h3 class="h" style="margin:0">Contenido primero</h3></div><p class="t">El chrome desaparece al leer o escribir. Columna de lectura a 68ch. La acción IA (violeta) no compite con la primaria (azul).</p></div>
+      <div class="panel" style="margin:0"><div class="row" style="gap:8px"><i data-lucide="accessibility" style="width:18px;color:var(--brand)"></i><h3 class="h" style="margin:0">Accesibilidad por defecto</h3></div><p class="t">WCAG 2.1 AA integrado en los tokens: pares de contraste verificados, foco siempre visible, <code>prefers-reduced-motion</code> respetado.</p></div>
+      <div class="panel" style="margin:0"><div class="row" style="gap:8px"><i data-lucide="columns-2" style="width:18px;color:var(--brand)"></i><h3 class="h" style="margin:0">Dos registros</h3></div><p class="t">Studio (<code>.ax</code>, Source Sans 3, 14px, 1.5) frente a Magazine (<code>.prose</code>, Source Serif 4, 16px, 1.7). Mezclarlos es un error, no una variante.</p></div>
+    </div>
+  </section>
+
+  <!-- 02 ───────────────────────────────────────────── -->
+  <section class="ds" id="arquitectura">
+    <div class="eyebrow">02 · Arquitectura de tokens</div>
+    <h2 class="h">Tres niveles; solo el último se usa en producto</h2>
+    <div class="tiers">
+      <div class="tier"><h4><span class="num">1</span>Primitivos</h4><p>Paradas de paleta en bruto. No se referencian desde la UI: existen para que el nivel semántico y los temas apunten a ellas.</p><pre>--blue-60: #0176d3
+--neutral-20: #e0e5ee
+--ink-100: #0b1b33</pre></div>
+      <div class="tier"><h4><span class="num">2</span>Escalas / alias</h4><p>Tipo, espacio, radio, sombra y movimiento. Compartidas por los dos temas.</p><pre>--text-2xl: 1.5rem
+--space-lg: 1.5rem
+--radius-md: .5rem</pre></div>
+      <div class="tier use"><h4><span class="num">3</span>Semánticos <span class="tag" style="margin-left:auto">usa estos</span></h4><p>Lo que se construye. Es el único nivel que redefine el tema oscuro.</p><pre>--brand: var(--blue-60)
+--bg-surface
+--text-heading</pre></div>
+    </div>
+    <div class="tbl-scroll">
+    <table class="ref">
+      <thead><tr><th>Grupo</th><th>Prefijo</th><th>Notas</th></tr></thead>
+      <tbody>
+        <tr><td>Marca / acento</td><td><code>--brand*</code>, <code>--accent*</code></td><td>Azul para acción; violeta solo para momentos IA</td></tr>
+        <tr><td>Superficies</td><td><code>--bg-canvas/surface/raised/sunken/inset/hover/active/shell</code></td><td>Canvas gris-azulado; superficies blancas</td></tr>
+        <tr><td>Texto</td><td><code>--text-heading/primary/body/secondary/muted/link</code></td><td>Tinta navy, nunca negro puro</td></tr>
+        <tr><td>Bordes</td><td><code>--border-subtle/default/strong/control/brand/focus</code></td><td><code>control</code> (3:1) para controles; <code>strong</code> solo decorativo</td></tr>
+        <tr><td>Feedback</td><td><code>--success/warning/error/info</code> + <code>-bg</code></td><td>Siempre pareja valor + tinte</td></tr>
+        <tr><td>Estado editorial</td><td><code>--status-draft/review/approved/published/rejected</code></td><td>Ciclo de vida del artículo</td></tr>
+        <tr><td>Agentes</td><td><code>--agent-research/write/review/format/publish</code></td><td>Un tono por agente editorial</td></tr>
+        <tr><td>Tipo</td><td><code>--font-*</code>, <code>--text-*</code>, <code>--weight-*</code>, <code>--leading-*</code>, <code>--tracking-*</code>, <code>--measure</code></td><td>Serif = contenido, Sans = UI, Mono = código</td></tr>
+        <tr><td>Espaciado</td><td><code>--space-3xs … --space-4xl</code></td><td>Base 4px</td></tr>
+        <tr><td>Radio</td><td><code>--radius-sm/md/lg/xl/pill/circle</code></td><td>Controles 8 · cards 12 · modales 16</td></tr>
+        <tr><td>Elevación</td><td><code>--shadow-1…4</code>, <code>--shadow-brand</code>, <code>--focus-ring</code></td><td>Suaves, teñidas de tinta</td></tr>
+        <tr><td>Movimiento</td><td><code>--dur-fast/base/slow</code>, <code>--ease-standard/out</code></td><td>120 / 200 / 320 ms</td></tr>
+        <tr><td>Dataviz</td><td><code>--viz-1…8</code>, <code>--viz-seq-*</code>, <code>--viz-div-*</code></td><td>Categórica ordenada por contraste adyacente</td></tr>
+      </tbody>
+    </table>
+    </div>
+  </section>
+
+  <!-- 03 ───────────────────────────────────────────── -->
+  <section class="ds" id="color">
+    <div class="eyebrow">03 · Color</div>
+    <h2 class="h">Neutros cloud, un azul seguro, restricción en todo lo demás</h2>
+    <p class="t">Los valores hex de cada muestra se leen en vivo del CSS calculado: cambian al alternar el tema.</p>
+
+    <h3 class="h">Marca — AlejandrIA Blue</h3>
+    <div class="ramp" data-ramp="--blue-05 --blue-10 --blue-20 --blue-40 --blue-50 --blue-60 --blue-70 --blue-80 --blue-95"></div>
+    <div class="grid g4" style="margin-top:14px" data-swatches="--brand:Primaria|--brand-hover:Hover|--brand-active:Activo|--brand-tint:Tinte (selección)|--brand-on-tint:Azul sobre tinte"></div>
+
+    <h3 class="h">Acento de inteligencia</h3>
+    <p class="t">Violeta, herencia de la marca original. Solo para acciones IA (“Ask AI”), estados generativos y el agente Redactor.</p>
+    <div class="grid g4" style="margin-top:12px" data-swatches="--accent:Acento|--accent-tint:Tinte de acento|--violet-70:Acento hover"></div>
+
+    <h3 class="h">Neutros — rampa cloud de SLDS</h3>
+    <div class="ramp" data-ramp="--neutral-00 --neutral-05 --neutral-10 --neutral-15 --neutral-20 --neutral-30 --neutral-40 --neutral-50 --neutral-60 --neutral-65 --neutral-70 --neutral-80 --neutral-90 --ink-80 --ink-90 --ink-100"></div>
+
+    <h3 class="h">Superficies</h3>
+    <div class="grid g4" data-swatches="--bg-canvas:Canvas de la app|--bg-surface:Superficie (cards)|--bg-sunken:Hundida|--bg-inset:Inset (tabs, tracks)|--bg-hover:Hover|--bg-active:Activo|--bg-shell:Shell (topbar, sidebar)"></div>
+
+    <h3 class="h">Texto</h3>
+    <div class="panel">
+      <div style="display:flex;flex-direction:column;gap:8px" id="textTokens"></div>
+    </div>
+
+    <h3 class="h">Bordes</h3>
+    <div class="grid g3">
+      <div class="panel" style="margin:0;border-color:var(--border-subtle)"><b style="color:var(--text-heading)">subtle</b><div class="small muted mono">--border-subtle</div><p class="small" style="margin-top:6px">Separadores internos de card y modal.</p></div>
+      <div class="panel" style="margin:0;border-color:var(--border-default)"><b style="color:var(--text-heading)">default</b><div class="small muted mono">--border-default</div><p class="small" style="margin-top:6px">Contorno por defecto de cards, paneles y shell.</p></div>
+      <div class="panel" style="margin:0;border-color:var(--border-strong)"><b style="color:var(--text-heading)">strong</b><div class="small muted mono">--border-strong</div><p class="small" style="margin-top:6px">Separadores decorativos. <b>No</b> para controles (1.36:1).</p></div>
+      <div class="panel" style="margin:0;border-color:var(--border-control)"><b style="color:var(--text-heading)">control</b><div class="small muted mono">--border-control</div><p class="small" style="margin-top:6px">Inputs, toggles, botón secundario. ≥ 3:1 (WCAG 1.4.11).</p></div>
+      <div class="panel" style="margin:0;border:2px solid var(--border-brand)"><b style="color:var(--text-heading)">brand / focus</b><div class="small muted mono">--border-brand · --border-focus</div><p class="small" style="margin-top:6px">Selección y anillo de foco.</p></div>
+    </div>
+
+    <h3 class="h">Feedback semántico</h3>
+    <div class="grid g4" data-swatches="--success:Éxito|--success-bg:Éxito · tinte|--warning:Aviso|--warning-bg:Aviso · tinte|--error:Error|--error-bg:Error · tinte|--info:Info|--info-bg:Info · tinte"></div>
+
+    <h3 class="h">Estado editorial</h3>
+    <p class="t">El ciclo <code>draft → in_review → approved → published</code> (y <code>rejected</code>) tiene un token por estado.</p>
+    <div class="grid g4" style="margin-top:12px" data-swatches="--status-draft:Borrador|--status-review:En revisión|--status-approved:Aprobado|--status-published:Publicado|--status-rejected:Rechazado"></div>
+
+    <h3 class="h">Paleta de agentes</h3>
+    <p class="t">Un tono por agente del pipeline editorial. Valor pleno para la marca del nodo; el tinte 05 detrás de chips y teselas de icono.</p>
+    <div class="grid g4" style="margin-top:12px" data-swatches="--agent-research:Investigador|--agent-write:Redactor|--agent-review:Revisor|--agent-format:Formateador|--agent-publish:Publicador"></div>
+  </section>
+
+  <!-- 04 ───────────────────────────────────────────── -->
+  <section class="ds" id="tipografia">
+    <div class="eyebrow">04 · Tipografía</div>
+    <h2 class="h">Tres familias abiertas (OFL), tres funciones</h2>
+    <div class="grid g3" style="margin-top:16px">
+      <div class="fam"><div class="cap">Contenido · --font-serif</div><div class="big" style="font-family:var(--font-serif);font-weight:700">Source Serif 4</div><div class="glyphs" style="font-family:var(--font-serif)">Aa Bb Cc Ññ 0123456789 ¿?</div><p class="small muted" style="margin-top:8px">Display editorial y cuerpo de lectura largo.</p></div>
+      <div class="fam"><div class="cap">Producto · --font-sans</div><div class="big" style="font-family:var(--font-sans);font-weight:600">Source Sans 3</div><div class="glyphs" style="font-family:var(--font-sans)">Aa Bb Cc Ññ 0123456789 ¿?</div><p class="small muted" style="margin-top:8px">Toda la UI: etiquetas, controles, cuerpo sans.</p></div>
+      <div class="fam"><div class="cap">Código · --font-mono</div><div class="big" style="font-family:var(--font-mono);font-weight:500;font-size:34px">JetBrains Mono</div><div class="glyphs" style="font-family:var(--font-mono)">{ } [ ] =&gt; 0O 1lI</div><p class="small muted" style="margin-top:8px">Código, payloads, tokens y metadatos.</p></div>
+    </div>
+
+    <h3 class="h">Escala (alias rem de SLDS + hero editorial)</h3>
+    <div class="panel"><div class="tscale" id="typeScale"></div></div>
+
+    <h3 class="h">Pesos, interlineado y tracking</h3>
+    <div class="grid g3">
+      <div class="panel" style="margin:0">
+        <div class="cap">Pesos</div>
+        <div style="font-size:18px;color:var(--text-heading);margin-top:8px;display:flex;flex-direction:column;gap:4px">
+          <span style="font-weight:var(--weight-regular)">Regular 400</span><span style="font-weight:var(--weight-medium)">Medium 500</span><span style="font-weight:var(--weight-semibold)">Semibold 600</span><span style="font-weight:var(--weight-bold)">Bold 700</span>
+        </div>
+      </div>
+      <div class="panel" style="margin:0">
+        <div class="cap">Interlineado</div>
+        <table class="ref" style="margin-top:4px"><tbody>
+          <tr><td><code>--leading-tight</code></td><td>1.2 · titulares</td></tr>
+          <tr><td><code>--leading-snug</code></td><td>1.35 · títulos UI</td></tr>
+          <tr><td><code>--leading-normal</code></td><td>1.5 · cuerpo UI</td></tr>
+          <tr><td><code>--leading-relaxed</code></td><td>1.7 · lectura</td></tr>
+        </tbody></table>
+      </div>
+      <div class="panel" style="margin:0">
+        <div class="cap">Tracking</div>
+        <table class="ref" style="margin-top:4px"><tbody>
+          <tr><td><code>--tracking-tight</code></td><td>-0.02em</td></tr>
+          <tr><td><code>--tracking-snug</code></td><td>-0.01em</td></tr>
+          <tr><td><code>--tracking-wide</code></td><td>0.04em</td></tr>
+          <tr><td><code>--tracking-caps</code></td><td>0.07em · <span class="cap" style="color:var(--text-secondary)">eyebrows</span></td></tr>
+        </tbody></table>
+      </div>
+    </div>
+
+    <h3 class="h">Los dos registros, lado a lado</h3>
+    <div class="grid g2">
+      <div class="panel" style="margin:0">
+        <div class="cap">Studio · .ax</div>
+        <h4 style="font-family:var(--font-sans);font-size:var(--text-2xl);font-weight:600;color:var(--text-heading);margin-top:8px;letter-spacing:var(--tracking-snug)">Ejecutar pipeline</h4>
+        <p style="margin-top:6px">Arrastra agentes desde el panel izquierdo al canvas para crear tu flujo de trabajo. 14px · 1.5.</p>
+      </div>
+      <div class="panel" style="margin:0">
+        <div class="cap">Magazine · .prose</div>
+        <div class="prose" style="margin-top:8px"><h3 style="margin-top:0">Recuperación aumentada en ecología marina</h3><p>La generación anclada redujo las afirmaciones sin soporte en un factor de 4,3. 16px · 1.7 · 68ch.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 05 ───────────────────────────────────────────── -->
+  <section class="ds" id="espaciado">
+    <div class="eyebrow">05 · Espaciado y layout</div>
+    <h2 class="h">Base de 4px, alias rem de SLDS</h2>
+    <div class="panel" id="spaceScale"></div>
+    <div class="grid g2" style="margin-top:14px">
+      <div>
+        <h3 class="h" style="margin-top:6px">Ritmo</h3>
+        <ul class="checklist">
+          <li><i data-lucide="check"></i><span>Padding de card: <code>lg</code> (24) o <code>md</code> (16).</span></li>
+          <li><i data-lucide="check"></i><span>Separación entre secciones: <code>lg</code> / <code>xl</code>.</span></li>
+          <li><i data-lucide="check"></i><span>Gap entre controles en línea: <code>xs</code> / <code>sm</code>.</span></li>
+          <li><i data-lucide="check"></i><span>Columna de lectura: <code>--measure</code> = 68ch centrada (<code>--measure-narrow</code> 58ch).</span></li>
+        </ul>
+      </div>
+      <div>
+        <h3 class="h" style="margin-top:6px">Shell de la app</h3>
+        <div class="shell" aria-label="Esquema del shell">
+          <div class="s-side"><div class="lbl">--sidebar-w 248</div><div class="ni a"></div><div class="ni"></div><div class="ni"></div><div class="ni"></div></div>
+          <div class="s-top"><span class="mono small muted">--topbar-h 56</span></div>
+          <div class="s-main"><div></div><div></div><div></div><div></div></div>
+        </div>
+        <p class="small muted" style="margin-top:8px">Sidebar fija (248px, colapsada 64px) + topbar de 56px, chrome blanco sobre el canvas; el contenido hace scroll en el centro.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 06 ───────────────────────────────────────────── -->
+  <section class="ds" id="forma">
+    <div class="eyebrow">06 · Radio y bordes</div>
+    <h2 class="h">Redondeo SLDS2</h2>
+    <div class="grid g4" style="margin-top:16px">
+      <div><div class="rd-box" style="border-radius:var(--radius-sm)"></div><p class="small" style="margin-top:8px"><b>sm · 4</b><br><span class="muted">Código inline, chips pequeños</span></p></div>
+      <div><div class="rd-box" style="border-radius:var(--radius-md)"></div><p class="small" style="margin-top:8px"><b>md · 8</b><br><span class="muted">Botones, inputs, controles</span></p></div>
+      <div><div class="rd-box" style="border-radius:var(--radius-lg)"></div><p class="small" style="margin-top:8px"><b>lg · 12</b><br><span class="muted">Cards, paneles, nodos</span></p></div>
+      <div><div class="rd-box" style="border-radius:var(--radius-xl)"></div><p class="small" style="margin-top:8px"><b>xl · 16</b><br><span class="muted">Modales, empty states</span></p></div>
+      <div><div class="rd-box" style="border-radius:var(--radius-pill);height:40px;margin-top:20px"></div><p class="small" style="margin-top:28px"><b>pill · 999</b><br><span class="muted">Badges, toggles, tags</span></p></div>
+      <div><div class="rd-box" style="border-radius:var(--radius-circle);width:80px"></div><p class="small" style="margin-top:8px"><b>circle · 50%</b><br><span class="muted">Avatares, handles</span></p></div>
+    </div>
+    <p class="t">Los bordes son de <code>1px</code> (<code>--border-width</code>); <code>2px</code> (<code>--border-width-thick</code>) para el foco y énfasis. Los acentos de color en el borde izquierdo aparecen <b>solo</b> en nodos de flujo y callouts, nunca como decoración genérica de card.</p>
+  </section>
+
+  <!-- 07 ───────────────────────────────────────────── -->
+  <section class="ds" id="elevacion">
+    <div class="eyebrow">07 · Elevación</div>
+    <h2 class="h">Sombras suaves, bajas, teñidas de tinta</h2>
+    <div class="panel canvas">
+      <div class="grid g4">
+        <div><div class="el-box" style="box-shadow:var(--shadow-1)">reposo</div><p class="small" style="margin-top:8px"><b>shadow-1</b> · card en reposo</p></div>
+        <div><div class="el-box" style="box-shadow:var(--shadow-2)">card</div><p class="small" style="margin-top:8px"><b>shadow-2</b> · hover, nodos</p></div>
+        <div><div class="el-box" style="box-shadow:var(--shadow-3)">popover</div><p class="small" style="margin-top:8px"><b>shadow-3</b> · menús, toolbars</p></div>
+        <div><div class="el-box" style="box-shadow:var(--shadow-4)">modal</div><p class="small" style="margin-top:8px"><b>shadow-4</b> · modales, toasts</p></div>
+        <div><div class="el-box" style="box-shadow:var(--shadow-brand);background:var(--brand);color:var(--brand-on)">CTA</div><p class="small" style="margin-top:8px"><b>shadow-brand</b> · solo botón primario</p></div>
+        <div><div class="el-box" style="box-shadow:var(--focus-ring)">foco</div><p class="small" style="margin-top:8px"><b>focus-ring</b> · 3px en inputs</p></div>
+      </div>
+    </div>
+    <p class="t">No apiles más de dos escalones de elevación. Transparencia y blur solo en overlays: backdrop de modal <code>rgba(11,27,51,.45)</code> + <code>blur(2px)</code>; barras sticky <code>blur(12px)</code> sobre blanco translúcido (como la barra superior de esta página).</p>
+  </section>
+
+  <!-- 08 ───────────────────────────────────────────── -->
+  <section class="ds" id="motion">
+    <div class="eyebrow">08 · Movimiento</div>
+    <h2 class="h">Rápido y discreto</h2>
+    <div class="panel">
+      <div class="grid g3">
+        <div><div class="row" style="justify-content:space-between"><b>fast · 120ms</b><span class="mono small muted">--dur-fast</span></div><div class="mo-track" data-dur="--dur-fast"><div class="mo-dot"></div></div></div>
+        <div><div class="row" style="justify-content:space-between"><b>base · 200ms</b><span class="mono small muted">--dur-base</span></div><div class="mo-track" data-dur="--dur-base"><div class="mo-dot"></div></div></div>
+        <div><div class="row" style="justify-content:space-between"><b>slow · 320ms</b><span class="mono small muted">--dur-slow</span></div><div class="mo-track" data-dur="--dur-slow"><div class="mo-dot"></div></div></div>
+      </div>
+      <div class="row" style="margin-top:14px"><button class="btn btn-secondary btn-sm" id="motionBtn"><i data-lucide="play"></i>Reproducir</button><span class="small muted">Curva <code>--ease-standard</code> = cubic-bezier(0.4, 0, 0.2, 1) · entradas con <code>--ease-out</code></span></div>
+    </div>
+    <div class="dodont">
+      <div class="dd do"><div class="hd"><i data-lucide="check"></i>Sí</div><ul><li>Fade + subida de 8–16px en entradas</li><li>Spinner en pasos en ejecución</li><li>Aristas del flujo animadas (marching ants)</li><li>Pausar lo decorativo con <code>prefers-reduced-motion</code></li></ul></div>
+      <div class="dd dont"><div class="hd"><i data-lucide="x"></i>No</div><ul><li>Rebotes ni parallax</li><li>Brillos de neón (legado del tema oscuro)</li><li>Transmitir información solo con animación</li><li>Más de 3 destellos por segundo</li></ul></div>
+    </div>
+  </section>
+
+  <!-- 09 ───────────────────────────────────────────── -->
+  <section class="ds" id="iconos">
+    <div class="eyebrow">09 · Iconografía y marca</div>
+    <h2 class="h">Lucide, trazo 1.5px, <code style="font-size:.8em">currentColor</code></h2>
+    <p class="t">La app depende de <code>lucide-react</code>. Trazo redondeado sin relleno. 14–18px en UI, 11–13px en badges, 24–28px en empty states. <b>Sin emoji</b> ni dingbats Unicode en la UI ni en el contenido publicado.</p>
+    <div class="panel">
+      <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:10px" id="iconGrid"></div>
+    </div>
+    <h3 class="h">Logotipo</h3>
+    <div class="grid g2">
+      <div class="panel" style="margin:0;display:flex;align-items:center;gap:20px">
+        <img src="assets/logomark.svg" alt="Logomark: monograma A en frontón" width="64" height="64">
+        <img src="assets/logomark.svg" alt="" aria-hidden="true" width="32" height="32">
+        <img src="assets/logomark.svg" alt="" aria-hidden="true" width="24" height="24">
+        <p class="small muted">Monograma “A” en frontón (la fachada de la Biblioteca de Alejandría) en tesela azul. Mínimo 24px; margen libre de ½ tesela.</p>
+      </div>
+      <div class="panel" style="margin:0;display:flex;align-items:center;justify-content:center;background:var(--bg-surface)">
+        <img src="assets/wordmark.svg" alt="Wordmark Alexandria Magazine" style="max-width:100%;height:56px">
+      </div>
+    </div>
+  </section>
+
+  <!-- 10 ───────────────────────────────────────────── -->
+  <section class="ds" id="acciones">
+    <div class="eyebrow">10 · Botones</div>
+    <h2 class="h">Una acción primaria por vista</h2>
+    <div class="panel">
+      <div class="row">
+        <button class="btn btn-primary"><i data-lucide="play"></i>Ejecutar pipeline</button>
+        <button class="btn btn-secondary"><i data-lucide="save"></i>Guardar</button>
+        <button class="btn btn-ghost"><i data-lucide="settings"></i>Ajustes</button>
+        <button class="btn btn-accent"><i data-lucide="sparkles"></i>Preguntar a la IA</button>
+        <button class="btn btn-danger"><i data-lucide="trash-2"></i>Eliminar</button>
+      </div>
+      <div class="row" style="margin-top:14px">
+        <button class="btn btn-primary btn-lg">Crear artículo</button>
+        <button class="btn btn-primary">Aprobar</button>
+        <button class="btn btn-primary btn-sm">Aprobar</button>
+        <button class="btn btn-secondary btn-sm">Cancelar</button>
+        <button class="btn btn-primary" disabled>Deshabilitado</button>
+      </div>
+      <div class="row" style="margin-top:14px">
+        <span class="cap">Icon button · 34px</span>
+        <button class="icon-btn" aria-label="Buscar"><i data-lucide="search"></i></button>
+        <button class="icon-btn" aria-label="Notificaciones"><i data-lucide="bell"></i><span class="notif-dot"></span></button>
+        <button class="icon-btn" aria-label="Más opciones"><i data-lucide="more-horizontal"></i></button>
+      </div>
+    </div>
+    <div class="tbl-scroll">
+    <table class="ref">
+      <thead><tr><th>Variante</th><th>Uso</th><th>Tokens</th></tr></thead>
+      <tbody>
+        <tr><td><b>Primario</b></td><td>La acción principal de la vista. Una sola.</td><td><code>--brand</code> · <code>--brand-on</code> · <code>--shadow-brand</code></td></tr>
+        <tr><td><b>Secundario</b></td><td>Acciones alternativas (Guardar, Cancelar).</td><td><code>--bg-surface</code> · <code>--border-control</code></td></tr>
+        <tr><td><b>Ghost</b></td><td>Terciarias, en toolbars.</td><td><code>--text-secondary</code> · <code>--bg-hover</code></td></tr>
+        <tr><td><b>Acento</b></td><td>Solo acciones IA / generativas.</td><td><code>--accent</code> · <code>--violet-70</code></td></tr>
+        <tr><td><b>Peligro</b></td><td>Destructivas: tinte rojo que pasa a sólido en hover.</td><td><code>--error-bg</code> · <code>--error</code> · <code>--text-on-error</code></td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p class="t">Estados: hover oscurece un escalón; activo oscurece dos y desplaza <code>translateY(1px)</code>; deshabilitado al 45% de opacidad; foco con contorno de 2px <code>--border-focus</code> y 2px de offset. Etiquetas en imperativo, sentence case, sin artículo: <i>Guardar, Ejecutar, Aprobar, Asignar revisor</i>.</p>
+  </section>
+
+  <!-- 11 ───────────────────────────────────────────── -->
+  <section class="ds" id="formularios">
+    <div class="eyebrow">11 · Formularios</div>
+    <h2 class="h">Etiqueta visible siempre; el placeholder es una pista</h2>
+    <div class="panel">
+      <div class="grid g2">
+        <div class="field"><label for="f1">Título del artículo</label><input class="inp" id="f1" value="Ecosistemas marinos y clima"></div>
+        <div class="field"><label for="f2">Buscar</label><div class="search"><i data-lucide="search"></i><input id="f2" placeholder="Buscar artículos…"></div></div>
+        <div class="field"><label for="f3">Correo</label><input class="inp" id="f3" value="investigadora@" aria-invalid="true" aria-describedby="f3e"><span class="err" id="f3e" role="alert"><i data-lucide="alert-circle"></i>Introduce un correo válido</span></div>
+        <div class="field"><label for="f4">Formato de citas</label><select class="inp" id="f4"><option>APA</option><option>IEEE</option><option>Vancouver</option></select><span class="help">Se aplica al publicar.</span></div>
+      </div>
+      <div class="field" style="margin-top:14px"><label for="f5">Resumen</label><textarea class="inp" id="f5" placeholder="Resume la contribución en 150–250 palabras…"></textarea></div>
+    </div>
+    <h3 class="h">Controles de selección</h3>
+    <div class="panel">
+      <div class="row" style="align-items:flex-start;gap:40px">
+        <fieldset style="border:0;display:flex;flex-direction:column;gap:12px"><legend class="cap" style="margin-bottom:10px">Checkbox</legend>
+          <label class="opt"><input type="checkbox" checked><span class="cbx"><i data-lucide="check"></i></span>APA</label>
+          <label class="opt"><input type="checkbox"><span class="cbx"><i data-lucide="check"></i></span>IEEE</label>
+        </fieldset>
+        <fieldset style="border:0;display:flex;flex-direction:column;gap:12px"><legend class="cap" style="margin-bottom:10px">Radio</legend>
+          <label class="opt"><input type="radio" name="rv" checked><span class="rd"></span>Revisión automática</label>
+          <label class="opt"><input type="radio" name="rv"><span class="rd"></span>Revisión manual (HITL)</label>
+        </fieldset>
+        <fieldset style="border:0;display:flex;flex-direction:column;gap:12px"><legend class="cap" style="margin-bottom:10px">Toggle</legend>
+          <label class="opt"><input type="checkbox" role="switch" checked><span class="tg"></span>RAG privado</label>
+          <label class="opt"><input type="checkbox" role="switch"><span class="tg"></span>Fuentes externas</label>
+        </fieldset>
+        <div style="display:flex;flex-direction:column;gap:12px"><span class="cap">Control segmentado</span>
+          <div class="seg" role="tablist" aria-label="Filtro" data-seg><button role="tab" aria-selected="true">Todos</button><button role="tab" aria-selected="false">Borradores</button><button role="tab" aria-selected="false">Publicados</button></div>
+        </div>
+      </div>
+    </div>
+    <p class="t">Todos los controles usan <code>--border-control</code>. El foco añade el anillo de 3px <code>--focus-ring</code>. Los errores se dan en texto + icono y se asocian con <code>aria-invalid</code> y <code>aria-describedby</code>.</p>
+  </section>
+
+  <!-- 12 ───────────────────────────────────────────── -->
+  <section class="ds" id="estado">
+    <div class="eyebrow">12 · Estado y feedback</div>
+    <h2 class="h">El estado nunca va solo en el color</h2>
+    <h3 class="h">Badges del ciclo editorial</h3>
+    <div class="panel">
+      <div class="row">
+        <span class="badge b-draft"><i data-lucide="circle-dashed"></i>Borrador</span>
+        <span class="badge b-review"><i data-lucide="clock"></i>En revisión</span>
+        <span class="badge b-approved"><i data-lucide="check"></i>Aprobado</span>
+        <span class="badge b-published"><i data-lucide="globe"></i>Publicado</span>
+        <span class="badge b-rejected"><i data-lucide="x"></i>Rechazado</span>
+      </div>
+      <div class="row" style="margin-top:14px"><span class="cap">Tags de formato</span><span class="tag">APA</span><span class="tag">IEEE</span><span class="tag">Vancouver</span></div>
+    </div>
+    <h3 class="h">Alertas en línea</h3>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div class="alert a-info" role="status"><i data-lucide="info"></i><div class="tx"><b>Pipeline en cola.</b> El flujo se ejecutará cuando haya capacidad de inferencia.</div></div>
+      <div class="alert a-success" role="status"><i data-lucide="check-circle-2"></i><div class="tx"><b>Artículo aprobado.</b> Listo para publicar en formato APA.</div></div>
+      <div class="alert a-warning" role="status"><i data-lucide="alert-triangle"></i><div class="tx"><b>Score por debajo del umbral</b> (74 &lt; 80). Requiere revisión manual.</div></div>
+      <div class="alert a-error" role="alert"><i data-lucide="alert-circle"></i><div class="tx"><b>Falló la recuperación RAG.</b> No se pudo conectar a Qdrant.</div></div>
+    </div>
+    <h3 class="h">Toast</h3>
+    <div class="panel canvas row">
+      <div id="toastSlot"><div class="toast" role="status"><span class="ic"><i data-lucide="check"></i></span>Flujo guardado</div></div>
+      <button class="btn btn-secondary btn-sm" id="toastBtn">Mostrar toast</button>
+      <span class="small muted">Tinta oscura, abajo y centrado, <code>shadow-4</code>, entrada de 250ms. Anunciado por <code>role="status"</code>.</span>
+    </div>
+    <h3 class="h">Empty state</h3>
+    <div class="card"><div class="empty"><div class="eic"><i data-lucide="file-text"></i></div><h4>Aún no hay artículos</h4><p style="max-width:42ch">Crea tu primer artículo y el pipeline lo investigará, redactará y revisará.</p><button class="btn btn-primary"><i data-lucide="plus"></i>Crear artículo</button></div></div>
+  </section>
+
+  <!-- 13 ───────────────────────────────────────────── -->
+  <section class="ds" id="contenedores">
+    <div class="eyebrow">13 · Cards y modales</div>
+    <h2 class="h">Superficies blancas, 12px, hairline</h2>
+    <h3 class="h">Card de artículo</h3>
+    <div class="grid g3">
+      <article class="acard">
+        <div class="row" style="justify-content:space-between"><span class="badge b-published"><i data-lucide="globe"></i>Publicado</span><span class="tag">APA</span></div>
+        <div class="at">Recuperación aumentada para revisiones sistemáticas en ecología marina</div>
+        <div class="ab">Evaluamos borradores anclados frente a una línea base sin recuperación sobre un conjunto de citas reservado.</div>
+        <div class="am"><i data-lucide="user"></i>R. Méndez <i data-lucide="clock"></i>hace 2 días <i data-lucide="gauge"></i>score 91</div>
+      </article>
+      <article class="acard">
+        <div class="row" style="justify-content:space-between"><span class="badge b-review"><i data-lucide="clock"></i>En revisión</span><span class="tag">IEEE</span></div>
+        <div class="at">Cuantización de modelos locales para inferencia en el borde</div>
+        <div class="ab">Comparación de latencia y calidad entre precisiones de 4 y 8 bits en hardware de consumo.</div>
+        <div class="am"><i data-lucide="user"></i>L. Sanz <i data-lucide="clock"></i>hace 3 h <i data-lucide="repeat"></i>bucle 2/3</div>
+      </article>
+      <article class="acard">
+        <div class="row" style="justify-content:space-between"><span class="badge b-draft"><i data-lucide="circle-dashed"></i>Borrador</span><span class="tag">Vancouver</span></div>
+        <div class="at">Biomarcadores tempranos en cohortes longitudinales</div>
+        <div class="ab">Revisión narrativa del estado del arte y lagunas metodológicas en la detección precoz.</div>
+        <div class="am"><i data-lucide="user"></i>A. Ortiz <i data-lucide="clock"></i>ayer</div>
+      </article>
+    </div>
+    <p class="t">El título manda (Source Serif 4); los metadatos van en sans con iconos Lucide. Reposo <code>shadow-1</code> → hover <code>shadow-2</code> + borde <code>--neutral-40</code> + −1px. Sin rellenos degradados ni cards con solo borde izquierdo de color.</p>
+
+    <h3 class="h">Avatares</h3>
+    <div class="panel row">
+      <span class="avatar" style="background:var(--brand)">LS</span>
+      <span class="avatar" style="background:var(--accent)">RM</span>
+      <span class="avatar" style="background:var(--agent-format)">AO</span>
+      <span class="avatar" style="background:var(--agent-publish)">JP</span>
+      <span class="small muted">32px, círculo, iniciales en blanco 13px bold.</span>
+    </div>
+
+    <h3 class="h">Modal</h3>
+    <div class="backdrop-demo">
+      <div class="modal" role="dialog" aria-labelledby="mdT">
+        <div class="modal-h"><h4 id="mdT">Asignar revisor</h4><button class="icon-btn" aria-label="Cerrar"><i data-lucide="x"></i></button></div>
+        <div class="modal-b">
+          <div class="field"><label for="m1">Revisor</label><input class="inp" id="m1" placeholder="Usa @ para mencionar al revisor"></div>
+          <p class="small muted">Se notificará a la persona asignada y el artículo pasará a <b>En revisión</b>.</p>
+        </div>
+        <div class="modal-f"><button class="btn btn-secondary">Cancelar</button><button class="btn btn-primary">Asignar revisor</button></div>
+      </div>
+    </div>
+    <p class="t">Radio 16px, <code>shadow-4</code>, entrada con subida de 14px en 220ms. Atrapa el foco, lo devuelve al cerrar y se cierra con <kbd>Esc</kbd>.</p>
+  </section>
+
+  <!-- 14 ───────────────────────────────────────────── -->
+  <section class="ds" id="agentes">
+    <div class="eyebrow">14 · Agentes y pipeline</div>
+    <h2 class="h">Flow Designer y ejecución</h2>
+    <p class="t">Componentes propios del builder. Cada agente lleva su tono y su icono Lucide (sustituyen al emoji del producto heredado).</p>
+    <div class="flow" style="margin-top:14px">
+      <div class="flow-row" id="flowRow"></div>
+      <div class="loop-note"><i data-lucide="repeat"></i>Bucle Revisor → Redactor, máximo 3 vueltas · pausa HITL con <code>await_decision</code></div>
+    </div>
+    <div class="tbl-scroll">
+    <table class="ref">
+      <thead><tr><th>Agente</th><th>Token</th><th>Icono</th><th>Función</th></tr></thead>
+      <tbody>
+        <tr><td><b>Investigador</b></td><td><code>--agent-research</code></td><td><code>search</code></td><td>Recupera fuentes vía RAG</td></tr>
+        <tr><td><b>Redactor</b></td><td><code>--agent-write</code></td><td><code>pen-line</code></td><td>Genera el borrador con contexto</td></tr>
+        <tr><td><b>Revisor</b></td><td><code>--agent-review</code></td><td><code>eye</code></td><td>Evalúa calidad · score 0–100</td></tr>
+        <tr><td><b>Formateador</b></td><td><code>--agent-format</code></td><td><code>file-text</code></td><td>Aplica APA / IEEE / Vancouver</td></tr>
+        <tr><td><b>Publicador</b></td><td><code>--agent-publish</code></td><td><code>send</code></td><td>Publica tras la compuerta</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <h3 class="h">Pasos de ejecución (streaming SSE)</h3>
+    <div class="grid g2">
+      <div style="display:flex;flex-direction:column;gap:10px" id="stepList"></div>
+      <div>
+        <div class="exec-log" aria-label="Registro de ejecución"><span class="info">[agent_start]</span> investigador
+<span class="ok">[done]</span>       12 fuentes · 2.4s
+<span class="info">[agent_start]</span> redactor
+<span class="info">[token]</span>       … 1.284 tokens
+<span class="ok">[done]</span>       borrador v1
+<span class="info">[agent_start]</span> revisor
+<span class="warn">[await_decision]</span> score 74 &lt; 80</div>
+        <p class="small muted" style="margin-top:8px">Log en mono sobre tinta: info en azul, ok en verde, aviso en ámbar. Se puede pausar; nada esencial depende solo de la animación.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 15 ───────────────────────────────────────────── -->
+  <section class="ds" id="prose">
+    <div class="eyebrow">15 · Content System</div>
+    <h2 class="h">La capa de lectura: <code style="font-size:.8em">.prose</code></h2>
+    <p class="t">Render editorial de artículos técnicos y científicos: serif, 68ch, ritmo académico. Así se ve un artículo publicado en la Magazine.</p>
+    <div class="reader" style="margin-top:16px">
+      <article class="prose" lang="es">
+        <p class="cap" style="font-family:var(--font-sans);color:var(--brand)">Ecología computacional · Artículo</p>
+        <h1>Recuperación aumentada en revisiones sistemáticas</h1>
+        <div class="kw"><span class="tag">RAG</span><span class="tag">LLM</span><span class="tag">ecología marina</span></div>
+        <p class="has-dropcap">La generación anclada en fuentes recuperadas redujo las afirmaciones sin soporte en un factor de 4,3<sup><a href="#r1">[1]</a></sup>, en línea con trabajos previos sobre recuperación densa<sup><a href="#r2">[2]</a></sup>. Este artículo describe el <a href="#prose">protocolo de evaluación</a> y sus límites.</p>
+        <h2>Metodología</h2>
+        <div class="callout method"><i data-lucide="flask-conical"></i><div><b>Metodología</b><span>Los borradores se evaluaron frente a un conjunto de citas reservado; umbral de aprobación = 80.</span></div></div>
+        <p>Cada ejecución registra modelo, parámetros, fuentes y su <code>score</code> en <code>agent_run_steps</code>, lo que permite explicar el resultado a posteriori.</p>
+        <pre><code>{ "agent": "revisor", "score": 91, "loop_count": 1,
+  "sources": [{ "id": "p_7__library__", "score": 0.83 }] }</code></pre>
+        <h3>Resultados</h3>
+        <figure>
+          <svg viewBox="0 0 600 180" role="img" aria-label="Fig. 1: afirmaciones sin soporte por condición" style="width:100%;border:1px solid var(--border-default);border-radius:var(--radius-md);background:var(--bg-sunken)">
+            <line x1="40" y1="150" x2="580" y2="150" stroke="var(--viz-axis)"/>
+            <rect x="110" y="30" width="120" height="120" rx="4" fill="var(--viz-8)"/><text x="170" y="170" text-anchor="middle" font-size="12" fill="var(--text-secondary)" font-family="Source Sans 3">Sin anclaje</text><text x="170" y="24" text-anchor="middle" font-size="12" font-weight="700" fill="var(--text-heading)" font-family="Source Sans 3">23,6 %</text>
+            <rect x="370" y="122" width="120" height="28" rx="4" fill="var(--viz-1)"/><text x="430" y="170" text-anchor="middle" font-size="12" fill="var(--text-secondary)" font-family="Source Sans 3">Con RAG</text><text x="430" y="116" text-anchor="middle" font-size="12" font-weight="700" fill="var(--text-heading)" font-family="Source Sans 3">5,5 %</text>
+          </svg>
+          <figcaption><span class="fig-label">Fig. 1.</span> Proporción de afirmaciones sin soporte por condición (n = 120 borradores).</figcaption>
+        </figure>
+        <div class="callout finding"><i data-lucide="lightbulb"></i><div><b>Hallazgo clave</b><span>Los borradores anclados reducen 4,3× las afirmaciones sin soporte frente a la línea base.</span></div></div>
+        <table>
+          <thead><tr><th>Condición</th><th>Score medio</th><th>Bucles</th></tr></thead>
+          <tbody><tr><td>Sin anclaje</td><td>68</td><td>2,8</td></tr><tr><td>Con RAG</td><td>89</td><td>1,3</td></tr></tbody>
+        </table>
+        <blockquote><p>El rigor no está en el modelo, sino en poder explicar de dónde sale cada afirmación.</p></blockquote>
+        <div class="callout note"><i data-lucide="info"></i><div><b>Nota</b><span>El contexto RAG se aísla por proyecto: las fuentes nunca cruzan entre espacios de trabajo.</span></div></div>
+        <hr>
+        <h4>Referencias</h4>
+        <ol style="font-size:var(--text-sm)">
+          <li id="r1">Lewis, P., et al. (2020). <em>Retrieval-augmented generation for knowledge-intensive NLP tasks.</em> NeurIPS.</li>
+          <li id="r2">Karpukhin, V., et al. (2020). <em>Dense passage retrieval for open-domain question answering.</em> EMNLP.</li>
+        </ol>
+      </article>
+    </div>
+    <div class="tbl-scroll">
+    <table class="ref">
+      <thead><tr><th>Elemento</th><th>Regla</th></tr></thead>
+      <tbody>
+        <tr><td>h1 / h2 / h3 / h4</td><td>Serif bold, 42 / 28 / 20 / 18px, interlineado 1.2. Sin saltar niveles.</td></tr>
+        <tr><td>Párrafo</td><td>16px, 1.7, <code>text-wrap: pretty</code>, separación 1.15em.</td></tr>
+        <tr><td>Enlace</td><td><code>--blue-70</code>, subrayado de 1px con offset 2px.</td></tr>
+        <tr><td>Código</td><td>Inline sobre <code>--neutral-10</code>; bloques sobre tinta <code>--ink-100</code>.</td></tr>
+        <tr><td>Figura</td><td>Borde hairline, radio 8; pie en sans 13px con “Fig. N.” en azul.</td></tr>
+        <tr><td>Tabla</td><td>Sans 13px, cabecera en versalitas espaciadas, filas con borde sutil.</td></tr>
+        <tr><td>Callouts</td><td>Nota (azul · <code>info</code>), Metodología (violeta · <code>flask-conical</code>), Hallazgo (verde · <code>lightbulb</code>).</td></tr>
+        <tr><td>Capitular</td><td>Opcional con <code>.has-dropcap</code>.</td></tr>
+      </tbody>
+    </table>
+    </div>
+  </section>
+
+  <!-- 16 ───────────────────────────────────────────── -->
+  <section class="ds" id="dataviz">
+    <div class="eyebrow">16 · Visualización de datos</div>
+    <h2 class="h">Paleta categórica, secuencial y divergente</h2>
+    <h3 class="h">Categórica (ordenada por contraste adyacente, apta para daltonismo)</h3>
+    <div class="ramp" data-ramp="--viz-1 --viz-2 --viz-3 --viz-4 --viz-5 --viz-6 --viz-7 --viz-8"></div>
+    <div class="grid g2" style="margin-top:14px">
+      <div><h3 class="h" style="margin-top:0">Secuencial</h3><div class="ramp" style="margin-top:0" data-ramp="--viz-seq-1 --viz-seq-2 --viz-seq-3 --viz-seq-4 --viz-seq-5"></div></div>
+      <div><h3 class="h" style="margin-top:0">Divergente</h3><div class="ramp" style="margin-top:0" data-ramp="--viz-div-neg --viz-div-mid --viz-div-pos"></div></div>
+    </div>
+    <h3 class="h">En uso</h3>
+    <div class="panel">
+      <div class="grid g3">
+        <figure>
+          <div class="cap" style="margin-bottom:8px">Artículos por mes</div>
+          <svg viewBox="0 0 220 130" role="img" aria-label="Barras: artículos por mes, de junio a octubre: 12, 16, 10, 20 y 14" style="width:100%">
+            <line x1="6" y1="104" x2="214" y2="104" stroke="var(--viz-axis)"/>
+            <g fill="var(--viz-1)"><rect x="14" y="56" width="28" height="48" rx="3"/><rect x="56" y="40" width="28" height="64" rx="3"/><rect x="98" y="64" width="28" height="40" rx="3"/><rect x="140" y="24" width="28" height="80" rx="3"/></g>
+            <rect x="182" y="48" width="28" height="56" rx="3" fill="var(--viz-7)"/>
+            <g font-size="9" fill="var(--text-muted)" text-anchor="middle" font-family="Source Sans 3"><text x="28" y="118">jun</text><text x="70" y="118">jul</text><text x="112" y="118">ago</text><text x="154" y="118">sep</text><text x="196" y="118">oct</text></g>
+          </svg>
+        </figure>
+        <figure>
+          <div class="cap" style="margin-bottom:8px">Score de aprobación</div>
+          <svg viewBox="0 0 220 130" role="img" aria-label="Línea: score de aprobación sube de 68 a 91" style="width:100%">
+            <g stroke="var(--viz-grid)"><line x1="6" y1="30" x2="214" y2="30"/><line x1="6" y1="67" x2="214" y2="67"/><line x1="6" y1="104" x2="214" y2="104"/></g>
+            <polygon fill="var(--viz-3)" opacity=".1" points="10,86 55,62 100,70 145,40 200,28 200,104 10,104"/>
+            <polyline fill="none" stroke="var(--viz-3)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" points="10,86 55,62 100,70 145,40 200,28"/>
+            <g fill="var(--viz-3)"><circle cx="10" cy="86" r="3"/><circle cx="55" cy="62" r="3"/><circle cx="100" cy="70" r="3"/><circle cx="145" cy="40" r="3"/><circle cx="200" cy="28" r="3.5"/></g>
+            <text x="200" y="20" text-anchor="end" font-size="10" font-weight="700" fill="var(--text-heading)" font-family="Source Sans 3">91</text>
+          </svg>
+        </figure>
+        <figure>
+          <div class="cap" style="margin-bottom:8px">Artículos por estado</div>
+          <div class="row" style="flex-wrap:nowrap">
+            <svg viewBox="0 0 120 120" role="img" aria-label="Donut: 62 artículos; 28 publicados, 16 en revisión, 18 borradores" style="width:110px;flex-shrink:0">
+              <circle cx="60" cy="60" r="42" fill="none" stroke="var(--viz-track)" stroke-width="16"/>
+              <circle cx="60" cy="60" r="42" fill="none" stroke="var(--viz-1)" stroke-width="16" stroke-dasharray="119 264" transform="rotate(-90 60 60)"/>
+              <circle cx="60" cy="60" r="42" fill="none" stroke="var(--viz-4)" stroke-width="16" stroke-dasharray="68 264" stroke-dashoffset="-121" transform="rotate(-90 60 60)"/>
+              <circle cx="60" cy="60" r="42" fill="none" stroke="var(--viz-8)" stroke-width="16" stroke-dasharray="73 264" stroke-dashoffset="-191" transform="rotate(-90 60 60)"/>
+              <text x="60" y="60" text-anchor="middle" font-size="20" font-weight="700" fill="var(--text-heading)" font-family="Source Sans 3">62</text>
+              <text x="60" y="74" text-anchor="middle" font-size="9" fill="var(--text-muted)" font-family="Source Sans 3">total</text>
+            </svg>
+            <ul style="list-style:none;font-size:12px;display:flex;flex-direction:column;gap:5px">
+              <li><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:var(--viz-1);margin-right:6px"></span>Publicados 28</li>
+              <li><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:var(--viz-4);margin-right:6px"></span>En revisión 16</li>
+              <li><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:var(--viz-8);margin-right:6px"></span>Borradores 18</li>
+            </ul>
+          </div>
+        </figure>
+      </div>
+    </div>
+    <p class="t">Siempre con etiquetas directas o leyenda: el color nunca es el único canal. Rejilla <code>--viz-grid</code>, eje <code>--viz-axis</code>, pista <code>--viz-track</code>; positivo / negativo con <code>--viz-positive</code> / <code>--viz-negative</code>.</p>
+  </section>
+
+  <!-- 17 ───────────────────────────────────────────── -->
+  <section class="ds" id="voz">
+    <div class="eyebrow">17 · Voz y tono</div>
+    <h2 class="h">Precisa, calmada y creíble</h2>
+    <p class="t">Producto <b>español-first</b>: el chrome (navegación, botones, toasts, estados) va siempre en español; el contenido científico, en el idioma de quien investiga. Segunda persona con “tú”, cercana sin exceso.</p>
+    <div class="dodont">
+      <div class="dd do"><div class="hd"><i data-lucide="check"></i>Así</div><ul><li>Flujo guardado</li><li>Ejecutar pipeline</li><li>Diseña tu pipeline</li><li>Score de aprobación</li><li>3 artículos en total</li><li>Asignar revisor</li></ul></div>
+      <div class="dd dont"><div class="hd"><i data-lucide="x"></i>Así no</div><ul><li>¡Tu flujo se guardó con éxito! 🎉</li><li>Run pipeline</li><li>Click aquí para ejecutar</li><li>Puntuación</li><li>¡Tienes 3 artículos!</li><li>Seleccionar revisor</li></ul></div>
+    </div>
+    <div class="tbl-scroll">
+    <table class="ref">
+      <thead><tr><th>Contexto</th><th>Regla</th><th>Ejemplo</th></tr></thead>
+      <tbody>
+        <tr><td>Títulos y botones</td><td>Sentence case</td><td>Iniciar sesión · Ejecutar pipeline</td></tr>
+        <tr><td>Eyebrows y badges</td><td>MAYÚSCULAS con tracking</td><td><span class="cap">Fundamentos</span></td></tr>
+        <tr><td>Acciones</td><td>Imperativo, verbo primero, sin artículo</td><td>Guardar · Aprobar · Rechazar</td></tr>
+        <tr><td>Estados</td><td>Sustantivos de dominio</td><td>Borrador · Pendiente · Aprobado · Publicado</td></tr>
+        <tr><td>Vocabulario</td><td>Términos técnicos exactos, sin suavizar</td><td>pipeline, flujo, agente, RAG, formato APA</td></tr>
+        <tr><td>Contenido publicado</td><td>Voz académica del autor: tercera persona, mesurada</td><td>“Los resultados sugieren…”</td></tr>
+      </tbody>
+    </table>
+    </div>
+  </section>
+
+  <!-- 18 ───────────────────────────────────────────── -->
+  <section class="ds" id="a11y">
+    <div class="eyebrow">18 · Accesibilidad</div>
+    <h2 class="h">WCAG 2.1 AA, integrado en los tokens</h2>
+    <p class="t">Ratios calculados en vivo desde los valores efectivos del tema activo (fórmula de luminancia relativa de WCAG). Texto normal ≥ 4.5:1; texto grande y elementos de UI ≥ 3:1.</p>
+    <div class="grid g3" style="margin-top:14px" id="contrastGrid"></div>
+    <div class="grid g2" style="margin-top:8px">
+      <div>
+        <h3 class="h">Reglas clave</h3>
+        <ul class="checklist">
+          <li><i data-lucide="check"></i><span><b>Foco visible</b>: contorno 2px <code>--border-focus</code> + 2px de offset; los inputs añaden el anillo de 3px. Nunca <code>outline: none</code> sin equivalente.</span></li>
+          <li><i data-lucide="check"></i><span><b>Objetivos</b>: 44×44px en acciones primarias táctiles; mínimo 24×24px en toolbars densas.</span></li>
+          <li><i data-lucide="check"></i><span><b>Teclado</b>: todo operable; los modales atrapan y devuelven el foco y cierran con Esc. Arrastrar en el Flow Designer necesita alternativa por menú.</span></li>
+          <li><i data-lucide="check"></i><span><b>Texto</b>: reflujo al 200%; tamaños en rem; <code>lang="es"</code> en el chrome y <code>lang</code> propio en contenido en otro idioma.</span></li>
+          <li><i data-lucide="check"></i><span><b>Live regions</b>: toasts y validación con <code>role="status"</code>; errores con <code>role="alert"</code>.</span></li>
+          <li><i data-lucide="check"></i><span><b>Semántica</b>: un h1 por vista, landmarks, botones de icono con <code>aria-label</code>, iconos decorativos <code>aria-hidden</code>.</span></li>
+        </ul>
+      </div>
+      <div>
+        <h3 class="h">Checklist por pantalla</h3>
+        <div class="panel" style="margin-top:12px">
+          <label class="opt" style="margin-bottom:10px"><input type="checkbox"><span class="cbx"><i data-lucide="check"></i></span>Contraste AA en texto, iconos, bordes y marcas</label>
+          <label class="opt" style="margin-bottom:10px"><input type="checkbox"><span class="cbx"><i data-lucide="check"></i></span>Estados y gráficos legibles sin color</label>
+          <label class="opt" style="margin-bottom:10px"><input type="checkbox"><span class="cbx"><i data-lucide="check"></i></span>Operable por teclado, foco visible, Esc cierra</label>
+          <label class="opt" style="margin-bottom:10px"><input type="checkbox"><span class="cbx"><i data-lucide="check"></i></span>Labels, errores asociados y live regions</label>
+          <label class="opt" style="margin-bottom:10px"><input type="checkbox"><span class="cbx"><i data-lucide="check"></i></span>Encabezados en orden, landmarks, iconos etiquetados</label>
+          <label class="opt"><input type="checkbox"><span class="cbx"><i data-lucide="check"></i></span>Zoom 200%, reduced-motion y <code>lang</code> correctos</label>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 19 ───────────────────────────────────────────── -->
+  <section class="ds" id="tema">
+    <div class="eyebrow">19 · Tema claro / oscuro</div>
+    <h2 class="h">Solo cambia el nivel semántico</h2>
+    <p class="t">Añade <code>data-theme="dark"</code> (o la clase <code>.dark</code>) a cualquier ancestro y los tokens semánticos se invierten; los componentes no necesitan CSS oscuro propio. El tema oscuro recupera el ambiente tinta del producto original, con azul aclarado para mantener AA.</p>
+    <div class="grid g2" style="margin-top:14px">
+      <div class="panel" style="margin:0;background:var(--bg-canvas)">
+        <div class="cap">Tema de la página (sin atributo)</div>
+        <div class="card" style="padding:16px;margin-top:10px"><div class="row" style="justify-content:space-between"><b style="color:var(--text-heading)">Redactor</b><span class="badge b-approved"><i data-lucide="check"></i>Aprobado</span></div><p class="small" style="margin-top:6px;color:var(--text-secondary)">Borrador generado con 12 fuentes.</p><div class="row" style="margin-top:12px"><button class="btn btn-primary btn-sm">Publicar</button><button class="btn btn-secondary btn-sm">Editar</button></div></div>
+      </div>
+      <div data-theme="dark" class="panel" style="margin:0;background:var(--bg-canvas);border-color:var(--border-default)">
+        <div class="cap">data-theme="dark"</div>
+        <div class="card" style="padding:16px;margin-top:10px"><div class="row" style="justify-content:space-between"><b style="color:var(--text-heading)">Redactor</b><span class="badge b-approved"><i data-lucide="check"></i>Aprobado</span></div><p class="small" style="margin-top:6px;color:var(--text-secondary)">Borrador generado con 12 fuentes.</p><div class="row" style="margin-top:12px"><button class="btn btn-primary btn-sm">Publicar</button><button class="btn btn-secondary btn-sm">Editar</button></div></div>
+      </div>
+    </div>
+    <div class="tbl-scroll">
+    <table class="ref">
+      <thead><tr><th>Token</th><th>Claro</th><th>Oscuro</th><th>Motivo</th></tr></thead>
+      <tbody>
+        <tr><td><code>--brand</code></td><td>#0176d3</td><td>#2f9bff</td><td>Contraste sobre tinta</td></tr>
+        <tr><td><code>--brand-on</code></td><td>#ffffff</td><td>#04162c</td><td>Blanco daba 2.90:1 sobre el azul claro</td></tr>
+        <tr><td><code>--bg-canvas</code> / <code>--bg-surface</code></td><td>#f4f6f9 / #ffffff</td><td>#0a1120 / #111c2f</td><td>Superficies tinta</td></tr>
+        <tr><td><code>--error</code> + <code>--text-on-error</code></td><td>#ba0517 + #fff</td><td>#ff6b6b + #2a0508</td><td>Blanco sobre rojo claro daba 2.78:1</td></tr>
+        <tr><td><code>--border-control</code></td><td>#7b8caa</td><td>#8793a5</td><td>≥ 3:1 sobre la superficie</td></tr>
+        <tr><td>Bordes y tintes</td><td>hex sólidos</td><td>rgba translúcidos</td><td>Se adaptan a cualquier superficie oscura</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <div class="note"><i data-lucide="alert-triangle"></i><span>No reutilices hex del tema claro sobre superficies oscuras: usa siempre los tokens semánticos.</span></div>
+  </section>
+
+  <!-- 20 ───────────────────────────────────────────── -->
+  <section class="ds" id="uso">
+    <div class="eyebrow">20 · Uso y deuda conocida</div>
+    <h2 class="h">Cómo construir con el sistema</h2>
+    <div class="exec-log" style="white-space:pre"><span class="info">/* En la app: src/index.css ya lo importa */</span>
+@import '../ds/colors_and_type.css';
+
+<span class="info">/* En un artefacto o prototipo */</span>
+&lt;link rel="stylesheet" href="frontend/ds/styles.css"&gt;
+&lt;body class="ax"&gt; … &lt;article class="prose"&gt; … &lt;/article&gt;
+
+<span class="info">/* Tema oscuro en un subárbol */</span>
+&lt;section data-theme="dark"&gt; … &lt;/section&gt;</div>
+    <ul class="checklist">
+      <li><i data-lucide="check"></i><span>Referencia tokens <b>semánticos</b> (<code>--brand</code>, <code>--bg-surface</code>, <code>--text-body</code>), no primitivos ni hex.</span></li>
+      <li><i data-lucide="check"></i><span>Los alias heredados de <code>src/index.css</code> (<code>--brand-primary</code>, <code>--bg-card</code>, <code>--space-4</code>…) apuntan a estos tokens: valen para código existente, pero lo nuevo usa los nombres del DS.</span></li>
+      <li><i data-lucide="check"></i><span>Si cambias un valor, actualiza también <code>tokens.dtcg.json</code>, <code>tokens.md</code> y las previews afectadas en la misma PR.</span></li>
+    </ul>
+    <h3 class="h">Deuda conocida (detectada al generar esta página)</h3>
+    <div class="note"><i data-lucide="alert-triangle"></i><span><code>preview/a11y-contrast.html</code> muestra ratios fijos (12.6, 4.8, 4.6, 5.4) que no coinciden con <code>ACCESSIBILITY.md</code> (11.48, 4.63…). La sección 18 de esta página los calcula en vivo.</span></div>
+    <footer class="ft">Generado a partir de <code>frontend/ds/colors_and_type.css</code>, <code>README.md</code>, <code>tokens.md</code>, <code>ACCESSIBILITY.md</code>, <code>ui_kits/studio/studio.css</code> y <code>zeroheight/pages/*</code> · 2026-11-11.</footer>
+  </section>
+
+  </div>
+  </main>
+</div>
+
+<script src="https://unpkg.com/lucide@0.544.0/dist/umd/lucide.min.js"></script>
+<script>
+(function () {
+  const root = document.documentElement;
+  const css = (name, el) => getComputedStyle(el || root).getPropertyValue(name).trim();
+
+  /* ---------- Color → hex/rgba y contraste ---------- */
+  const probe = document.createElement('span'); probe.style.display = 'none'; document.body.appendChild(probe);
+  function rgba(value) {
+    probe.style.color = ''; probe.style.color = value;
+    const m = getComputedStyle(probe).color.match(/[\d.]+/g) || [0,0,0,1];
+    return { r: +m[0], g: +m[1], b: +m[2], a: m[3] === undefined ? 1 : +m[3] };
+  }
+  const hex = c => '#' + [c.r, c.g, c.b].map(v => Math.round(v).toString(16).padStart(2, '0')).join('');
+  function label(value) { const c = rgba(value); return c.a < 1 ? `rgba(${c.r},${c.g},${c.b},${+c.a.toFixed(2)})` : hex(c); }
+  function over(fg, bg) { return { r: fg.r*fg.a + bg.r*(1-fg.a), g: fg.g*fg.a + bg.g*(1-fg.a), b: fg.b*fg.a + bg.b*(1-fg.a), a: 1 }; }
+  function lum(c) { const f = v => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }; return 0.2126*f(c.r) + 0.7152*f(c.g) + 0.0722*f(c.b); }
+  function ratio(fgV, bgV, baseV) {
+    const base = rgba(baseV || css('--bg-surface'));
+    const bg = over(rgba(bgV), over(base, {r:255,g:255,b:255,a:1}));
+    const fg = over(rgba(fgV), bg);
+    const a = lum(fg), b = lum(bg);
+    return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+  }
+  const textOn = v => { const c = over(rgba(v), rgba(css('--bg-surface'))); return lum(c) > 0.4 ? '#0b1b33' : '#ffffff'; };
+
+  /* ---------- Render dinámico ---------- */
+  function renderSwatches() {
+    document.querySelectorAll('[data-swatches]').forEach(el => {
+      el.innerHTML = el.dataset.swatches.split('|').map(s => {
+        const [tk, nm] = s.split(':'); const v = css(tk);
+        return `<div class="sw"><div class="chip" style="background:var(${tk})"></div><div class="meta"><span class="nm">${nm}</span><span class="tk">${tk}</span><span class="hx">${label(v)}</span></div></div>`;
+      }).join('');
+    });
+    document.querySelectorAll('[data-ramp]').forEach(el => {
+      el.innerHTML = el.dataset.ramp.split(' ').map(tk => {
+        const v = css(tk);
+        return `<div style="background:var(${tk});color:${textOn(v)}" title="${tk}"><span>${tk.replace(/^--/, '')}</span><span style="opacity:.8">${label(v)}</span></div>`;
+      }).join('');
+    });
+    const tt = [['--text-heading','Encabezados'],['--text-primary','Primario'],['--text-body','Cuerpo'],['--text-secondary','Secundario'],['--text-muted','Atenuado'],['--text-link','Enlace']];
+    document.getElementById('textTokens').innerHTML = tt.map(([tk, nm]) => {
+      const r = ratio(css(tk), css('--bg-surface'));
+      return `<div class="row" style="justify-content:space-between;border-bottom:1px solid var(--border-subtle);padding-bottom:8px"><span style="color:var(${tk});font-size:16px;font-weight:500">${nm} — El investigador recupera doce fuentes</span><span class="row" style="gap:8px"><span class="mono small muted">${tk} · ${label(css(tk))}</span><span class="verdict ${r >= 4.5 ? 'ok' : 'ko'}">${r.toFixed(2)}:1</span></span></div>`;
+    }).join('');
+  }
+
+  const typeScale = [['--text-6xl','56','Hero editorial','serif'],['--text-5xl','42','Título de artículo','serif'],['--text-4xl','32','Display','serif'],['--text-3xl','28','Título de página','sans'],['--text-2xl','24','Sección','sans'],['--text-xl','20','Subsección','sans'],['--text-lg','18','Título de card','sans'],['--text-md','16','Cuerpo de lectura','serif'],['--text-base','14','Cuerpo UI','sans'],['--text-sm','13','Botones, metadatos','sans'],['--text-xs','12','Labels, ayuda','sans'],['--text-2xs','11','Badges, eyebrows','sans']];
+  document.getElementById('typeScale').innerHTML = typeScale.map(([tk, px, use, fam]) =>
+    `<div class="r"><span class="k">${tk} · ${px}px<br><span style="color:var(--text-muted)">${use}</span></span><span class="s" style="font-size:var(${tk});font-family:var(--font-${fam});font-weight:${fam === 'serif' ? 700 : 600};letter-spacing:${+px >= 24 ? 'var(--tracking-tight)' : 0}">Ciencia rigurosa, publicación serena</span></div>`).join('');
+
+  const spaces = ['--space-3xs','--space-2xs','--space-xs','--space-sm','--space-md','--space-lg','--space-xl','--space-2xl','--space-3xl','--space-4xl'];
+  document.getElementById('spaceScale').innerHTML = spaces.map(tk => {
+    const px = parseFloat(css(tk)) * 16;
+    return `<div class="sp"><span class="mono small">${tk.replace('--space-','')}</span><span class="mono small muted">${px}px</span><span class="bar" style="width:var(${tk})"></span></div>`;
+  }).join('');
+
+  const icons = ['book-open','git-branch','bot','zap','shield','play','save','trash-2','plus','search','filter','arrow-left','check-circle','x-circle','clock','alert-circle','user-plus','file-text','settings','sparkles','flask-conical','lightbulb','pen-line','eye','send','globe'];
+  document.getElementById('iconGrid').innerHTML = icons.map(n =>
+    `<div style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 4px;border:1px solid var(--border-subtle);border-radius:var(--radius-md);color:var(--text-primary)"><i data-lucide="${n}" style="width:20px;height:20px;stroke-width:1.5"></i><span class="mono" style="font-size:10px;color:var(--text-muted)">${n}</span></div>`).join('');
+
+  const agents = [['Investigador','--agent-research','search','Recupera fuentes vía RAG'],['Redactor','--agent-write','pen-line','Genera el borrador con contexto RAG'],['Revisor','--agent-review','eye','Evalúa calidad · score 0–100'],['Formateador','--agent-format','file-text','Aplica el formato de citas'],['Publicador','--agent-publish','send','Publica tras la compuerta']];
+  const tint = tk => `color-mix(in srgb, var(${tk}) 12%, var(--bg-surface))`;
+  document.getElementById('flowRow').innerHTML = agents.map(([nm, tk, ic, ds], i) =>
+    `${i ? '<span class="edge" aria-hidden="true"></span>' : ''}<div class="node${i === 1 ? ' sel' : ''}" style="color:var(${tk})"><span class="handle" style="left:-5px"></span><div class="nhead"><div class="nic" style="background:${tint(tk)}"><i data-lucide="${ic}"></i></div><span class="nnm">${nm}</span></div><div class="nds">${ds}</div><span class="nbg" style="background:${tint(tk)}">agent</span><span class="handle" style="right:-5px"></span></div>`).join('');
+
+  const steps = [['done', 0, '12 fuentes · 2.4s'], ['done', 1, 'Borrador v1 · 1.284 tokens'], ['running', 2, 'Evaluando…'], ['', 3, 'En espera'], ['', 4, 'En espera']];
+  document.getElementById('stepList').innerHTML = steps.map(([st, i, sub]) => {
+    const [nm, tk, ic] = agents[i];
+    const right = st === 'done' ? '<i data-lucide="check-circle-2" style="width:16px;color:var(--success)"></i>' : st === 'running' ? '<span class="spin" aria-label="En ejecución"></span>' : '<i data-lucide="circle" style="width:16px;color:var(--text-muted)"></i>';
+    return `<div class="step ${st}"><div class="sic" style="background:${tint(tk)};color:var(${tk})"><i data-lucide="${ic}"></i></div><div><div class="snm">${nm}</div><div class="sst">${sub}</div></div><span class="st-r">${right}</span></div>`;
+  }).join('');
+
+  const pairs = [
+    ['--text-body','--bg-surface','Cuerpo sobre superficie',4.5],
+    ['--text-heading','--bg-canvas','Encabezado sobre canvas',4.5],
+    ['--text-secondary','--bg-canvas','Secundario sobre canvas',4.5],
+    ['--text-muted','--bg-surface','Atenuado sobre superficie',4.5],
+    ['--text-link','--bg-surface','Enlace sobre superficie',4.5],
+    ['--brand-on','--brand','Texto sobre primario',4.5],
+    ['--brand-on-tint','--brand-tint','Badge publicado',4.5],
+    ['--status-review','--warning-bg','Badge en revisión',4.5],
+    ['--text-on-error','--error','Texto sobre error',4.5],
+    ['--border-control','--bg-surface','Contorno de control (UI)',3],
+    ['--border-focus','--bg-surface','Anillo de foco (UI)',3],
+    ['--border-strong','--bg-surface','Borde fuerte (decorativo)',3],
+  ];
+  function renderContrast() {
+    document.getElementById('contrastGrid').innerHTML = pairs.map(([fg, bg, nm, min]) => {
+      const r = ratio(css(fg), css(bg)); const ok = r >= min;
+      const isBorder = fg.startsWith('--border');
+      const sample = isBorder ? `<div class="swt" style="background:var(${bg})"><div style="border:2px solid var(${fg});border-radius:6px;padding:6px 10px;color:var(--text-body);font-weight:500">${nm}</div></div>` : `<div class="swt" style="background:var(${bg});color:var(${fg})">${nm}</div>`;
+      const verdict = ok ? (min === 3 ? '✓ 3:1 UI' : r >= 7 ? '✓ AAA' : '✓ AA') : (fg === '--border-strong' ? 'Solo decorativo' : '✗ No cumple');
+      return `<div class="pair">${sample}<div class="meta"><span class="ratio">${r.toFixed(2)} : 1</span><span class="verdict ${ok ? 'ok' : 'ko'}">${verdict}</span></div><div class="pr">${fg} / ${bg}</div></div>`;
+    }).join('');
+  }
+
+  function renderAll() { renderSwatches(); renderContrast(); lucide.createIcons(); }
+
+  /* ---------- Tema ---------- */
+  const themeBtns = document.querySelectorAll('[data-theme-set]');
+  function setTheme(t) {
+    if (t === 'dark') root.setAttribute('data-theme', 'dark'); else root.removeAttribute('data-theme');
+    themeBtns.forEach(b => b.setAttribute('aria-selected', String(b.dataset.themeSet === t)));
+    try { localStorage.setItem('ds-theme', t); } catch (e) {}
+    renderAll();
+  }
+  themeBtns.forEach(b => b.addEventListener('click', () => setTheme(b.dataset.themeSet)));
+  let saved = null; try { saved = localStorage.getItem('ds-theme'); } catch (e) {}
+  const initial = saved || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+
+  /* ---------- Interacciones ---------- */
+  document.querySelectorAll('[data-seg]').forEach(seg => seg.addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    seg.querySelectorAll('button').forEach(x => x.setAttribute('aria-selected', String(x === b)));
+  }));
+  document.getElementById('motionBtn').addEventListener('click', () => {
+    document.querySelectorAll('.mo-track').forEach(t => {
+      const d = t.querySelector('.mo-dot'); d.style.transition = `left var(${t.dataset.dur}) var(--ease-standard)`;
+      t.classList.toggle('go');
+    });
+  });
+  document.getElementById('toastBtn').addEventListener('click', () => {
+    const t = document.querySelector('#toastSlot .toast'); t.classList.remove('show'); void t.offsetWidth; t.classList.add('show');
+  });
+  const toc = document.getElementById('toc'), menuBtn = document.getElementById('menuBtn');
+  menuBtn.addEventListener('click', () => { const o = toc.classList.toggle('open'); menuBtn.setAttribute('aria-expanded', String(o)); });
+  toc.addEventListener('click', e => { if (e.target.closest('a')) { toc.classList.remove('open'); menuBtn.setAttribute('aria-expanded', 'false'); } });
+
+  const links = [...toc.querySelectorAll('a')];
+  const io = new IntersectionObserver(entries => {
+    entries.forEach(en => { if (en.isIntersecting) links.forEach(a => a.classList.toggle('active', a.getAttribute('href') === '#' + en.target.id)); });
+  }, { rootMargin: '-30% 0px -65% 0px' });
+  document.querySelectorAll('section.ds').forEach(s => io.observe(s));
+
+  setTheme(initial);
+})();
+</script>
+</body>
+</html>
