@@ -219,6 +219,12 @@ dependencias (`pip-audit` + `npm audit`, job `deps-audit`) y escaneo de secretos
 actualizan a mano. No hay workflows que usen tokens de Claude: la review
 automática y el digest diario se retiraron el 2026-11-06.
 
+`.github/workflows/ds-pages.yml` **no es un gate**: al llegar a `develop` un cambio en
+`docs/public/design-system/` o en los tokens de `frontend/ds/`, publica la referencia
+del sistema de diseño en GitHub Pages
+(`https://onpremialabs.github.io/swarm-platform-builder/design-system/`). Antes comprueba
+con `scripts/sync_design_system_docs.py --check` que la copia de tokens está al día.
+
 ## Evaluación (`backend/evals/`) — dos harness, dos preguntas
 
 No los confundas; comparten directorio y nada más (ADR-0006):

@@ -1,0 +1,74 @@
+name: Design system (GitHub Pages)
+
+# Publica la referencia visual del sistema de diseño como web permanente:
+#   https://onpremialabs.github.io/swarm-platform-builder/design-system/
+# Solo sube docs/public/design-system/ (la página, su copia de tokens y los logos),
+# no el resto del repositorio. La raíz del sitio redirige a /design-system/.
+#
+# Requisito único (admin del repo): Settings → Pages → Source: «GitHub Actions».
+# No usa secretos ni tokens de terceros: solo el GITHUB_TOKEN con permisos de Pages.
+on:
+  push:
+    branches: [develop]
+    paths:
+      - docs/public/design-system/**
+      - frontend/ds/colors_and_type.css
+      - frontend/ds/assets/**
+      - scripts/sync_design_system_docs.py
+      - .github/workflows/ds-pages.yml
+  workflow_dispatch:
+
+# Un despliegue a la vez; uno en curso no se cancela para no dejar el sitio a medias.
+concurrency:
+  group: ds-pages
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Si alguien cambió un token en frontend/ds/ sin resincronizar, no se publica
+      # una página con valores que la app ya no usa.
+      - name: Comprobar que la copia de tokens está al día
+        run: python3 scripts/sync_design_system_docs.py --check
+
+      - name: Montar el sitio
+        run: |
+          mkdir -p _site/design-system
+          cp -R docs/public/design-system/. _site/design-system/
+          cat > _site/index.html <<'HTML'
+          <!DOCTYPE html>
+          <html lang="es">
+          <head>
+          <meta charset="UTF-8">
+          <title>Sistema de diseño</title>
+          <meta http-equiv="refresh" content="0; url=design-system/">
+          <link rel="canonical" href="design-system/">
+          </head>
+          <body><a href="design-system/">Ir al sistema de diseño</a></body>
+          </html>
+          HTML
+          test -f _site/design-system/index.html
+          test -f _site/design-system/colors_and_type.css
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}design-system/
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

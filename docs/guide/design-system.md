@@ -17,6 +17,7 @@ vivo desde los tokens.
 
 | Dónde | Cómo |
 |---|---|
+| **Web pública** | <https://onpremialabs.github.io/swarm-platform-builder/design-system/>. La publica `.github/workflows/ds-pages.yml` en cada cambio que llega a `develop`. |
 | Web de documentación | `cd docs && npm run dev` → <http://localhost:5174/design-system/index.html> |
 | Sin servidor | Abre `docs/public/design-system/index.html` con doble clic. Carga el CSS y los logos de su carpeta, así que se ve completa. Las fuentes y los iconos necesitan conexión. |
 | En otro sitio | Copia la carpeta `docs/public/design-system/` entera: la página, `colors_and_type.css` y `assets/`. |
