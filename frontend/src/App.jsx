@@ -16,6 +16,8 @@ import ArticleDetailPage from './projects/alejandria-magazine/pages/ArticleDetai
 import ConfigPage        from './platform/pages/ConfigPage';
 import DocumentsPage     from './platform/pages/DocumentsPage';
 import ExecutionPage     from './projects/alejandria-magazine/pages/ExecutionPage';
+import TraceabilityPage    from './projects/alejandria-magazine/pages/TraceabilityPage';
+import MetricsDashboardPage from './projects/alejandria-magazine/pages/MetricsDashboardPage';
 import UsersPage         from './platform/pages/UsersPage';
 import MagazinePage      from './projects/alejandria-magazine/pages/MagazinePage';
 import LectorPage        from './projects/alejandria-magazine/pages/LectorPage';
@@ -159,13 +161,18 @@ export default function App() {
           <Route path="/dashboard" element={
             <ProtectedRoute><RequireProject><DashboardPage /></RequireProject></ProtectedRoute>
           }>
-            <Route index element={<Navigate to="articles" replace />} />
+            {/* El index ya no redirige a «artículos» (SPEC-028 / T16.5): entrar
+                en /dashboard enseña la portada del proyecto. /dashboard/traceability
+                sigue sirviéndola para que el menú y los enlaces guardados valgan. */}
+            <Route index element={<MetricsDashboardPage />} />
             <Route path="flow-designer" element={<FlowDesignerPage />} />
             <Route path="flows"         element={<FlowsPage />} />
             <Route path="agents"        element={<AgentsPage />} />
-            <Route path="articles"      element={<ArticlesPage />} />
-            <Route path="articles/:id"  element={<ArticleDetailPage />} />
-            <Route path="documents"     element={<DocumentsPage />} />
+            <Route path="articles"            element={<ArticlesPage />} />
+            <Route path="articles/:id"        element={<ArticleDetailPage />} />
+            <Route path="execution/:articleId" element={<TraceabilityPage />} />
+            <Route path="traceability"         element={<MetricsDashboardPage />} />
+            <Route path="documents"           element={<DocumentsPage />} />
             <Route path="config"        element={<ConfigPage />} />
             <Route path="users"         element={
               <ProtectedRoute allowedRoles={['admin']}>

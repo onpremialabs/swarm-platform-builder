@@ -19,7 +19,7 @@
 // `backend/projects/alejandria-magazine/template.yaml`. Si se añade un agente
 // allí, se añade aquí.
 import React from 'react';
-import { Search, PenLine, Eye, FileText, Send } from 'lucide-react';
+import { Search, PenLine, Eye, FileText, Send, BarChart2 } from 'lucide-react';
 import { useArticleStore } from './store/articleStore';
 
 /**
@@ -116,6 +116,12 @@ export const PROJECT_NAV_ITEMS = [
     icon: <FileText size={17} />,
     label: 'Artículos',
     roles: ['admin', 'redactor', 'lector'],
+  },
+  {
+    to: '/dashboard/traceability',
+    icon: <BarChart2 size={17} />,
+    label: 'Trazabilidad',
+    roles: ['admin', 'redactor'],
   },
 ];
 

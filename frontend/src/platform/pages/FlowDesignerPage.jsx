@@ -385,7 +385,7 @@ export default function FlowDesignerPage() {
       // icono (un componente de lucide) en `data.icon`, y mandarlos aquí lanzaba
       // DataCloneError después de haber creado el artículo. La página de
       // ejecución solo necesita la secuencia y los ajustes.
-      navigate(`/execution/${articleId}`, {
+      navigate(`/dashboard/execution/${articleId}`, {
         state: {
           flowSequence,
           agentSettings,
@@ -661,7 +661,7 @@ export default function FlowDesignerPage() {
                   Fuentes de información (RAG)
                   <span style={{ fontWeight: 400, color: 'var(--text-muted)', marginLeft: 6 }}>— opcional</span>
                 </label>
-                <input ref={runFileRef} type="file" accept=".txt,.md,.pdf" style={{ display: 'none' }} onChange={onRunFileSelected} />
+                <input ref={runFileRef} type="file" accept=".txt,.md,.pdf,.docx" style={{ display: 'none' }} onChange={onRunFileSelected} />
                 <button className="btn btn-ghost btn-sm" onClick={handleRunUpload} disabled={uploadingDoc} style={{ marginBottom: 8 }}>
                   <Upload size={13} /> {uploadingDoc ? 'Subiendo…' : 'Subir documento'}
                 </button>

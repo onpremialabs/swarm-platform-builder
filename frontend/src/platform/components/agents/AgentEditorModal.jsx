@@ -376,7 +376,7 @@ function RagTab({ agentName, ragCollection, ragChunkSize, ragChunkOverlap, onCol
           <input
             ref={inputRef}
             type="file"
-            accept=".txt,.md,.pdf"
+            accept=".txt,.md,.pdf,.docx"
             multiple
             style={{ display: 'none' }}
             aria-label="Seleccionar archivo RAG"

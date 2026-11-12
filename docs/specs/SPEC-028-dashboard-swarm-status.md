@@ -55,7 +55,7 @@ tarjeta no dice de qué, cada persona leerá una cosa distinta.
 ## 3. Criterios de aceptación (Given/When/Then)
 
 - [ ] **AC1** — *Given* una sesión con proyecto activo, *When* se pide
-  `GET /dashboard/summary` con `X-Project-Id`, *Then* devuelve las magnitudes de la
+  `GET /api/v1/dashboard/summary` con `X-Project-Id`, *Then* devuelve las magnitudes de la
   portada **solo de ese proyecto**, autenticado y resuelto por
   `get_project_context`; no reutiliza `/metrics`, que es anónima y sin proyecto.
 - [ ] **AC2** — *Given* cada tarjeta de la portada, *Then* su magnitud está
@@ -87,10 +87,17 @@ tarjeta no dice de qué, cada persona leerá una cosa distinta.
 
 ## 4. Diseño propuesto
 
-**Un endpoint, no cuatro.** `GET /dashboard/summary` compone la respuesta en una
+**Un endpoint, no cuatro.** `GET /api/v1/dashboard/summary` compone la respuesta en una
 consulta por magnitud y la sirve junta: la portada hace una petición y no seis en
 cascada. Depende de `get_project_context` —igual que el resto de rutas que leen
 datos del proyecto— y por tanto hereda la autorización de `project_access.py`.
+
+**El prefijo `/api/v1` no es decorativo.** El router nació con `prefix="/dashboard"`,
+el único del backend fuera de `/api/v1`, y `vite.config.js` solo reenvía `/api`: en
+desarrollo la petición la atendía el propio Vite, que para una ruta desconocida
+devuelve `index.html`. El cliente recibía **200 con HTML**, `summary` pasaba a ser
+un string y cada `summary?.campo ?? 0` caía al cero, así que la portada enseñaba
+ceros sin un solo error. Un endpoint nuevo va bajo `/api/v1` o no llega.
 
 **Las anomalías salen de lo que ya se registra (AC3).** `agent_run_steps` guarda
 `status`, `error_message`, `iteration`, `latency_ms`, `tokens_in/out` y
@@ -101,10 +108,24 @@ mucho más que «0».
 
 **El estado del enjambre se deriva, no se almacena (AC4).** Un registro de estado
 vivo sería un segundo sitio donde la verdad puede quedar desincronizada —y este
-repo ya ha pagado eso—. Un paso abierto es una fila en `agent_run_steps` sin cerrar;
-eso basta. El umbral del AC4 existe porque un proceso que muere deja el paso
-abierto para siempre, y sin él la portada mentiría en el caso justo en que más
-importa.
+repo ya ha pagado eso—. Un paso abierto es una fila sin cerrar; eso basta. El
+umbral del AC4 existe porque un proceso que muere deja el paso abierto para
+siempre, y sin él la portada mentiría en el caso justo en que más importa.
+
+La fila es la de **`agent_runs`**, no la de `agent_run_steps` como decía antes este
+párrafo: el orquestador escribe la traza de explicabilidad **al cerrar** el nodo,
+así que mientras un agente trabaja todavía no tiene fila ahí. `log_run_start` abre
+la de `agent_runs` con `status='running'` y `log_run_end` la cierra, que es el
+ciclo de vida que AC4 necesita observar. Como esa tabla no lleva `project_id`, se
+acota por `articles.project_id`; cruzarla por `agent_run_steps` perdería
+precisamente el run recién abierto.
+
+**La portada no es todo o nada (AC7).** Cada magnitud se calcula en su propio
+intento y la respuesta declara en `sections` cuál se pudo obtener. Una sección
+caída devuelve su forma vacía y se marca como indisponible: **no** se rellena con
+ceros, porque un cero y un «no se pudo preguntar» se leen igual y ya costó caro
+una vez. Tras un error la sesión de SQLAlchemy queda inutilizable, así que el
+intento hace `rollback`; sin él la primera sección rota tumbaría las siguientes.
 
 **Presupuestos declarados, no incrustados.** El umbral de latencia del AC3 vive en
 configuración junto a los demás, no dentro de la consulta: es el mismo patrón que
@@ -112,8 +133,14 @@ configuración junto a los demás, no dentro de la consulta: es el mismo patrón
 
 **Ficheros afectados:** `backend/app/routers/dashboard.py` (nuevo),
 `backend/app/platform/summary.py` (nuevo, las consultas),
-`frontend/src/platform/pages/OverviewPage.jsx` (nuevo), `App.jsx` (el `index` deja
-de redirigir), `frontend/src/platform/api/`.
+`frontend/src/projects/alejandria-magazine/pages/MetricsDashboardPage.jsx` (nuevo),
+`App.jsx` (el `index` deja de redirigir), `frontend/src/platform/api/dashboard.js`.
+
+La portada quedó en `projects/`, no en `platform/pages/OverviewPage.jsx` como se
+planteó aquí: lee el catálogo de agentes del proyecto y su store de artículos, y
+`platform/` no puede importar de `projects/` (T8.6, con test que lo comprueba).
+Moverla al builder exige antes sacar esas dos dependencias a registros, que es
+trabajo de otra tarea.
 
 ## 5. Riesgos y mitigaciones
 
@@ -152,7 +179,7 @@ tasks:
     depends_on: []
     acceptance: [AC2]
   - id: T16.2
-    title: "Endpoint GET /dashboard/summary por proyecto, con aislamiento probado"
+    title: "Endpoint GET /api/v1/dashboard/summary por proyecto, con aislamiento probado"
     sev: high
     depends_on: [T16.1]
     acceptance: [AC1, AC5, AC6]
