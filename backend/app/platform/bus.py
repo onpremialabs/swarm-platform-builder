@@ -47,6 +47,13 @@ RUNNING_TTL_SECONDS = 3600
 AWAITING_TTL_SECONDS = 1800
 
 _EVENTS = "agents:events:{article_id}"
+#: Canal del log en vivo por proyecto (T17.5). Separado del de artículo a
+#: propósito: así un worker que solo sirve el log del proyecto no recibe —ni
+#: puede filtrar mal— los eventos de artículos de otros proyectos.
+_PROJECT_EVENTS = "agents:project-events:{project_id}"
+#: El vínculo artículo→proyecto vive en Redis para que lo vea el worker que
+#: atiende el log aunque la ejecución corra en otro.
+_ARTICLE_PROJECT = "agents:article-project:{article_id}"
 _CONTROL = "agents:control:{article_id}"
 _RUNNING = "agents:running:{article_id}"
 _AWAITING = "agents:awaiting:{article_id}"
@@ -62,8 +69,27 @@ class InProcessBus:
         self._decisions: Dict[str, "asyncio.Future[str]"] = {}
         self._cancels: Dict[str, Any] = {}
         self._tickets: Dict[str, tuple[dict, float]] = {}
+        #: Log en vivo por proyecto (SPEC-029 / T17.5 / AC2). Dos registros: a qué
+        #: proyecto pertenece cada artículo, y quién escucha cada proyecto.
+        self._article_project: Dict[str, str] = {}
+        self._project_subscribers: Dict[str, list[asyncio.Queue]] = {}
 
     # -- eventos ----------------------------------------------------------- #
+
+    def bind_project(self, article_id: uuid.UUID, project_id) -> None:
+        """Declara a qué proyecto pertenece un artículo, para el log del proyecto.
+
+        Sin esta marca los eventos del artículo **no** llegan a ningún flujo de
+        proyecto. Es deliberado: ante la duda, no entregar. Perder un evento en
+        el log en vivo es un inconveniente; entregarlo al proyecto equivocado
+        rompe el aislamiento de T8.5 justo en la vista pensada para auditar.
+        """
+        if project_id is None:
+            return
+        self._article_project[str(article_id)] = str(project_id)
+
+    def unbind_project(self, article_id: uuid.UUID) -> None:
+        self._article_project.pop(str(article_id), None)
 
     async def publish(self, article_id: uuid.UUID, event: dict) -> None:
         self.publish_nowait(article_id, event)
@@ -77,6 +103,41 @@ class InProcessBus:
         for queue in list(self._subscribers.get(str(article_id), [])):
             with contextlib.suppress(Exception):
                 queue.put_nowait(event)
+        self._fanout_project(article_id, event)
+
+    def _fanout_project(self, article_id: uuid.UUID, event: dict) -> None:
+        """Entrega el evento a quien escucha **ese** proyecto, y a nadie más.
+
+        El filtro es de servidor: un evento de otro proyecto no sale de aquí, ni
+        siquiera para que el navegador lo descarte (AC2). Se añade `article_id`
+        porque el flujo del proyecto mezcla varias ejecuciones y sin él no se
+        podrían separar.
+        """
+        proyecto = self._article_project.get(str(article_id))
+        if not proyecto:
+            return
+        oyentes = self._project_subscribers.get(proyecto)
+        if not oyentes:
+            return
+        enriquecido = {**event, "article_id": str(article_id)}
+        for queue in list(oyentes):
+            with contextlib.suppress(Exception):
+                queue.put_nowait(enriquecido)
+
+    @contextlib.asynccontextmanager
+    async def subscribe_project(self, project_id) -> AsyncIterator[asyncio.Queue]:
+        """Flujo de eventos de un proyecto, ya filtrado en servidor (AC2)."""
+        key = str(project_id)
+        queue: asyncio.Queue = asyncio.Queue()
+        self._project_subscribers.setdefault(key, []).append(queue)
+        try:
+            yield queue
+        finally:
+            colas = self._project_subscribers.get(key, [])
+            if queue in colas:
+                colas.remove(queue)
+            if not colas:
+                self._project_subscribers.pop(key, None)
 
     @contextlib.asynccontextmanager
     async def subscribe(self, article_id: uuid.UUID) -> AsyncIterator[asyncio.Queue]:
@@ -178,10 +239,68 @@ class RedisBus(InProcessBus):
 
     # -- eventos ----------------------------------------------------------- #
 
+    def bind_project(self, article_id: uuid.UUID, project_id) -> None:
+        """Igual que en memoria, pero el vínculo también va a Redis.
+
+        El log del proyecto lo puede atender un worker distinto del que ejecuta,
+        y sin el vínculo compartido ese worker no sabría a qué canal encaminar.
+        """
+        super().bind_project(article_id, project_id)
+        if project_id is None:
+            return
+
+        async def _escribir() -> None:
+            with contextlib.suppress(Exception):
+                await self._redis.set(
+                    _ARTICLE_PROJECT.format(article_id=article_id),
+                    str(project_id), ex=RUNNING_TTL_SECONDS,
+                )
+
+        # Fuera del buzón de eventos: ese preserva el orden de los tokens y
+        # mezclarle otro tipo de mensaje lo volvería un protocolo.
+        with contextlib.suppress(RuntimeError):  # sin bucle en marcha
+            asyncio.create_task(_escribir())
+
     async def publish(self, article_id: uuid.UUID, event: dict) -> None:
         await self._redis.publish(
             _EVENTS.format(article_id=article_id), json.dumps(event, default=str)
         )
+        # Y al canal del proyecto, si el artículo está vinculado. Se resuelve en
+        # Redis y no solo en memoria para que valga entre workers.
+        proyecto = self._article_project.get(str(article_id))
+        if proyecto is None:
+            with contextlib.suppress(Exception):
+                proyecto = await self._redis.get(
+                    _ARTICLE_PROJECT.format(article_id=article_id))
+        if proyecto:
+            with contextlib.suppress(Exception):
+                await self._redis.publish(
+                    _PROJECT_EVENTS.format(project_id=proyecto),
+                    json.dumps({**event, "article_id": str(article_id)}, default=str),
+                )
+
+    @contextlib.asynccontextmanager
+    async def subscribe_project(self, project_id) -> AsyncIterator[asyncio.Queue]:
+        """Mismo puente que `subscribe`, sobre el canal del proyecto (AC2)."""
+        queue: asyncio.Queue = asyncio.Queue()
+        pubsub = self._redis.pubsub()
+        await pubsub.subscribe(_PROJECT_EVENTS.format(project_id=project_id))
+
+        async def _bombear() -> None:
+            async for mensaje in pubsub.listen():
+                if mensaje.get("type") != "message":
+                    continue
+                with contextlib.suppress(Exception):
+                    queue.put_nowait(json.loads(mensaje["data"]))
+
+        bomba = asyncio.create_task(_bombear())
+        try:
+            yield queue
+        finally:
+            bomba.cancel()
+            with contextlib.suppress(Exception):
+                await pubsub.unsubscribe()
+                await pubsub.aclose()
 
     def publish_nowait(self, article_id: uuid.UUID, event: dict) -> None:
         """Encolar en el buzón; lo vacía **una sola** tarea, en orden.

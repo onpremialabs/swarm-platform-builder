@@ -83,6 +83,18 @@ class AgentRunStepModel(Base):
 
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
 
+    #: Cadena de integridad (SPEC-029 / T17.2 / AC4). `content_hash` es
+    #: `sha256(canónico(paso) || prev_hash)`, y `prev_hash` el del paso anterior
+    #: de la **misma** ejecución; el primero ancla en un valor conocido.
+    #: Anulables porque las filas escritas antes de T17.2 no los tienen: la
+    #: verificación las cuenta como «sin cadena», que no es lo mismo que
+    #: «manipuladas».
+    content_hash = Column(String(64))
+    prev_hash = Column(String(64))
+    #: Versión de la serialización canónica con la que se calculó el hash. Va en
+    #: la fila para que un cambio futuro de formato no invalide lo ya escrito.
+    hash_version = Column(Integer)
+
 
 class AgentRunStepResponse(BaseModel):
     """Un paso de la traza, tal y como lo devuelve la API."""
@@ -109,6 +121,9 @@ class AgentRunStepResponse(BaseModel):
     decision: dict | None = None
     rationale: str | None = None
     created_at: datetime
+    content_hash: str | None = None
+    prev_hash: str | None = None
+    hash_version: int | None = None
 
 
 class ExplainSource(BaseModel):

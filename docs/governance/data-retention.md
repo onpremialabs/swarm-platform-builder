@@ -56,6 +56,14 @@ Por qué esas ventanas:
   que el usuario escribió, así que va a la par. Guarda **resúmenes recortados**
   (4.000 caracteres) y no los prompts completos: la traza explica una ejecución,
   no es un segundo almacén del artículo.
+  La exportación JSONL (SPEC-029/T17.4) vuelca **lo que esta tabla guarda y nada
+  más**, `input_digest` incluido —el resumen, no el prompt—, así que no reabre
+  por la puerta de atrás lo que esta ventana cierra. Una vez descargado, el
+  fichero sale del alcance de esta política: lo custodia quien lo exportó.
+  Las columnas de la cadena de integridad (`content_hash`, `prev_hash`,
+  `hash_version`, SPEC-029/T17.2) son metadatos derivados y caducan con su fila:
+  purgar un paso se lleva su hash, y la verificación lo cuenta como «sin cadena»,
+  que no es lo mismo que «manipulado».
 - **`publication_gate_reports`, 90 días y solo si el artículo no está publicado**
   (SPEC-032/AC16). El informe es la evidencia de por qué un texto se aprobó o se
   bloqueó, así que **no caduca mientras exista un artículo `published`** que lo

@@ -6,6 +6,7 @@ import ReactMarkdown from 'react-markdown';
 import {
   CheckCircle, XCircle, Clock, Loader, ArrowLeft, FileText, UserPlus,
   Square, Upload, Play, AlertTriangle, BarChart2, GitBranch, Activity,
+  ShieldCheck, ShieldAlert, Download, Info,
 } from 'lucide-react';
 import { agentsApi } from '../../../platform/api/agents';
 import { useArticleStore } from '../store/articleStore';
@@ -126,6 +127,12 @@ export default function TraceabilityPage() {
   const [traceLoading, setTraceLoading] = useState(false);
   const [traceRefreshKey, setTraceRefreshKey] = useState(0);
 
+  // ── Integridad (SPEC-029 / T17.3, T17.6) ──
+  const [integrity, setIntegrity]           = useState(null);
+  const [integrityLoading, setIntegrityLoading] = useState(false);
+  const [integrityError, setIntegrityError] = useState(null);
+  const [exporting, setExporting]           = useState(false);
+
   // ── Refs ──
   const sourceInputRef  = useRef(null);
   const logsEndRef      = useRef(null);
@@ -179,9 +186,33 @@ export default function TraceabilityPage() {
     }
   }, [done, loadTrace]);
 
+  const loadIntegrity = useCallback(async () => {
+    if (!articleId) return;
+    setIntegrityLoading(true);
+    setIntegrityError(null);
+    try {
+      setIntegrity(await agentsApi.getIntegrity(articleId));
+    } catch (e) {
+      // No es mejor-esfuerzo: si la verificación no se pudo hacer hay que
+      // decirlo. Enseñar «sin problemas» cuando no se comprobó nada sería la
+      // confianza infundada que T17.6 existe para evitar.
+      setIntegrityError(e?.response?.data?.detail || 'No se pudo verificar la cadena');
+    } finally {
+      setIntegrityLoading(false);
+    }
+  }, [articleId]);
+
+  const handleExport = async () => {
+    setExporting(true);
+    try { await agentsApi.downloadExport(articleId, 'last'); }
+    catch { toast.error('No se pudo exportar la traza'); }
+    finally { setExporting(false); }
+  };
+
   // Cargar al entrar a métricas si aún no hay datos
   useEffect(() => {
     if (activeTab === 'metrics' && !traceData && !traceLoading) loadTrace();
+    if (activeTab === 'integrity' && !integrity && !integrityLoading) loadIntegrity();
   }, [activeTab, traceData, traceLoading, loadTrace]);
 
   // Fallback preview
@@ -468,6 +499,7 @@ export default function TraceabilityPage() {
           { id: 'realtime', icon: <Play size={13} />,        label: 'Ejecución en tiempo real' },
           { id: 'traces',   icon: <GitBranch size={13} />,   label: 'Trazas por agente' },
           { id: 'metrics',  icon: <BarChart2 size={13} />,   label: 'Métricas' },
+          { id: 'integrity', icon: <ShieldCheck size={13} />, label: 'Integridad' },
         ].map(tab => (
           <button key={tab.id} role="tab" aria-selected={activeTab === tab.id}
             className={`trace-tab${activeTab === tab.id ? ' active' : ''}`}
@@ -745,6 +777,128 @@ export default function TraceabilityPage() {
                     ))}
                   </tbody>
                 </table>
+              </>
+            )}
+          </div>
+
+          {/* ══ TAB 4: INTEGRIDAD (T17.6 / AC6) ══ */}
+          <div style={{ display: activeTab === 'integrity' ? undefined : 'none' }}>
+            <div className="trace-section-header">
+              <div>
+                <div className="trace-section-title">Integridad de la traza</div>
+                <div className="trace-section-sub">
+                  Cada paso lleva un SHA-256 encadenado al anterior de su ejecución.
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button className="btn btn-ghost btn-sm" onClick={handleExport} disabled={exporting}
+                  style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <Download size={13} /> {exporting ? 'Exportando…' : 'Exportar JSONL'}
+                </button>
+                <button className="btn btn-secondary btn-sm" onClick={loadIntegrity}
+                  disabled={integrityLoading}
+                  style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <Loader size={13} style={integrityLoading ? { animation: 'spin 1s linear infinite' } : undefined} />
+                  {integrityLoading ? 'Verificando…' : 'Verificar'}
+                </button>
+              </div>
+            </div>
+
+            {integrityError && (
+              <div className="trace-notice trace-notice-warning">
+                <strong>No se pudo verificar.</strong> {integrityError}
+                <div style={{ marginTop: 4, fontSize: 'var(--font-size-xs)' }}>
+                  Que no se haya podido comprobar no significa que la traza esté bien
+                  ni que esté mal: significa que no se sabe.
+                </div>
+              </div>
+            )}
+
+            {!integrity && !integrityLoading && !integrityError && (
+              <EmptyState icon={<ShieldCheck size={28} />}
+                title="Sin verificar"
+                description="Pulsa «Verificar» para comprobar la cadena de esta traza." />
+            )}
+
+            {integrity && !integrity.available && (
+              <EmptyState icon={<ShieldAlert size={28} />}
+                title="Sin traza que verificar"
+                description="Este artículo no tiene pasos registrados: puede no haberse ejecutado nunca, o su traza haberse purgado por retención." />
+            )}
+
+            {integrity?.available && (
+              <>
+                {(integrity.executions || []).map(ej => {
+                  // Tres estados, no dos: una ejecución sin un solo hash no está
+                  // rota, está sin comprobar. Pintarla de rojo sería alarmismo.
+                  const rota    = ej.status === 'rota';
+                  const sinCadena = ej.status === 'sin_cadena';
+                  return (
+                  <div key={ej.run_number}
+                    className={`trace-notice ${rota ? 'trace-notice-warning' : 'trace-notice-info'}`}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                      {rota
+                        ? <ShieldAlert size={16} style={{ color: 'var(--status-warning)' }} />
+                        : sinCadena
+                          ? <Info size={16} style={{ color: 'var(--text-muted)' }} />
+                          : <ShieldCheck size={16} style={{ color: 'var(--status-success)' }} />}
+                      <strong>
+                        {ej.runs_total > 1 ? `Pasada ${ej.run_number} de ${ej.runs_total}` : 'Ejecución'}
+                        {' — '}
+                        {rota ? 'cadena rota' : sinCadena ? 'sin cadena que verificar' : 'cadena íntegra'}
+                      </strong>
+                    </div>
+                    <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-secondary)' }}>
+                      {sinCadena ? (
+                        <>
+                          Sus {ej.steps} paso{ej.steps !== 1 ? 's son anteriores' : ' es anterior'} a la
+                          cadena de integridad, así que no llevan hash. Eso no dice que la traza esté bien
+                          ni que esté mal: dice que no hay con qué comprobarlo. Las ejecuciones nuevas sí
+                          se sellan.
+                        </>
+                      ) : (
+                        <>
+                          {ej.verified} de {ej.steps} paso{ej.steps !== 1 ? 's' : ''} verificado{ej.verified !== 1 ? 's' : ''}
+                          {ej.unchained > 0 && (
+                            <> · {ej.unchained} sin cadena (anteriores a esta función; no es señal de manipulación)</>
+                          )}
+                        </>
+                      )}
+                    </div>
+                    {(ej.issues || []).length > 0 && (
+                      <ul style={{ margin: '8px 0 0 16px', padding: 0, fontSize: 'var(--font-size-xs)' }}>
+                        {ej.issues.map((p, i) => (
+                          <li key={i} style={{ marginBottom: 2 }}>
+                            <strong>Paso {p.position}</strong>
+                            {p.agent_name ? ` (${agentLabel(p.agent_name)})` : ''}:{' '}
+                            {p.problem === 'contenido_alterado' ? 'contenido alterado' : 'enlace roto'}
+                            {' — '}{p.detail}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                  );
+                })}
+
+                {/* AC6: el alcance se dice en la interfaz, no solo en la documentación.
+                    Viene del servidor para que no puedan divergir. */}
+                <div className="trace-notice trace-notice-info" style={{ marginTop: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                    <Info size={15} />
+                    <strong>Qué garantiza esto, y qué no</strong>
+                  </div>
+                  <div style={{ fontSize: 'var(--font-size-xs)', lineHeight: 1.7 }}>
+                    <p style={{ margin: '0 0 6px' }}>
+                      <strong style={{ color: 'var(--status-success)' }}>Garantiza: </strong>
+                      {integrity.scope?.guarantees}
+                    </p>
+                    <p style={{ margin: 0 }}>
+                      <strong style={{ color: 'var(--status-warning)' }}>No garantiza: </strong>
+                      {integrity.scope?.does_not_guarantee}
+                    </p>
+                  </div>
+                </div>
               </>
             )}
           </div>
