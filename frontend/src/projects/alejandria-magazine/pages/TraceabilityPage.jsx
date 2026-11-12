@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { agentMeta } from '../catalog';
 import { EmptyState } from '../../../platform/components/ui/states';
-import { useParams, useLocation, useNavigate } from 'react-router-dom';
+import { Navigate, useParams, useLocation, useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import {
   CheckCircle, XCircle, Clock, Loader, ArrowLeft, FileText, UserPlus,
@@ -87,14 +87,28 @@ function MetricTile({ icon, label, value, color }) {
 export default function TraceabilityPage() {
   const { articleId } = useParams();
   const location = useLocation();
+  return location.state?.flowSequence?.length
+    ? <LiveTraceabilityPage />
+    : <Navigate to={`/dashboard/articles/${articleId}/observability`} replace />;
+}
+
+function LiveTraceabilityPage() {
+  const { articleId } = useParams();
+  const location = useLocation();
   const navigate = useNavigate();
   const { fetchArticle, assignReviewer } = useArticleStore();
 
   const flowSequence       = location.state?.flowSequence || [];
+  const returnToTraceability = location.state?.returnTo === '/dashboard/traceability' || flowSequence.length === 0;
   const agentSettings      = location.state?.agentSettings || {};
   const runKeywords        = location.state?.keywords || [];
   const contextDescription = location.state?.contextDescription || '';
   const articleOutline     = location.state?.articleOutline || '';
+  // Parámetros de esta ejecución (SPEC-030 / T18.5). Viajan en el estado de
+  // navegación como el resto: el lienzo los recoge y la ejecución los usa.
+  const swarmNotes       = location.state?.swarmNotes || '';
+  const referenceDocId   = location.state?.referenceDocId || null;
+  const formatMode       = location.state?.formatMode || 'rag';
 
   // ── Estado de ejecución ──
   const [steps, setSteps] = useState(
@@ -102,6 +116,10 @@ export default function TraceabilityPage() {
   );
   // iterationCount: cuántas veces ha arrancado cada agente — detecta el bucle revisor→redactor.
   const [iterationCount, setIterationCount] = useState({});
+  // Progreso fraccional por agente, solo para quien lo emite (T18.4 / AC5).
+  const [agentProgress, setAgentProgress] = useState({});
+  // Llegamos a una ejecución ya en marcha, sin haberla lanzado desde el lienzo.
+  const [recuperada, setRecuperada] = useState(false);
   const [logs, setLogs]         = useState([]);
   const [preview, setPreview]   = useState('');
   const [done, setDone]         = useState(false);
@@ -173,9 +191,44 @@ export default function TraceabilityPage() {
     finally { setTraceLoading(false); }
   }, [articleId]);
 
-  // Cargar al montar si no hay pipeline activo (modo "Ver trazabilidad")
+  // Al montar sin estado de navegación hay **dos** situaciones distintas, y
+  // antes se trataban como una sola: puede que el artículo no esté ejecutando
+  // nada —modo histórico, correcto— o puede que sí lo esté y simplemente
+  // hayamos perdido la secuencia al cambiar de pestaña. Esa segunda caía en
+  // histórico y no había forma de volver a mirar la ejecución en curso.
+  //
+  // Se le pregunta al servidor, que es quien lo sabe (SPEC-030 / T18.7).
   useEffect(() => {
-    if (flowSequence.length === 0) loadTrace();
+    if (flowSequence.length > 0) return;   // venimos del lienzo: ya hay estado
+
+    let cancelado = false;
+    (async () => {
+      try {
+        const estado = await agentsApi.getRunStatus(articleId);
+        if (cancelado) return;
+        if (estado?.running && (estado.flow_sequence || []).length > 0) {
+          // Se reconstruyen las tarjetas y el SSE engancha solo: los eventos
+          // siguen llegando desde que se suscribe.
+          setSteps(estado.flow_sequence.map(id => ({
+            id,
+            status: id === estado.current_agent ? 'running' : 'waiting',
+            output: '',
+          })));
+          setRecuperada(true);
+          if (estado.started_at) {
+            const inicio = new Date(estado.started_at).getTime();
+            if (!Number.isNaN(inicio)) startTimeMsRef.current = inicio;
+          }
+          addLog('Reconectado a una ejecución en curso', 'info', null);
+          return;
+        }
+      // mejor-esfuerzo: si no se puede preguntar, se cae al modo histórico, que
+      // es lo que había antes de esto y sigue siendo útil.
+      } catch { }
+      if (!cancelado) loadTrace();
+    })();
+
+    return () => { cancelado = true; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Recargar al finalizar + incrementar key de ExplainPanel
@@ -270,6 +323,15 @@ export default function TraceabilityPage() {
           } else if (data.type === 'token') {
             setPreview(cur => cur + data.token);
 
+          } else if (data.type === 'progress') {
+            // Progreso fraccional (T18.4 / AC5). Solo lo emite quien conoce sus
+            // unidades reales; los demás no mandan nada y se quedan
+            // indeterminados, que es la respuesta honesta.
+            setAgentProgress(prev => ({
+              ...prev,
+              [data.agent]: { current: data.current, total: data.total, unit: data.unit || '' },
+            }));
+
           } else if (data.type === 'agent_end') {
             setAgentTimings(prev => {
               const ag = prev[data.agent] || {};
@@ -356,6 +418,9 @@ export default function TraceabilityPage() {
 
   // ── Disparar pipeline ──
   useEffect(() => {
+    // Al recuperar una ejecución en curso **no** se relanza nada: el pipeline
+    // ya corre en el servidor. Solo se escucha.
+    if (recuperada) { pipelineStarted.current = true; return; }
     if (flowSequence.length > 0 && !pipelineStarted.current) {
       pipelineStarted.current = true;
       const isResume = resumeRef.current;
@@ -364,6 +429,9 @@ export default function TraceabilityPage() {
         flow_sequence: flowSequence, agent_settings: agentSettings,
         keywords: runKeywords, context_description: contextDescription,
         article_outline: articleOutline,
+        swarm_notes: swarmNotes,
+        reference_doc_id: referenceDocId,
+        format_mode: formatMode,
       };
       const request = isResume ? agentsApi.resume(articleId, payload) : agentsApi.run(articleId, payload);
       request.catch(() => toast.error(isResume ? 'Error al reanudar' : 'Error al iniciar el pipeline'));
@@ -382,7 +450,7 @@ export default function TraceabilityPage() {
     setSteps(flowSequence.map(id => ({ id, status: 'waiting', output: '' })));
     setLogs([]); setPreview(''); setDone(false); setPipelineFailed(false);
     setCanResume(false); setCancelled(false); setCancelling(false);
-    setAgentTimings({}); setStartTimeMs(null); setElapsed('—');
+    setAgentTimings({}); setAgentProgress({}); setStartTimeMs(null); setElapsed('—');
     setTraceData(null); startTimeMsRef.current = null;
     resumeRef.current = false; pipelineStarted.current = false;
     setRunCount(c => c + 1);
@@ -473,9 +541,9 @@ export default function TraceabilityPage() {
       {/* CABECERA */}
       <div className="trace-header">
         <button className="btn btn-ghost btn-sm"
-          onClick={() => navigate('/dashboard/flow-designer')}
+          onClick={() => navigate(returnToTraceability ? '/dashboard/traceability' : '/dashboard/flow-designer')}
           style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 4 }}>
-          <ArrowLeft size={13} /> Volver al diseñador
+          <ArrowLeft size={13} /> {returnToTraceability ? 'Volver a trazabilidad' : 'Volver al diseñador'}
         </button>
         <div style={{ flex: 1 }}>
           <h2 className="trace-title">Trazabilidad y observabilidad</h2>
@@ -626,12 +694,32 @@ export default function TraceabilityPage() {
                         {STATUS_LABEL[step.status] || step.status}
                       </span>
                     </div>
-                    {/* Barra indeterminada — no se deriva un % de tokens ni de tiempo (T18.6 AC5) */}
-                    {step.status === 'running' && (
-                      <div className="trace-step-progress-bar">
-                        <div className="trace-step-progress-fill animate-pulse" />
-                      </div>
-                    )}
+                    {/* AC5: fraccional **solo** si el agente emite unidades reales.
+                        Si no las emite, indeterminado — nunca un % de tokens ni de tiempo. */}
+                    {step.status === 'running' && (() => {
+                      const avance = agentProgress[step.id];
+                      if (!avance || !avance.total) {
+                        return (
+                          <div className="trace-step-progress-bar">
+                            <div className="trace-step-progress-fill animate-pulse" />
+                          </div>
+                        );
+                      }
+                      const pct = Math.round((avance.current / avance.total) * 100);
+                      return (
+                        <>
+                          <div className="trace-step-progress-bar">
+                            <div className="trace-step-progress-fill"
+                              style={{ width: `${pct}%`, transition: 'width .3s' }} />
+                          </div>
+                          <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', marginTop: 3 }}>
+                            {avance.unit === 'secciones'
+                              ? `sección ${avance.current} de ${avance.total}`
+                              : `${avance.current} de ${avance.total} ${avance.unit}`.trim()}
+                          </div>
+                        </>
+                      );
+                    })()}
                   </div>
                 );
               })}

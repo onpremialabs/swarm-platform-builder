@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { runTarget } from '../runTarget';
+import { DEFAULT_FORMAT_MODE, MAX_SWARM_NOTES } from '../runConfig';
 import Modal from '../components/ui/Modal';
 import { EmptyState } from '../components/ui/states';
 import {
@@ -56,6 +57,13 @@ export default function FlowDesignerPage() {
   const [runKeywordInput, setRunKeywordInput] = React.useState('');
   const [runDescription, setRunDescription] = React.useState('');
   const [runOutline, setRunOutline] = React.useState('');
+  // Parámetros de esta ejecución (SPEC-030 / T18.3, T18.5).
+  const [runNotes, setRunNotes] = React.useState('');
+  // Referencia de formato acotada a este paper (T18.1 / AC1). Se guarda el File y
+  // se sube **despues** de crear el articulo: hasta entonces no hay a que atarlo.
+  const [runReference, setRunReference] = React.useState(null);
+  const runReferenceRef = useRef(null);
+  const [uploadingRef, setUploadingRef] = React.useState(false);
   const [showAdvanced, setShowAdvanced] = React.useState(false);
   // RAG source selection for the run
   const [runDocs, setRunDocs] = React.useState([]);
@@ -353,6 +361,23 @@ export default function FlowDesignerPage() {
         const creado = await target.create(titleValue);
         articleId = creado.id;
       }
+      // La referencia se indexa acotada a ESTE articulo, que es lo que evita que
+      // los siguientes papers hereden su estilo. Si falla, se avisa y se sigue:
+      // perder la referencia degrada el resultado, no lo impide.
+      let referenceDocId = null;
+      if (runReference) {
+        setUploadingRef(true);
+        try {
+          const subido = await agentsApi.uploadLibraryDocument(
+            runReference, null, null, null, articleId);
+          referenceDocId = subido?.doc_id || null;
+        } catch {
+          toast.error('No se pudo indexar la referencia; se ejecuta sin ella');
+        } finally {
+          setUploadingRef(false);
+        }
+      }
+
       setShowRunModal(false);
       const agentNodes = nodes.filter(n => n.type === 'agent');
       // En el orden en que se ejecutan: el de las aristas, que es el que se validó.
@@ -392,6 +417,9 @@ export default function FlowDesignerPage() {
           keywords: runKeywords,
           contextDescription: runDescription,
           articleOutline: runOutline,
+          swarmNotes: runNotes,
+          formatMode: DEFAULT_FORMAT_MODE,
+          referenceDocId,
         }
       });
     } catch (err) {
@@ -575,6 +603,76 @@ export default function FlowDesignerPage() {
                 />
                 <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', marginTop: 4 }}>
                   El <strong>Investigador</strong> la usa para afinar la búsqueda semántica. El <strong>Redactor</strong> la recibe como instrucción de enfoque en el prompt.
+                </div>
+              </div>
+
+              {/* Notas del enjambre (SPEC-030 / T18.3 / AC3) */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <label htmlFor="run-notes" style={{ fontSize: 'var(--font-size-sm)', fontWeight: 500 }}>
+                  Notas para el enjambre
+                  <span style={{ fontWeight: 400, color: 'var(--text-muted)', marginLeft: 6 }}>— opcional</span>
+                </label>
+                <textarea
+                  id="run-notes"
+                  className="input"
+                  rows={3}
+                  maxLength={MAX_SWARM_NOTES}
+                  placeholder="Ej: Evita comparaciones con el estudio de 2019; el revisor anterior las marcó como poco sólidas."
+                  value={runNotes}
+                  onChange={e => setRunNotes(e.target.value)}
+                  style={{ resize: 'vertical', fontSize: 'var(--font-size-sm)' }}
+                />
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8,
+                  fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>
+                  <span>
+                    Se pasan como <strong>dato</strong>, no como instrucción: el agente las lee
+                    como contexto y no cambian sus reglas. Quedan en la traza.
+                  </span>
+                  <span style={{ fontFamily: 'var(--font-mono)', flexShrink: 0,
+                    color: runNotes.length >= MAX_SWARM_NOTES ? 'var(--warning)' : undefined }}>
+                    {runNotes.length}/{MAX_SWARM_NOTES}
+                  </span>
+                </div>
+              </div>
+
+              {/* Referencia de formato acotada a este paper (SPEC-030 / T18.1 / AC1) */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <label id="run-reference-label" style={{ fontSize: 'var(--font-size-sm)', fontWeight: 500 }}>
+                  Documento de referencia
+                  <span style={{ fontWeight: 400, color: 'var(--text-muted)', marginLeft: 6 }}>— opcional</span>
+                </label>
+                <input
+                  ref={runReferenceRef}
+                  id="run-reference"
+                  type="file"
+                  aria-labelledby="run-reference-label"
+                  accept=".txt,.md,.pdf,.docx"
+                  onChange={e => setRunReference(e.target.files?.[0] || null)}
+                  style={{ display: 'none' }}
+                />
+                <button type="button" className="btn btn-ghost btn-sm"
+                  onClick={() => runReferenceRef.current?.click()} disabled={uploadingRef}
+                  aria-label={runReference ? 'Cambiar documento de referencia' : 'Subir documento de referencia'}
+                  style={{ marginBottom: 8 }}>
+                  <Upload size={13} /> {runReference ? 'Cambiar documento' : 'Subir documento'}
+                </button>
+                {runReference && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8,
+                    border: '1px solid var(--border-default)', borderRadius: 'var(--radius-sm)',
+                    padding: '6px 12px', fontSize: 'var(--font-size-xs)' }}>
+                    <span style={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}>{runReference.name}</span>
+                    <button type="button" className="btn btn-ghost btn-sm" aria-label="Quitar documento de referencia"
+                      onClick={() => { setRunReference(null); if (runReferenceRef.current) runReferenceRef.current.value = ''; }}>
+                      Quitar
+                    </button>
+                  </div>
+                )}
+                <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>
+                  {runReference
+                    ? <>Se indexará <strong>solo para este artículo</strong>: los demás papers del
+                       proyecto no lo recuperarán.</>
+                    : <>Una plantilla de estilo o un paper modelo. Queda acotado a este artículo,
+                       así que no contamina la biblioteca del proyecto.</>}
                 </div>
               </div>
 

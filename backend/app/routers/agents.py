@@ -50,6 +50,8 @@ from app.platform.capabilities.rag import (
     EmbeddingDimensionMismatch, embed_vector_size,
 )
 from app.modules.agents.adapters.doc_metadata import extract_doc_metadata
+from app.platform.engine.graph import InvalidVariant, restrict_to
+from app.platform.run_config import FORMAT_MODES
 from app.platform.project_access import (
     get_optional_project_context, get_project_context, load_project_context,
     usuario_actual,
@@ -282,16 +284,40 @@ async def upload_to_rag_library(
     collection: str | None = Form(None),
     chunk_size: int | None = Form(None),
     chunk_overlap: int | None = Form(None),
+    article_id: str | None = Form(None),
     token_data=Depends(require_redactor),
     project: ProjectContext = Depends(get_project_context),
+    session: AsyncSession = Depends(get_session),
 ):
     """Sube un documento a la biblioteca compartida **del proyecto activo**.
 
     «Compartida» significa compartida entre los agentes del proyecto, no entre
     proyectos: antes era una sola biblioteca global y el bucket `__library__` se
     leía desde cualquier pipeline (SPEC-013 / T8.5 / AC6).
+
+    Con ``article_id`` el documento queda **acotado a ese paper** (SPEC-030 /
+    T18.1 / AC1): lo recuperan los agentes al generarlo y no aparece en las
+    recuperaciones de los demás. Es lo que permite subir la plantilla de estilo de
+    un artículo sin que los siguientes la hereden.
     """
     from app.core.config import settings
+
+    # Acotar a un artículo **de otro proyecto** sería una vía para plantar un
+    # documento en su espacio: el aislamiento de T8.5 no puede depender de lo que
+    # mande el cliente. 404 y no 403, por el mismo motivo que en el resto del
+    # repo: la respuesta no debe distinguir «existe pero no es tuyo» de «no existe».
+    alcance_articulo: str | None = None
+    if article_id:
+        try:
+            uuid_articulo = UUID(str(article_id))
+        except ValueError:
+            raise HTTPException(status_code=422, detail="article_id no es un UUID")
+        destino = (await session.execute(
+            select(ArticleModel).where(ArticleModel.id == uuid_articulo)
+        )).scalars().first()
+        if destino is None or destino.project_id != project.project_id:
+            raise HTTPException(status_code=404, detail="Article not found")
+        alcance_articulo = str(uuid_articulo)
 
     from app.platform.uploads import validate_upload
 
@@ -331,6 +357,7 @@ async def upload_to_rag_library(
             api_key=settings.QDRANT_API_KEY,
             doc_title=metadata.get("title", ""),
             doc_authors=metadata.get("authors", ""),
+            article_id=alcance_articulo,
         )
     except EmbeddingDimensionMismatch as error:
         raise HTTPException(status_code=409, detail=str(error))
@@ -772,6 +799,37 @@ async def run_agent_pipeline(
                 },
             )
 
+        # La selección de agentes es una **variante del GraphSpec** (SPEC-030 /
+        # T18.2 / AC2), y se valida con las mismas comprobaciones que al cargar el
+        # proyecto. Esto es distinto de `validate_sequence`, que mira las reglas de
+        # flujo: aquí lo que se comprueba es que la forma resultante se pueda
+        # ejecutar —por ejemplo, que no quede un bucle de revisión cuyo destino se
+        # ha quitado—. Antes de empezar y con el motivo; nunca en el minuto ocho.
+        try:
+            restrict_to(alejandria.package().graph, req.flow_sequence)
+        except InvalidVariant as error:
+            raise HTTPException(
+                status_code=422,
+                detail={"message": "La selección de agentes no es ejecutable",
+                        "reason": str(error)},
+            )
+
+        # El modo de formato se valida contra lo declarado (AC6): el que no está
+        # disponible se rechaza **con su motivo**, no con un error genérico.
+        modo = FORMAT_MODES.get(req.format_mode)
+        if modo is None:
+            raise HTTPException(
+                status_code=422,
+                detail={"message": f"Modo de formato desconocido: {req.format_mode!r}",
+                        "available": [m for m, d in FORMAT_MODES.items() if d["available"]]},
+            )
+        if not modo["available"]:
+            raise HTTPException(
+                status_code=422,
+                detail={"message": f"El modo '{modo['label']}' no está disponible",
+                        "reason": modo["detail"]},
+            )
+
     # Use provided keywords if given; otherwise extract from title as fallback
     title = article.title
     if req.keywords:
@@ -864,6 +922,10 @@ async def run_agent_pipeline(
         # the already-generated content instead of an empty draft.
         initial_draft_text=article.body or "",
         article_outline=req.article_outline,
+        # Parametros de esta ejecucion (SPEC-030 / AC3, AC6, AC7).
+        swarm_notes=req.swarm_notes,
+        reference_doc_id=req.reference_doc_id,
+        format_mode=req.format_mode,
         resume=resume,
     )
 
@@ -1006,6 +1068,93 @@ async def _articulo_y_pasos(article_id, token_data, project, session):
         .order_by(AgentRunStepModel.created_at.asc(), AgentRunStepModel.step_index.asc())
     )).scalars().all())
     return article, pasos
+
+
+def _history_metadata(group, number, total):
+    from app.platform.summary import _execution_outcome
+    return {
+        "id": str(group[0].id), "run_number": number, "runs_total": total,
+        "started_at": group[0].created_at, "last_step_at": group[-1].created_at,
+        **explainability.totals_of(group), **_execution_outcome(group),
+    }
+
+
+@router.get("/{article_id}/history")
+async def article_trace_history(
+    article_id: UUID, token_data=Depends(get_current_user),
+    project: ProjectContext | None = Depends(get_optional_project_context),
+    session: AsyncSession = Depends(get_session),
+):
+    article, steps = await _articulo_y_pasos(article_id, token_data, project, session)
+    groups = explainability.group_executions(steps)
+    return {"article_id": article_id, "title": article.title, "executions": [
+        _history_metadata(group, i, len(groups))
+        for i, group in reversed(list(enumerate(groups, start=1)))
+    ]}
+
+
+@router.get("/{article_id}/history/{execution_id}")
+async def article_trace_history_detail(
+    article_id: UUID, execution_id: UUID, token_data=Depends(get_current_user),
+    project: ProjectContext | None = Depends(get_optional_project_context),
+    session: AsyncSession = Depends(get_session),
+):
+    article, steps = await _articulo_y_pasos(article_id, token_data, project, session)
+    groups = explainability.group_executions(steps)
+    for i, group in enumerate(groups, start=1):
+        if group[0].id != execution_id:
+            continue
+        return {
+            "article_id": article_id, "title": article.title,
+            "execution": _history_metadata(group, i, len(groups)),
+            "steps": [AgentRunStepResponse.model_validate(step) for step in group],
+            "sources": explainability.aggregate_sources(group),
+            "integrity": explainability.verify_chain(group),
+            "integrity_scope": "Verifica los pasos conservados. No acredita la calidad del artículo ni protege frente a la reescritura completa de datos y hashes.",
+        }
+    raise HTTPException(404, "Ejecución no encontrada en este artículo")
+
+
+@router.get("/{article_id}/status")
+async def article_run_status(
+    article_id: UUID,
+    token_data=Depends(get_current_user),
+    project: ProjectContext | None = Depends(get_optional_project_context),
+    session: AsyncSession = Depends(get_session),
+):
+    """Si este artículo se está ejecutando ahora y con qué (SPEC-030 / T18.7).
+
+    La vista en vivo se construía con lo que le pasaba el Flow Designer en el
+    estado de navegación. Eso se pierde al cambiar de pestaña o al recargar, y
+    entonces la página caía en modo histórico **aunque el pipeline siguiera
+    corriendo**: enseñaba la traza guardada y no había forma de volver a mirar.
+
+    Con esto el servidor es la fuente: devuelve la secuencia de agentes y cuál
+    corre ahora, así que la pantalla se reconstruye sola desde cualquier sitio
+    —otra pestaña, otro equipo, después de un F5—.
+    """
+    article, _ = await _articulo_y_pasos(article_id, token_data, project, session)
+
+    try:
+        info = await get_bus().get_run_info(article_id)
+    except Exception:
+        logger.warning("No se pudo consultar el estado de ejecución", exc_info=True)
+        info = None
+
+    if info is None:
+        # No está corriendo. Se dice así y no con un 404: «este artículo no
+        # ejecuta nada» es una respuesta, no la ausencia de una.
+        return {"article_id": str(article_id), "running": False,
+                "flow_sequence": [], "current_agent": None, "started_at": None}
+
+    return {
+        "article_id": str(article_id),
+        "running": True,
+        "flow_sequence": info.get("flow_sequence") or [],
+        "current_agent": info.get("current_agent"),
+        "started_at": info.get("started_at"),
+        "resumed": bool(info.get("resumed")),
+    }
 
 
 @router.get("/{article_id}/integrity")

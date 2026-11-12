@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import contextlib
 import datetime
 import re
 import time
@@ -7,13 +8,14 @@ import uuid
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from langgraph.checkpoint.memory import InMemorySaver
 
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.core.logging_config import request_id_ctx
 from app.platform import explainability
+from app.platform.run_lifecycle import runtime_owner, OWNER_KEY
 from app.platform.llm import TransientLLMError, resolve_agent_model
 from app.platform.project_context import ProjectContext
 from app.models import AgentRunModel, AgentRunStepModel, ArticleModel, ArticleStatus
@@ -166,23 +168,28 @@ async def log_run_start(
     input_payload: dict,
 ) -> uuid.UUID:
     """Persist an AgentRun record with status 'running' and return its run_id."""
+    run_id = uuid.uuid4()
+    runtime_owner.tasks[run_id] = asyncio.current_task()
     try:
+        owner_metadata = runtime_owner.metadata
         async with AsyncSessionLocal() as session:
             run = AgentRunModel(
+                run_id=run_id,
                 agent_name=agent_name,
                 article_id=article_id,
                 author_id=author_id,
                 status="running",
-                input_payload=input_payload,
+                input_payload={**input_payload, OWNER_KEY: owner_metadata},
                 started_at=datetime.datetime.now(datetime.timezone.utc),
             )
             session.add(run)
             await session.commit()
-            await session.refresh(run)
-            return run.run_id
+            return run_id
     except Exception as e:
         logger.error(f"Error logging run start for {agent_name}: {str(e)}")
-        return uuid.uuid4()
+        # A commit error can have an uncertain outcome: retain ownership until
+        # completion so reconciliation cannot close an agent still working.
+        return run_id
 
 
 async def log_run_end(
@@ -192,20 +199,27 @@ async def log_run_end(
     error_message: str = None,
 ) -> None:
     """Update an existing AgentRun record with the final status and output."""
-    try:
-        async with AsyncSessionLocal() as session:
-            stmt = select(AgentRunModel).where(AgentRunModel.run_id == run_id)
-            res = await session.execute(stmt)
-            run = res.scalars().first()
-            if run:
-                run.output_payload = output_payload or {}
-                run.status = status
-                run.error_message = error_message
-                run.finished_at = datetime.datetime.now(datetime.timezone.utc)
-                session.add(run)
+    runtime_owner.terminal_results[run_id] = {"output_payload": output_payload or {},
+        "status": status, "error_message": error_message}
+    for attempt in range(3):
+        try:
+            async with AsyncSessionLocal() as session:
+                await session.execute(update(AgentRunModel).where(
+                    AgentRunModel.run_id == run_id,
+                    AgentRunModel.status == "running",
+                    AgentRunModel.finished_at.is_(None),
+                ).values(output_payload=output_payload or {}, status=status,
+                    error_message=error_message,
+                    finished_at=datetime.datetime.now(datetime.timezone.utc)))
                 await session.commit()
-    except Exception as e:
-        logger.error(f"Error logging run end for run {run_id}: {str(e)}")
+            runtime_owner.tasks.pop(run_id, None)
+            runtime_owner.terminal_results.pop(run_id, None)
+            return
+        except Exception:
+            if attempt < 2:
+                await asyncio.sleep(0.1 * (attempt + 1))
+            else:
+                logger.exception("Could not close run %s; lifecycle monitor will reconcile it", run_id)
 
 
 async def _hash_anterior(session, article_id, step_index: int) -> str | None:
@@ -226,6 +240,61 @@ async def _hash_anterior(session, article_id, step_index: int) -> str | None:
         .limit(1)
     )).first()
     return fila[0] if fila else None
+
+
+async def close_orphan_runs() -> int:
+    """Cierra los pasos que quedaron abiertos de un arranque anterior.
+
+    Una cancelación o un fallo cierran su fila desde dentro. Lo que no puede
+    cerrarse desde dentro es un proceso que muere de golpe —`SIGKILL`, un corte de
+    luz, cerrar la ventana— y esas filas se quedan en `running` para siempre,
+    haciendo que el agente aparezca como «incierto» indefinidamente (T16.4).
+
+    Se llama al arrancar: si este proceso acaba de empezar, nada de lo que dejó
+    abierto el anterior sigue vivo.
+
+    **Con varios workers esto no es cierto**, así que solo se cierran las filas
+    más antiguas que `SWARM_STALE_AFTER_S` —el mismo umbral con el que la portada
+    ya deja de llamarlas «ejecutando»—. Una ejecución legítima más larga que eso
+    se marcaría por error; a cambio, lo que de verdad murió deja de mentir. El
+    umbral es el mismo a propósito: dos criterios distintos para la misma pregunta
+    acabarían discrepando.
+    """
+    from app.platform.summary import SWARM_STALE_AFTER_S
+
+    corte = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(
+        seconds=SWARM_STALE_AFTER_S)
+    try:
+        async with AsyncSessionLocal() as session:
+            huerfanas = (await session.execute(
+                select(AgentRunModel).where(
+                    AgentRunModel.status == "running",
+                    AgentRunModel.finished_at.is_(None),
+                    AgentRunModel.started_at < corte,
+                )
+            )).scalars().all()
+
+            for fila in huerfanas:
+                fila.status = "interrupted"
+                fila.error_message = (
+                    "El proceso terminó sin cerrar este paso; se cerró al arrancar."
+                )
+                fila.finished_at = datetime.datetime.now(datetime.timezone.utc)
+                session.add(fila)
+
+            if huerfanas:
+                await session.commit()
+                logger.warning(
+                    "Cerrados %d paso(s) que quedaron abiertos de un arranque anterior",
+                    len(huerfanas),
+                    extra={"event": "orphan_runs_closed", "count": len(huerfanas)},
+                )
+            return len(huerfanas)
+    except Exception:
+        # Limpiar no puede impedir arrancar: como mucho se queda un «incierto»,
+        # que es lo que había antes de esta función.
+        logger.warning("No se pudieron cerrar los pasos huérfanos", exc_info=True)
+        return 0
 
 
 async def log_run_step(**campos) -> None:
@@ -298,56 +367,86 @@ def make_node_wrapper(agent_name: str, run_fn):
             """Emit a word-by-word token SSE event for visual typing."""
             publish_event(article_id, {"type": "token", "agent": agent_name, "token": token})
 
+        def emit_progress_fn(current: int, total: int, unit: str = "") -> None:
+            """Progreso **fraccional** del agente (SPEC-030 / T18.4 / AC5).
+
+            Lo emite solo quien conoce sus unidades de trabajo de verdad. Quien no
+            las conoce no llama a esto, y la interfaz lo muestra indeterminado:
+            una barra indeterminada dice «no sé cuánto falta», que es cierto,
+            mientras que un porcentaje inventado tiene la precisión de un dato y
+            el valor de una suposición.
+            """
+            if total <= 0 or current < 0:
+                return
+            publish_event(article_id, {
+                "type": "progress", "agent": agent_name,
+                "current": min(current, total), "total": total, "unit": unit,
+            })
+
         async def request_decision_fn(payload: Dict[str, Any]) -> str:
             """Pause this node and await a user decision (human-in-the-loop)."""
             return await request_user_decision(article_id, payload)
 
         publish_event(article_id, {"type": "agent_start", "agent": agent_name})
+        # Quién corre **ahora**, para quien llegue a mitad de la ejecución.
+        with contextlib.suppress(Exception):
+            await get_bus().update_run_info(article_id, current_agent=agent_name)
 
-        run_id = await log_run_start(agent_name, article_id, author_id, input_data)
+        run_id = None
 
-        # Inject log_fn, emit_token_fn and request_decision_fn into state so
-        # adapters can emit SSE events and pause for user input.
-        enriched_state = dict(state)
-        enriched_state["_log"] = log_fn
-        enriched_state["_emit_token"] = emit_token_fn
-        enriched_state["_request_decision"] = request_decision_fn
-        # La ejecución en curso, para que quien persista un informe lo ligue a ella.
-        enriched_state["_run_id"] = run_id
-
-        # Capacidades del agente (SPEC-013/T8.3/AC8). Con el flag en
-        # `capabilities` se resuelven desde el registro y el agente las usa en
-        # lugar de sus imports; con el flag en `adapters` no se inyecta nada y el
-        # agente sigue el camino de siempre. Los dos deben dar el mismo
-        # resultado: eso es lo que comprueba el test de paridad.
-        if settings.AGENT_ENGINE == MODO_CAPACIDADES:
-            bundle = bundle_for(agent_name)
-            if bundle is not None:
-                enriched_state[CLAVE_CAPACIDADES] = bundle
-
-        # Acumulador de la traza: la capacidad de RAG y el dispatcher del LLM
-        # anotan aquí lo que solo ellos saben (SPEC-014/T9.1).
-        _traza = explainability.collecting()
-        _acumulador = _traza.__enter__()
+        _traza = None
+        _acumulador = explainability.StepAccumulator()
         _paso_comun = {
-            "run_id": run_id,
-            "article_id": article_id,
-            "project_id": state.get("project_id"),
-            "correlation_id": request_id_ctx.get(),
-            "agent_name": agent_name,
+            "run_id": run_id, "article_id": article_id,
+            "project_id": state.get("project_id"), "agent_name": agent_name,
             "step_index": state.get("current_step_index", 0),
             "iteration": state.get("loop_count", 0),
-            # Sin capacidad de LLM declarada no hay modelo: antes se resolvía uno para
-            # todos y la traza decía que el Publicador usaba un modelo (SPEC-032/AC9).
-            "model": (
-                resolve_agent_model(agent_name, state.get("agent_settings"))
-                if uses_llm(agent_name) else None
-            ),
-            "params": explainability.params_of(agent_name, state),
-            "input_digest": explainability.input_digest(state),
         }
-
         try:
+            run_id = await log_run_start(agent_name, article_id, author_id, input_data)
+            _paso_comun["run_id"] = run_id
+            # Inject log_fn, emit_token_fn and request_decision_fn into state so
+            # adapters can emit SSE events and pause for user input.
+            enriched_state = dict(state)
+            enriched_state["_log"] = log_fn
+            enriched_state["_emit_token"] = emit_token_fn
+            enriched_state["_emit_progress"] = emit_progress_fn
+            enriched_state["_request_decision"] = request_decision_fn
+            # La ejecución en curso, para que quien persista un informe lo ligue a ella.
+            enriched_state["_run_id"] = run_id
+
+            # Capacidades del agente (SPEC-013/T8.3/AC8). Con el flag en
+            # `capabilities` se resuelven desde el registro y el agente las usa en
+            # lugar de sus imports; con el flag en `adapters` no se inyecta nada y el
+            # agente sigue el camino de siempre. Los dos deben dar el mismo
+            # resultado: eso es lo que comprueba el test de paridad.
+            if settings.AGENT_ENGINE == MODO_CAPACIDADES:
+                bundle = bundle_for(agent_name)
+                if bundle is not None:
+                    enriched_state[CLAVE_CAPACIDADES] = bundle
+
+            # Acumulador de la traza: la capacidad de RAG y el dispatcher del LLM
+            # anotan aquí lo que solo ellos saben (SPEC-014/T9.1).
+            _traza = explainability.collecting()
+            _acumulador = _traza.__enter__()
+            _paso_comun = {
+                "run_id": run_id,
+                "article_id": article_id,
+                "project_id": state.get("project_id"),
+                "correlation_id": request_id_ctx.get(),
+                "agent_name": agent_name,
+                "step_index": state.get("current_step_index", 0),
+                "iteration": state.get("loop_count", 0),
+                # Sin capacidad de LLM declarada no hay modelo: antes se resolvía uno para
+                # todos y la traza decía que el Publicador usaba un modelo (SPEC-032/AC9).
+                "model": (
+                    resolve_agent_model(agent_name, state.get("agent_settings"))
+                    if uses_llm(agent_name) else None
+                ),
+                "params": explainability.params_of(agent_name, state),
+                "input_digest": explainability.input_digest(state),
+            }
+
             res = await run_fn(enriched_state)
             await log_run_end(run_id, res, "completed")
             _estado_agente = "completed"
@@ -381,7 +480,37 @@ def make_node_wrapper(agent_name: str, run_fn):
 
             res["current_step_index"] = state.get("current_step_index", 0) + 1
             return res
+        except asyncio.CancelledError:
+            # `CancelledError` hereda de `BaseException`, no de `Exception`: el
+            # `except` de abajo **no** la ve. Sin esta rama, cancelar una ejecución
+            # dejaba su fila de `agent_runs` abierta para siempre, y el estado del
+            # enjambre (T16.4) mostraba ese agente como «incierto» indefinidamente.
+            # Cancelar es un botón de la interfaz: el caso no era raro, era uno por
+            # cada cancelación.
+            logger.info("Agente %s cancelado", agent_name)
+            _estado_agente = "cancelled"
+
+            async def close_cancelled():
+                await log_run_end(run_id, {}, "cancelled", error_message="Pipeline cancelado o backend detenido")
+                # La traza registra la cancelación: AC1 de T9.1 pide el paso
+                # «cuando termina **o se cancela**», y dónde se cortó es justo lo
+                # que se pregunta después.
+                await log_run_step(**_paso_comun, status="cancelled",
+                    error_message="Pipeline cancelado o backend detenido",
+                    rag_sources=_acumulador.rag_sources,
+                    tokens_in=_acumulador.tokens_in, tokens_out=_acumulador.tokens_out,
+                    latency_ms=(time.perf_counter() - _inicio_agente) * 1000)
+
+            if run_id is not None:
+                # `shield` y no un `await` pelado: estamos **dentro** de una tarea
+                # ya cancelada, y un await sin proteger se cancelaría a su vez
+                # dejando la fila abierta — el mismo fallo que esta rama arregla.
+                await asyncio.shield(close_cancelled())
+            # Se vuelve a lanzar siempre: tragarse una cancelación deja la tarea
+            # viva y es peor que el problema que arregla.
+            raise
         except Exception as e:
+            _estado_agente = "failed"
             logger.error(f"Error executing agent {agent_name}: {str(e)}")
             await log_run_end(run_id, {}, "failed", error_message=str(e))
             # También se traza el fallo: AC1 pide la traza «cuando termina **o se
@@ -400,10 +529,19 @@ def make_node_wrapper(agent_name: str, run_fn):
             publish_event(article_id, {"type": "log", "agent": agent_name, "message": f"✗ {agent_name} falló: {str(e)}", "level": "error"})
             raise
         finally:
-            observe_agent_run(agent_name, time.perf_counter() - _inicio_agente, _estado_agente)
-            current_agent_ctx.reset(_token_agente)
-            _traza.__exit__(None, None, None)
-            _span_ctx.__exit__(None, None, None)
+            # This fallback is conditional in SQL: it cannot overwrite a closed
+            # success, failure or cancellation with a different terminal status.
+            try:
+                if run_id in runtime_owner.tasks and run_id not in runtime_owner.terminal_results:
+                    await asyncio.shield(log_run_end(run_id, {},
+                        _estado_agente if _estado_agente in {"completed", "failed", "cancelled"} else "failed",
+                        error_message="Cierre de protección del intento"))
+            finally:
+                observe_agent_run(agent_name, time.perf_counter() - _inicio_agente, _estado_agente)
+                current_agent_ctx.reset(_token_agente)
+                if _traza is not None:
+                    _traza.__exit__(None, None, None)
+                _span_ctx.__exit__(None, None, None)
 
     return wrapper
 
@@ -526,6 +664,11 @@ class Orchestrator:
         context_description: str = "",
         initial_draft_text: str = "",
         article_outline: str = "",
+        # Parámetros de la ejecución (SPEC-030 / AC3, AC6, AC7). Con valor por
+        # defecto: una llamada que no los pase sigue funcionando igual.
+        swarm_notes: str = "",
+        reference_doc_id: Optional[str] = None,
+        format_mode: str = "rag",
         resume: bool = False,
     ) -> Dict[str, Any]:
         """Execute the compiled LangGraph flow and return the final state.
@@ -575,6 +718,11 @@ class Orchestrator:
             agent_settings=agent_settings or {},
             context_description=context_description,
             article_outline=article_outline,
+            # Parametros de la ejecucion: los lee quien ejecuta y acaban en la
+            # traza via `params_of`, para que dos pasadas se distingan (AC7).
+            swarm_notes=swarm_notes,
+            reference_doc_id=reference_doc_id,
+            format_mode=format_mode,
         )
 
         verb = "Resuming" if resume else "Starting"
@@ -588,7 +736,16 @@ class Orchestrator:
         if current_task is not None:
             active_tasks[article_id] = current_task
             bus.register_cancel_handler(article_id, current_task.cancel)
-        await bus.mark_running(article_id)
+        # Qué se está ejecutando, no solo que algo lo está (T18.7): es lo que
+        # permite reconstruir la vista en vivo al volver a ella. Antes esto solo
+        # existía en `location.state` del navegador y navegar fuera lo perdía.
+        await bus.mark_running(article_id, {
+            "flow_sequence": list(flow_sequence),
+            "current_agent": None,
+            "started_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "project_id": str(project.project_id) if project else None,
+            "resumed": bool(resume),
+        })
         # Log en vivo del proyecto (SPEC-029 / T17.5 / AC2): sin este vínculo los
         # eventos del artículo no se encaminan a ningún flujo de proyecto. Aquí
         # y no en el endpoint porque es donde se conoce el proyecto de verdad.

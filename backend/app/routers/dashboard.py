@@ -14,11 +14,13 @@ y la respuesta declara en ``sections`` cuáles pudieron calcularse. Lo que no se
 pudo preguntar se dice; no se rellena con ceros.
 """
 import asyncio
+import contextlib
 import json
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_session
@@ -171,3 +173,58 @@ async def stream_project_log(
                 raise
 
     return StreamingResponse(eventos(), media_type="text/event-stream")
+
+
+@router.get("/running")
+async def running_in_project(
+    project: ProjectContext = Depends(get_project_context),
+    session: AsyncSession = Depends(get_session),
+):
+    """Qué se está ejecutando ahora mismo en este proyecto (T18.7).
+
+    La sirve el aviso persistente del shell: mientras haya algo en marcha, la
+    interfaz puede decirlo desde cualquier pantalla y ofrecer volver. Antes esa
+    información solo existía en la memoria de la pantalla de ejecución, así que
+    navegar a otra pestaña la perdía aunque el pipeline siguiera corriendo.
+
+    **Acotado al proyecto activo**, como el resto: la marca del bus guarda su
+    `project_id` y aquí se filtra por el que resolvió `get_project_context`.
+    Un pipeline de otro proyecto no se asoma por esta ruta.
+    """
+    from app.models.article import ArticleModel
+
+    try:
+        marcas = await get_bus().running_articles()
+    except Exception:
+        logger.warning("No se pudo consultar qué está en ejecución", exc_info=True)
+        return {"running": []}
+
+    #: Solo lo de este proyecto. Una marca sin `project_id` es de una versión
+    #: anterior: se descarta en vez de enseñarla, porque no se puede comprobar
+    #: a quién pertenece y el aislamiento no admite suposiciones.
+    mios = {
+        aid: info for aid, info in marcas.items()
+        if info.get("project_id") == str(project.project_id)
+    }
+    if not mios:
+        return {"running": []}
+
+    titulos = {}
+    with contextlib.suppress(Exception):
+        filas = (await session.execute(
+            select(ArticleModel.id, ArticleModel.title)
+            .where(ArticleModel.project_id == project.project_id)
+        )).all()
+        titulos = {str(i): t for i, t in filas}
+
+    return {"running": [
+        {
+            "article_id": aid,
+            "title": titulos.get(aid) or "Artículo",
+            "flow_sequence": info.get("flow_sequence") or [],
+            "current_agent": info.get("current_agent"),
+            "started_at": info.get("started_at"),
+            "resumed": bool(info.get("resumed")),
+        }
+        for aid, info in sorted(mios.items(), key=lambda kv: kv[1].get("started_at") or "")
+    ]}

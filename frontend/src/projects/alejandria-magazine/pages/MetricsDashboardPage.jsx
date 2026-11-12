@@ -3,10 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { agentMeta } from '../catalog';
 import { dashboardApi } from '../../../platform/api/dashboard';
 import { useArticleStore } from '../store/articleStore';
-import { EmptyState, LoadingState } from '../../../platform/components/ui/states';
+import { LoadingState } from '../../../platform/components/ui/states';
 import {
   Activity, BarChart2, Clock, FileText, RefreshCw,
-  TrendingUp, XCircle, CheckCircle, Zap, ChevronDown, ChevronRight,
+  XCircle, CheckCircle, Zap,
   AlertTriangle, CloudOff, Bot,
 } from 'lucide-react';
 
@@ -43,17 +43,6 @@ function fmtFecha(iso) {
     day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit',
   });
 }
-
-const STATUS_LABEL = {
-  draft: 'Borrador', published: 'Publicado', failed: 'Fallido',
-  generating: 'Generando', review: 'En revisión',
-};
-
-const STATUS_CLS = {
-  published: 'badge-approved', failed: 'badge-error',
-  generating: 'badge-running', review: 'badge-pending',
-  draft: 'badge-draft',
-};
 
 /** Color del agente según el catálogo del proyecto; gris si no está. */
 const agentColor = (name) => agentMeta(name)?.color || 'var(--text-muted)';
@@ -123,22 +112,6 @@ function SwarmAgent({ agent }) {
   );
 }
 
-// ─── Barra proporcional ───────────────────────────────────────────────────────
-
-function Bar({ value, max, color }) {
-  const pct = max > 0 ? Math.min(100, Math.round(value / max * 100)) : 0;
-  return (
-    <div style={{ height: 5, background: 'var(--bg-inset)', borderRadius: 'var(--radius-pill)', width: '100%', minWidth: 60 }}>
-      <div style={{
-        width: `${pct}%`, height: '100%',
-        background: color || 'var(--brand)',
-        borderRadius: 'var(--radius-pill)',
-        transition: 'width .3s',
-      }} />
-    </div>
-  );
-}
-
 // ─── Tarjeta de agente ────────────────────────────────────────────────────────
 
 function AgentCard({ data }) {
@@ -195,8 +168,6 @@ export default function MetricsDashboardPage() {
   const [summary, setSummary]     = useState(null);
   const [loading, setLoading]     = useState(false);
   const [error, setError]         = useState(null);
-  const [expanded, setExpanded]   = useState({});
-  const [sortField, setSortField] = useState('tokens');
 
   const loadSummary = useCallback(async () => {
     setLoading(true);
@@ -238,39 +209,6 @@ export default function MetricsDashboardPage() {
 
   // Mapa de artículo para enriquecer la tabla con títulos del store
   const articleById = Object.fromEntries(articles.map(a => [String(a.id), a]));
-
-  // Filas de artículos desde summary.articles (AC5 — estado real del pipeline)
-  const summaryArticles = summary?.articles ?? [];
-  const articleRows = summaryArticles
-    .map(sa => {
-      const art = articleById[sa.article_id] || {};
-      const tokens    = sa.tokens_total ?? 0;
-      const latencyMs = sa.latency_ms ?? 0;
-      const failed    = sa.failed ?? false;
-
-      return {
-        id: sa.article_id,
-        title: art.title || `Artículo ${sa.article_id?.slice(0, 8)}`,
-        status: art.status || 'draft',
-        tokens, latencyMs, errors: failed ? 1 : 0,
-        agentBreakdown: Object.fromEntries(
-          (sa.agents || []).map(a => [a.name, {
-            tokens: a.tokens_total, latencyMs: a.latency_ms, runs: a.runs,
-          }])
-        ),
-        hasMetrics: true,
-        last_run: sa.last_run,
-      };
-    })
-    .sort((a, b) => {
-      if (sortField === 'tokens')  return b.tokens    - a.tokens;
-      if (sortField === 'latency') return b.latencyMs - a.latencyMs;
-      if (sortField === 'errors')  return b.errors    - a.errors;
-      return 0;
-    });
-
-  const maxTokens  = Math.max(...articleRows.map(r => r.tokens),    1);
-  const maxLatency = Math.max(...articleRows.map(r => r.latencyMs), 1);
 
   // Ejecuciones del proyecto (SPEC-029 / T17.1 / AC1): una fila por pasada del
   // pipeline. La tabla por artículo agrega, y al agregar funde las reejecuciones:
@@ -423,7 +361,7 @@ export default function MetricsDashboardPage() {
       {/* EJECUCIONES DEL PROYECTO (T17.1 / AC1) — una fila por pasada */}
       <section>
         <h3 className="metrics-section-title">
-          <Activity size={16} /> Ejecuciones del proyecto
+          <Activity size={16} /> Métricas por artículo
         </h3>
         <div className="metrics-card">
           <div className="metrics-exec-thead">
@@ -433,7 +371,8 @@ export default function MetricsDashboardPage() {
             <span>Pasos</span>
             <span>Tokens</span>
             <span>Latencia</span>
-            <span>Estado</span>
+            <span className="metrics-exec-state-heading">Estado</span>
+            <span aria-hidden="true" />
           </div>
 
           {!seccion('executions').available ? (
@@ -493,182 +432,23 @@ export default function MetricsDashboardPage() {
                 {fmtSeg(ex.latency_ms)}
               </span>
 
-              <span style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
+              <span className="metrics-exec-state">
                 {ex.status === 'failed'
-                  ? <span className="badge badge-error" style={{ fontSize: 10 }}>Fallida</span>
+                  ? <XCircle size={15} style={{ color: 'var(--error)' }} role="img" aria-label="Fallida"><title>Fallida</title></XCircle>
                   : ex.status === 'running'
                     ? <span className="badge badge-running" style={{ fontSize: 10 }}>En curso</span>
-                    : <CheckCircle size={15} style={{ color: 'var(--success)' }} />}
+                    : <CheckCircle size={15} style={{ color: 'var(--success)' }} role="img" aria-label={ex.recovered_failures ? 'Completada con errores recuperados' : 'Completada'}><title>{ex.recovered_failures ? `Completada: ${ex.recovered_failures} fallos recuperados` : 'Completada'}</title></CheckCircle>}
+              </span>
+              <span className="metrics-exec-actions">
                 <button className="btn btn-ghost btn-sm"
                   style={{ fontSize: 'var(--font-size-xs)', padding: '3px 8px' }}
-                  onClick={() => navigate(`/dashboard/execution/${ex.article_id}`, { state: {} })}>
+                  onClick={() => navigate(`/dashboard/articles/${ex.article_id}/observability${ex.trace_id ? `?execution=${ex.trace_id}` : ''}`)}>
                   Trazas
                 </button>
               </span>
             </div>
           ))}
         </div>
-      </section>
-
-      {/* TABLA DE ARTÍCULOS */}
-      <section>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-3)' }}>
-          <h3 className="metrics-section-title" style={{ margin: 0 }}>
-            <FileText size={16} /> Métricas por artículo
-          </h3>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>Ordenar:</span>
-            {[
-              { id: 'tokens',  label: 'Tokens' },
-              { id: 'latency', label: 'Latencia' },
-              { id: 'errors',  label: 'Errores' },
-            ].map(opt => (
-              <button key={opt.id}
-                className="btn btn-ghost btn-sm"
-                style={{
-                  fontSize: 'var(--font-size-xs)', padding: '2px 10px',
-                  background: sortField === opt.id ? 'var(--brand-tint)' : undefined,
-                  color:      sortField === opt.id ? 'var(--brand)'      : undefined,
-                }}
-                onClick={() => setSortField(opt.id)}>
-                {opt.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {articles.length === 0 ? (
-          <EmptyState icon={<FileText size={28} />} title="Sin artículos"
-            description="Genera artículos desde el Flow Designer para ver sus métricas aquí." />
-        ) : (
-          <div className="metrics-card">
-            {/* Cabecera de la tabla */}
-            <div className="metrics-art-thead">
-              <span>Artículo</span>
-              <span>Tokens</span>
-              <span>Latencia</span>
-              <span>Errores</span>
-              <span></span>
-            </div>
-
-            {!seccion('articles').available && (
-              <div style={{ padding: 'var(--space-5)', textAlign: 'center',
-                color: 'var(--text-muted)', fontSize: 'var(--font-size-sm)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                <CloudOff size={16} />
-                No se pudieron consultar las métricas por artículo
-                {seccion('articles').reason ? ` (${seccion('articles').reason})` : ''}.
-              </div>
-            )}
-            {seccion('articles').available && articleRows.length === 0 && (
-              <div style={{ padding: 'var(--space-5)', textAlign: 'center',
-                color: 'var(--text-muted)', fontSize: 'var(--font-size-sm)' }}>
-                No hay ejecuciones registradas en los últimos {summary?.window_days ?? 7} días.
-                Ejecuta un artículo desde el Flow Designer para ver sus métricas aquí.
-              </div>
-            )}
-            {articleRows.map(row => (
-              <div key={row.id} className="metrics-art-item">
-
-                {/* Fila principal */}
-                <div
-                  className="metrics-art-row"
-                  onClick={() => row.hasMetrics && setExpanded(e => ({ ...e, [row.id]: !e[row.id] }))}
-                  style={{ cursor: row.hasMetrics ? 'pointer' : 'default' }}
-                >
-                  {/* Título + estado */}
-                  <div>
-                    <div style={{ fontWeight: 500, fontSize: 'var(--font-size-sm)', color: 'var(--text-heading)',
-                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 280 }}>
-                      {row.title || `Artículo ${row.id.slice(0, 8)}`}
-                    </div>
-                    <span className={`badge ${STATUS_CLS[row.status] || 'badge-draft'}`} style={{ fontSize: 10, marginTop: 3 }}>
-                      {STATUS_LABEL[row.status] || row.status || 'Borrador'}
-                    </span>
-                  </div>
-
-                  {/* Tokens */}
-                  <div>
-                    {row.hasMetrics ? (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                        <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, fontSize: 'var(--font-size-sm)' }}>
-                          {fmtNum(row.tokens)}
-                        </span>
-                        <Bar value={row.tokens} max={maxTokens} color="var(--brand)" />
-                      </div>
-                    ) : <span style={{ color: 'var(--text-muted)', fontSize: 'var(--font-size-xs)' }}>—</span>}
-                  </div>
-
-                  {/* Latencia */}
-                  <div>
-                    {row.hasMetrics ? (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                        <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, fontSize: 'var(--font-size-sm)' }}>
-                          {fmt(row.latencyMs)}
-                        </span>
-                        <Bar value={row.latencyMs} max={maxLatency} color="var(--agent-research)" />
-                      </div>
-                    ) : <span style={{ color: 'var(--text-muted)', fontSize: 'var(--font-size-xs)' }}>—</span>}
-                  </div>
-
-                  {/* Errores */}
-                  <div style={{ display: 'flex', justifyContent: 'center' }}>
-                    {row.hasMetrics
-                      ? (row.errors > 0
-                        ? <span style={{ color: 'var(--error)', fontWeight: 700, fontSize: 'var(--font-size-sm)' }}>{row.errors}</span>
-                        : <CheckCircle size={16} style={{ color: 'var(--success)' }} />)
-                      : <span style={{ color: 'var(--text-muted)', fontSize: 'var(--font-size-xs)' }}>—</span>}
-                  </div>
-
-                  {/* Acciones */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
-                    <button className="btn btn-ghost btn-sm"
-                      style={{ fontSize: 'var(--font-size-xs)', padding: '3px 8px' }}
-                      onClick={e => { e.stopPropagation(); navigate(`/dashboard/execution/${row.id}`, { state: {} }); }}>
-                      <Activity size={12} /> Trazas
-                    </button>
-                    {row.hasMetrics && (
-                      expanded[row.id]
-                        ? <ChevronDown size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
-                        : <ChevronRight size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
-                    )}
-                  </div>
-                </div>
-
-                {/* Desglose por agente (desplegable) */}
-                {expanded[row.id] && Object.keys(row.agentBreakdown).length > 0 && (
-                  <div className="metrics-art-breakdown">
-                    <div className="metrics-art-breakdown-head">
-                      <span>Agente</span><span>Tokens</span><span>Latencia</span><span>Pasos</span>
-                    </div>
-                    {Object.entries(row.agentBreakdown).map(([name, ag]) => {
-                      const meta  = agentMeta(name) || {};
-                      const Icono = meta.icon;
-                      return (
-                        <div key={name} className="metrics-art-breakdown-row">
-                          <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            {Icono && <Icono size={13} style={{ color: agentColor(name), flexShrink: 0 }} />}
-                            <span style={{ fontSize: 'var(--font-size-xs)', fontWeight: 500 }}>{meta.label || name}</span>
-                          </span>
-                          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--font-size-xs)', color: 'var(--text-secondary)' }}>
-                            {fmtNum(ag.tokens)}
-                          </span>
-                          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--font-size-xs)', color: 'var(--text-secondary)' }}>
-                            {fmtSeg(ag.latencyMs)}
-                          </span>
-                          <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>
-                            {ag.runs}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-              </div>
-            ))}
-          </div>
-        )}
       </section>
 
       {loading && !summary && (
