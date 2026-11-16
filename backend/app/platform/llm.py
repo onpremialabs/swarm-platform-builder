@@ -577,6 +577,59 @@ async def _call_ollama(
         raise TransientLLMError(f"Ollama unavailable: {exc}") from exc
 
 
+#: Tope de la petición de descarga (#509). Corto a propósito: quien la pide está
+#: cancelando y no puede quedarse esperando a un Ollama colgado.
+UNLOAD_TIMEOUT_SECONDS = 5.0
+
+
+async def unload_model(model: Optional[str]) -> bool:
+    """Pide a Ollama que descargue ``model`` de memoria ya (#509).
+
+    Cada agente manda ``keep_alive=0``, pero esa directiva se aplica **al terminar
+    la petición**: una generación cancelada a mitad de stream la abandona y el
+    modelo se queda con el keep-alive por defecto ocupando la VRAM. Por eso al
+    cancelar se pide la descarga explícitamente —``/api/generate`` con prompt
+    vacío y ``keep_alive: 0``, la forma documentada por Ollama— en vez de confiar
+    en la petición abortada.
+
+    Mejor-esfuerzo: nunca lanza. Devuelve ``True`` si Ollama confirmó la descarga
+    y ``False`` si no aplica (proveedor remoto, sin modelo) o si falló, en cuyo
+    caso deja el motivo en el log. Con un proveedor remoto (Anthropic, OpenAI) no
+    hay modelo local que liberar y no se llama a nadie.
+
+    No pasa por ``platform/egress.py``: la URL de Ollama sale de la configuración,
+    no de una entrada de usuario ni del modelo (igual que el resto del dispatcher).
+    """
+    from app.core.config import settings
+
+    provider = settings.LLM_PROVIDER.lower()
+    if provider in ("anthropic", "openai"):
+        return False
+    if not model:
+        return False
+
+    payload = {"model": model, "prompt": "", "stream": False, "keep_alive": 0}
+    try:
+        async with httpx.AsyncClient(
+            base_url=settings.OLLAMA_BASE_URL, timeout=UNLOAD_TIMEOUT_SECONDS
+        ) as client:
+            response = await client.post("/api/generate", json=payload)
+        if response.status_code != 200:
+            logger.warning(
+                "No se pudo descargar el modelo '%s' de Ollama: HTTP %s: %s",
+                model, response.status_code, response.text[:200],
+            )
+            return False
+    except Exception as exc:  # noqa: BLE001 — mejor-esfuerzo: nada debe escapar
+        logger.warning(
+            "No se pudo descargar el modelo '%s' de Ollama: %s: %s",
+            model, type(exc).__name__, exc,
+        )
+        return False
+    logger.info("Modelo '%s' descargado de Ollama (keep_alive=0)", model)
+    return True
+
+
 async def _call_openai(
     prompt: str,
     model: str,
