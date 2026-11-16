@@ -23,6 +23,7 @@ configure_logging()
 logger = logging.getLogger(__name__)
 from app.routers import auth, articles, ai, agents, flows, config, notifications, checkpoints, projects, audit, health
 from app.routers.magazine import router as magazine_router
+from app.routers.dashboard import router as dashboard_router
 from app.core.database import AsyncSessionLocal
 from app.shared.agents_seed import seed_agents_for_project
 from app.models import (
@@ -360,6 +361,7 @@ app.include_router(notifications.router)
 app.include_router(checkpoints.router)
 app.include_router(projects.router)
 app.include_router(audit.router)
+app.include_router(dashboard_router)
 # Liveness y readiness (SPEC-019/T5.4). Sin prefijo: los consulta el orquestador.
 app.include_router(health.router)
 app.include_router(magazine_router)

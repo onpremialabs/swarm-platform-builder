@@ -92,7 +92,7 @@ async def get_rag_backend(qdrant_url: str, api_key: Optional[str] = None) -> str
 # ---------------------------------------------------------------------------
 
 def extract_text(filename: str, raw_bytes: bytes) -> str:
-    """Return plain text from a .txt, .md, or .pdf file."""
+    """Return plain text from a .txt, .md, .pdf or .docx file."""
     name = filename.lower()
     if name.endswith(".pdf"):
         try:
@@ -101,6 +101,24 @@ def extract_text(filename: str, raw_bytes: bytes) -> str:
             return "\n\n".join(page.extract_text() or "" for page in reader.pages)
         except Exception as e:
             logger.warning(f"PDF extraction failed for {filename}: {e}")
+            return ""
+    if name.endswith(".docx"):
+        # docx is a ZIP; text lives in word/document.xml as <w:t> nodes
+        try:
+            import zipfile
+            import xml.etree.ElementTree as ET
+            with zipfile.ZipFile(io.BytesIO(raw_bytes)) as z:
+                with z.open("word/document.xml") as f:
+                    tree = ET.parse(f)
+            ns = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
+            parts: list[str] = []
+            for para in tree.findall(".//w:p", ns):
+                texts = [t.text for t in para.findall(".//w:t", ns) if t.text]
+                if texts:
+                    parts.append("".join(texts))
+            return "\n\n".join(parts)
+        except Exception as e:
+            logger.warning(f"DOCX extraction failed for {filename}: {e}")
             return ""
     # txt / md and anything else
     for encoding in ("utf-8", "latin-1"):

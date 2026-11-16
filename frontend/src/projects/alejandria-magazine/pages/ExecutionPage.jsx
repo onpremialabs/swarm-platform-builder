@@ -411,7 +411,7 @@ export default function ExecutionPage() {
             <input
               ref={sourceInputRef}
               type="file"
-              accept=".txt,.md,.pdf"
+              accept=".txt,.md,.pdf,.docx"
               style={{ display: 'none' }}
               onChange={onSourceFileSelected}
             />

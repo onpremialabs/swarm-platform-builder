@@ -177,7 +177,7 @@ export default function DocumentsPage() {
               <input
                 ref={inputRef}
                 type="file"
-                accept=".txt,.md,.pdf"
+                accept=".txt,.md,.pdf,.docx"
                 multiple
                 style={{ display: 'none' }}
                 aria-label="Seleccionar archivos para la biblioteca RAG"

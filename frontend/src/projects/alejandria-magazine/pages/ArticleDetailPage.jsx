@@ -242,7 +242,7 @@ export default function ArticleDetailPage() {
   const handleConfirmPipeline = () => {
     if (selectedAgents.length === 0) { toast.error('Selecciona al menos un agente'); return; }
     setShowPipelineModal(false);
-    navigate(`/execution/${article.id}`, {
+    navigate(`/dashboard/execution/${article.id}`, {
       state: { flowSequence: selectedAgents, agentSettings: {}, keywords: [], contextDescription: '', articleOutline: '' },
     });
   };
@@ -390,6 +390,8 @@ export default function ArticleDetailPage() {
 
       {/* Main content grid */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: 'var(--space-6)', alignItems: 'start' }}>
+        {/* Columna principal: artículo + trazas juntos */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)', minWidth: 0 }}>
         {/* Article body */}
         <div className="card" style={{ padding: 'var(--space-8)' }}>
           {/* Edit / Save toolbar */}
@@ -460,9 +462,9 @@ export default function ArticleDetailPage() {
         {/* Por qué este resultado (SPEC-014 / T9.2). Debajo del cuerpo y no en la
             barra lateral: la traza es contenido ancho —línea de tiempo, fuentes,
             comentarios del revisor— y en 280 px no se lee. */}
-        <div style={{ gridColumn: '1', display: 'flex', flexDirection: 'column' }}>
-          <ExplainPanel articleId={id} />
-        </div>
+        <ExplainPanel articleId={id} />
+
+        </div>{/* /columna principal */}
 
         {/* Sidebar actions */}
         <div style={{ gridRow: '1', gridColumn: '2', display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
@@ -592,6 +594,13 @@ export default function ArticleDetailPage() {
                 aria-label="Ejecutar pipeline de agentes sobre este artículo"
               >
                 <GitBranch size={13} /> Reejecutar pipeline
+              </button>
+              <button
+                className="btn btn-ghost btn-sm w-full"
+                onClick={() => navigate(`/dashboard/execution/${id}`, { state: {} })}
+                aria-label="Ver trazabilidad y métricas de la última ejecución"
+              >
+                <FileText size={13} /> Ver trazabilidad
               </button>
             </div>
           </div>

@@ -300,7 +300,7 @@ async def upload_to_rag_library(
         raise HTTPException(status_code=413, detail="Archivo demasiado grande (máx. 10 MB)")
 
     # Extension + real content (magic bytes), before any parsing or indexing.
-    validate_upload(file.filename, raw, {".txt", ".md", ".pdf"})
+    validate_upload(file.filename, raw, {".txt", ".md", ".pdf", ".docx"})
 
     text = extract_text(file.filename, raw)
     if not text.strip():
@@ -591,7 +591,7 @@ async def upload_rag_document(
         raise HTTPException(status_code=413, detail="File too large (max 10 MB)")
 
     # Extension + real content (magic bytes), before any parsing or indexing.
-    validate_upload(file.filename, raw, {".txt", ".md", ".pdf"})
+    validate_upload(file.filename, raw, {".txt", ".md", ".pdf", ".docx"})
 
     text = extract_text(file.filename, raw)
     if not text.strip():

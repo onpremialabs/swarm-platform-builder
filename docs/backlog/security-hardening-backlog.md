@@ -172,7 +172,7 @@ Labels: `epic`, `task`, `area/*`, `sev/{high,medium,low}`.
 | ID | Tarea | Sev |
 |----|-------|-----|
 | T16.1 | Definir las magnitudes de la portada (qué cuenta y de dónde sale) | 🟠 |
-| T16.2 | `GET /dashboard/summary` por proyecto, con aislamiento probado | 🔴 |
+| T16.2 | `GET /api/v1/dashboard/summary` por proyecto, con aislamiento probado | 🔴 |
 | T16.3 | Definir y calcular las anomalías sobre la traza de explicabilidad | 🔴 |
 | T16.4 | Estado del enjambre derivado de los pasos abiertos | 🟠 |
 | T16.5 | Portada en el frontend y fin de la redirección del index | 🟠 |

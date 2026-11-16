@@ -16,13 +16,22 @@ from pathlib import Path
 
 FRONT = Path(__file__).resolve().parents[2] / "frontend" / "src"
 DISEÑADOR = FRONT / "platform" / "pages" / "FlowDesignerPage.jsx"
-EJECUCION = FRONT / "projects" / "alejandria-magazine" / "pages" / "ExecutionPage.jsx"
+#: Quien recibe la navegación. Era `ExecutionPage`; desde T17.1 el lienzo lleva a
+#: la vista de trazabilidad, que es la que lee ese estado. El contrato es el
+#: mismo —no mandar lo que nadie lee— pero el destino cambió.
+EJECUCION = FRONT / "projects" / "alejandria-magazine" / "pages" / "TraceabilityPage.jsx"
 
 
 def _claves_enviadas() -> set[str]:
     fuente = DISEÑADOR.read_text(encoding="utf-8")
-    bloque = re.search(r"navigate\(`/execution/\$\{articleId\}`,\s*\{\s*state:\s*\{(.*?)\}\s*\}\s*\)", fuente, re.S)
-    assert bloque, "no encuentro la navegación a /execution en el Flow Designer"
+    # El prefijo `/dashboard` es opcional: lo que fija el contrato es el estado
+    # que se manda, no bajo qué ruta queda colgada la página.
+    bloque = re.search(
+        r"navigate\(`(?:/dashboard)?/execution/\$\{articleId\}`,"
+        r"\s*\{\s*state:\s*\{(.*?)\}\s*\}\s*\)",
+        fuente, re.S,
+    )
+    assert bloque, "no encuentro la navegación a la ejecución en el Flow Designer"
     return set(re.findall(r"^\s*(\w+)\s*[:,]", bloque.group(1), re.M))
 
 
