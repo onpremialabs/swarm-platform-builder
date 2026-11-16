@@ -73,6 +73,57 @@ def _agent_name_matches(value: Optional[str], agent_name) -> bool:
     return value in [n for n in names if n]
 
 
+# ── Alcance por documento (SPEC-030 / T18.1 / AC1) ──────────────────────────
+#
+# Hasta aquí había dos espacios: el bucket del agente y `__library__`, que leen
+# **todos** los agentes del proyecto. Subir ahí la plantilla de estilo de un paper
+# concreto significa que todos los papers siguientes recuperarán ese estilo, y
+# nadie lo nota hasta que empiezan a parecerse entre sí.
+#
+# El tercer alcance —«documento de esta ejecución»— no es un espacio nuevo sino un
+# **filtro dentro del espacio del proyecto**: el chunk lleva `article_id` y la
+# recuperación lo respeta. El nombre de la colección se sigue derivando en
+# `project_context.py`; esto no abre ninguna vía para componerlo a mano.
+#
+# Un documento **sin** `article_id` es compartido y lo ve todo el mundo, que es lo
+# que ya hacían los que había. Por eso la retrocompatibilidad sale gratis: lo
+# indexado antes de T18.1 no lleva el campo y sigue visible.
+
+
+def _article_scope_clause(article_id: Optional[str]) -> Dict[str, Any]:
+    """Cláusula que deja pasar lo compartido y, además, lo de **este** artículo.
+
+    Sin artículo en curso solo pasa lo compartido: un documento acotado a un paper
+    no puede aparecer en la recuperación de otro, que es exactamente AC1.
+    """
+    compartido = {"is_empty": {"key": "article_id"}}
+    if not article_id:
+        return {"must": [compartido]}
+    return {"should": [compartido,
+                       {"key": "article_id", "match": {"value": str(article_id)}}]}
+
+
+def _article_scope_matches(valor: Optional[str], article_id: Optional[str]) -> bool:
+    """Equivalente de `_article_scope_clause` para el almacén local."""
+    if not valor:
+        return True          # compartido: visible siempre
+    if not article_id:
+        return False         # acotado, y no hay artículo: no se recupera
+    return str(valor) == str(article_id)
+
+
+def _merge_filter(must: List[Dict[str, Any]], alcance: Dict[str, Any]) -> Dict[str, Any]:
+    """Compone el filtro de agente con el de alcance sin que uno pise al otro."""
+    filtro: Dict[str, Any] = {"must": list(must)}
+    if "must" in alcance:
+        filtro["must"].extend(alcance["must"])
+    if "should" in alcance:
+        # `should` con `must` en Qdrant: el `should` no es obligatorio salvo que
+        # se exija mínimo uno. Se anida dentro del `must` para que sí lo sea.
+        filtro["must"].append({"should": alcance["should"]})
+    return filtro
+
+
 async def is_qdrant_available(qdrant_url: str, api_key: Optional[str] = None) -> bool:
     """Return whether the configured Qdrant instance is reachable."""
     headers = {"api-key": api_key} if api_key else {}
@@ -419,11 +470,17 @@ async def upsert_chunks(
     api_key: Optional[str] = None,
     doc_title: str = "",
     doc_authors: str = "",
+    article_id: Optional[str] = None,
 ) -> int:
     """Embed and upsert chunks into Qdrant. Returns count of inserted points.
 
     ``doc_title``/``doc_authors`` are stored on every chunk so retrieval can build
     real bibliographic citations.
+
+    ``article_id`` acota el documento a **ese** paper (SPEC-030 / T18.1 / AC1):
+    los agentes lo recuperan al generarlo y no aparece en la recuperación de otros
+    papers del proyecto. Sin él, el documento es compartido —el comportamiento de
+    siempre—, así que lo ya indexado no cambia.
     """
     if not await is_qdrant_available(qdrant_url, api_key):
         payload = {
@@ -432,6 +489,7 @@ async def upsert_chunks(
             "filename": filename,
             "doc_title": doc_title,
             "doc_authors": doc_authors,
+            "article_id": str(article_id) if article_id else None,
             "chunks": [
                 {
                     "chunk_index": index,
@@ -511,6 +569,8 @@ async def upsert_chunks(
                 "filename": filename,
                 "doc_title": doc_title,
                 "doc_authors": doc_authors,
+                # Acota el chunk a un paper (T18.1/AC1); None = compartido.
+                "article_id": str(article_id) if article_id else None,
                 "chunk_index": i,
                 "text": chunk,
             },
@@ -825,6 +885,7 @@ async def fetch_agent_context(
     agent_name: str,
     limit: int = 5,
     api_key: Optional[str] = None,
+    article_id: Optional[str] = None,
 ) -> str:
     """Return a compact text block with chunks for an agent from Qdrant or local fallback.
     Simple scroll by agent_name — no semantic ranking. Use semantic_search_context for
@@ -834,6 +895,8 @@ async def fetch_agent_context(
         for path in sorted(_local_collection_dir(collection).glob("*.json")):
             data = _load_local_document(path)
             if not data or not _agent_name_matches(data.get("agent_name"), agent_name):
+                continue
+            if not _article_scope_matches(data.get("article_id"), article_id):
                 continue
             for chunk in data.get("chunks", []):
                 text = chunk.get("text", "")
@@ -851,7 +914,8 @@ async def fetch_agent_context(
                 return ""
 
             payload = {
-                "filter": {"must": [_agent_name_clause(agent_name)]},
+                "filter": _merge_filter([_agent_name_clause(agent_name)],
+                                        _article_scope_clause(article_id)),
                 "limit": limit,
                 "with_payload": True,
                 "with_vector": False,
@@ -891,6 +955,7 @@ async def _fetch_agent_results(
     limit: int,
     api_key: Optional[str] = None,
     doc_ids: Optional[list] = None,
+    article_id: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """Non-semantic fallback that returns chunk payloads (with filename/doc_id).
 
@@ -909,6 +974,11 @@ async def _fetch_agent_results(
                 if data.get("doc_id") not in doc_id_set:
                     continue
             elif not _agent_name_matches(data.get("agent_name"), agent_name):
+                continue
+            # El alcance por paper se aplica tambien cuando hay doc_ids
+            # explicitos: elegir un documento de otro paper a mano no deberia
+            # saltarse el acotamiento (T18.1/AC1).
+            if not _article_scope_matches(data.get("article_id"), article_id):
                 continue
             for chunk in data.get("chunks", []):
                 text = chunk.get("text", "")
@@ -943,7 +1013,7 @@ async def _fetch_agent_results(
             else:
                 must = [_agent_name_clause(agent_name)]
             payload = {
-                "filter": {"must": must},
+                "filter": _merge_filter(must, _article_scope_clause(article_id)),
                 "limit": limit,
                 "with_payload": True,
                 "with_vector": False,

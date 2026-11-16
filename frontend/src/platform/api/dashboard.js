@@ -17,4 +17,11 @@ export const dashboardApi = {
    *   articles               : estado real del pipeline por artículo (desde agent_run_steps)
    */
   getSummary: () => api.get('/api/v1/dashboard/summary').then(r => r.data),
+
+  /**
+   * Qué se está ejecutando ahora en el proyecto (SPEC-030 / T18.7).
+   * La consulta el aviso persistente del shell, que es ligero a propósito:
+   * se sondea cada pocos segundos y no puede cargar la portada entera.
+   */
+  getRunning: () => api.get('/api/v1/dashboard/running').then(r => r.data),
 };

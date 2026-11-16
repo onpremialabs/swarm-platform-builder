@@ -33,6 +33,16 @@ class AgentRunRequest(BaseModel):
     context_description: str = Field(default="")
     article_outline: str = Field(default="")
 
+    # Parámetros de esta ejecución (SPEC-030 / T18.3, T18.5 / AC3, AC6, AC7).
+    #: Notas libres. El tope de verdad lo pone `sanitize_notes`, que además dice
+    #: si recortó; aquí se acota para rechazar un cuerpo absurdo antes de leerlo.
+    swarm_notes: str = Field(default="", max_length=10_000)
+    #: Documento de referencia acotado a este paper (T18.1 / AC1).
+    reference_doc_id: str | None = Field(default=None)
+    #: Cómo se aprende el formato. Se valida contra `FORMAT_MODES`, que declara
+    #: cuál está disponible y por qué (AC6).
+    format_mode: str = Field(default="rag")
+
 
 class AgentRunDetailResponse(BaseModel):
     """Detailed response of a single agent run step."""

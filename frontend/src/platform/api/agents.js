@@ -19,6 +19,11 @@ export const agentsApi = {
   submitDecision: (articleId, decision) =>
     api.post(`/api/v1/agents/${articleId}/decision`, { decision }).then(r => r.data),
 
+  getTraceHistory: (articleId, signal) =>
+    api.get(`/api/v1/agents/${articleId}/history`, { signal }).then(r => r.data),
+  getTraceHistoryDetail: (articleId, executionId, signal) =>
+    api.get(`/api/v1/agents/${articleId}/history/${executionId}`, { signal }).then(r => r.data),
+
   // Get run history
   getRuns: (articleId) =>
     api.get(`/api/v1/agents/${articleId}/runs`).then(r => r.data),
@@ -50,6 +55,13 @@ export const agentsApi = {
     a.remove();
     URL.revokeObjectURL(url);
   },
+
+  // Si este articulo se esta ejecutando ahora y con que (SPEC-030 / T18.7).
+  // Es lo que permite reconstruir la vista en vivo al volver a ella: la
+  // secuencia de agentes venia en el estado de navegacion y se perdia al
+  // cambiar de pestania, aunque el pipeline siguiera corriendo.
+  getRunStatus: (articleId) =>
+    api.get(`/api/v1/agents/${articleId}/status`).then(r => r.data),
 
   // Agent definitions
   getDefinitions: () =>
@@ -109,12 +121,17 @@ export const agentsApi = {
       params: collection ? { collection } : {},
     }).then(r => r.data),
 
-  uploadLibraryDocument: (file, collection, chunkSize, chunkOverlap) => {
+  // `articleId` acota el documento a **ese** paper (SPEC-030 / T18.1 / AC1): los
+  // agentes lo recuperan al generarlo y no aparece en los demás. Sin él, el
+  // documento es compartido por todo el proyecto, que es el comportamiento de
+  // siempre y el que contamina si se usa para una plantilla de un solo paper.
+  uploadLibraryDocument: (file, collection, chunkSize, chunkOverlap, articleId) => {
     const form = new FormData();
     form.append('file', file);
     if (collection) form.append('collection', collection);
     if (chunkSize != null) form.append('chunk_size', String(chunkSize));
     if (chunkOverlap != null) form.append('chunk_overlap', String(chunkOverlap));
+    if (articleId) form.append('article_id', String(articleId));
     return api.post('/api/v1/agents/rag/library/upload', form, {
       headers: { 'Content-Type': 'multipart/form-data' },
     }).then(r => r.data);

@@ -206,14 +206,25 @@ def rationale_of(salida: Dict[str, Any]) -> Optional[str]:
 
 
 def params_of(agent_name: str, state: Dict[str, Any]) -> Dict[str, Any]:
-    """Parámetros con los que corrió el agente, de sus ajustes de ejecución."""
+    """Parámetros con los que corrió el agente, de sus ajustes y de la ejecución.
+
+    Dos fuentes, un solo sitio: los ajustes **del agente** (su temperatura, su
+    top-k) y los parámetros **de la ejecución** —notas, referencia, agentes
+    participantes, modo— que SPEC-030/AC7 pide poder distinguir a posteriori.
+    Van juntos porque la pregunta que se hace al leer la traza es la misma: «¿con
+    qué corrió esto?».
+    """
+    from app.platform.run_config import run_params  # ciclo: run_config no importa de aquí
+
     ajustes = (state.get("agent_settings") or {}).get(agent_name) or {}
     interesantes = (
         "temperature", "num_ctx", "target_word_count", "output_language",
         "scientific_format", "rag_collection", "rag_top_k", "graph_rag_enabled",
         "semantic_search_enabled",
     )
-    return {clave: ajustes[clave] for clave in interesantes if clave in ajustes}
+    params = {clave: ajustes[clave] for clave in interesantes if clave in ajustes}
+    params.update(run_params(state))
+    return params
 
 
 # ── Lectura de la traza (SPEC-014 / T9.2 / AC2) ─────────────────────────────

@@ -288,6 +288,23 @@ async def project_swarm_state(session: AsyncSession, project_id: UUID) -> dict:
     }
 
 
+def _execution_outcome(steps) -> dict:
+    """Los reintentos conservan sus errores, pero decide el último intento del paso."""
+    latest = {}
+    for step in steps:
+        latest[(step.agent_name, step.step_index, step.iteration)] = step
+    failures = [step for step in steps if step.status not in {"completed", "running"}]
+    unresolved = any(step.status not in {"completed", "running"} for step in latest.values())
+    running = any(step.status == "running" for step in latest.values())
+    recovered = sum(
+        latest[(step.agent_name, step.step_index, step.iteration)].status == "completed"
+        for step in failures
+    )
+    status = "running" if running else ("failed" if unresolved else "completed")
+    return {"status": status, "failed": status == "failed",
+            "failed_steps": len(failures), "recovered_failures": recovered}
+
+
 async def project_executions(session: AsyncSession, project_id: UUID) -> list[dict]:
     """Las ejecuciones del proyecto, una por pasada del pipeline (SPEC-029 / T17.1 / AC1).
 
@@ -338,12 +355,12 @@ async def project_executions(session: AsyncSession, project_id: UUID) -> list[di
 
             tokens_in = sum(p.tokens_in or 0 for p in grupo)
             tokens_out = sum(p.tokens_out or 0 for p in grupo)
-            fallidos = [p for p in grupo if p.status not in {"completed", "running"}]
-            ejecutando = any(p.status == "running" for p in grupo)
+            outcome = _execution_outcome(grupo)
 
             ejecuciones.append({
                 # Estable entre peticiones: sirve de clave en la tabla del cliente.
                 "execution_id": f"{article_id}:{numero}",
+                "trace_id": str(grupo[0].id),
                 "article_id": str(article_id),
                 #: Qué pasada es, y de cuántas: «2 de 3» es lo que distingue una
                 #: reejecución de un retroceso inexplicado.
@@ -361,8 +378,7 @@ async def project_executions(session: AsyncSession, project_id: UUID) -> list[di
                 "latency_ms": round(sum(p.latency_ms or 0.0 for p in grupo), 1),
                 #: Vueltas del bucle revisor→redactor (0 = aprobado a la primera).
                 "loops": max((p.iteration or 0) for p in grupo),
-                "failed": bool(fallidos),
-                "status": "failed" if fallidos else ("running" if ejecutando else "completed"),
+                **outcome,
             })
 
     # La más reciente primero: es la que explica el texto actual del artículo.

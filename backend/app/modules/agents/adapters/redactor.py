@@ -5,6 +5,8 @@ from typing import Dict, Any
 from app.core.config import settings
 from app.platform.capabilities.binding import provider
 from app.platform.project_context import collection_for_state
+from app.platform.progress import SectionTracker
+from app.platform.run_config import notes_as_data, sanitize_notes
 from app.platform.capabilities.rag import semantic_search_context, LIBRARY_AGENT
 from app.platform.llm import (
     call_llm, call_llm_stream, resolve_agent_model, resolve_agent_temperature,
@@ -162,6 +164,15 @@ async def run_redactor(state: Dict[str, Any]) -> Dict[str, Any]:
 
     # Build context section from user-provided description and outline
     context_parts = []
+
+    # Notas del enjambre (SPEC-030 / T18.3 / AC3): van las primeras y, a
+    # diferencia del «enfoque» de abajo, **delimitadas como dato**. Es texto libre
+    # que acaba en el prompt, así que se acota y se declara qué es, para que un
+    # «ignora lo anterior» quede dentro del bloque y se lea como contenido.
+    notas, _recortadas = sanitize_notes(state.get("swarm_notes"))
+    if notas:
+        context_parts.append(notes_as_data(notas, language))
+
     if context_description:
         if language == "es":
             context_parts.append(f"### Enfoque / Instrucciones adicionales del autor:\n{context_description}")
@@ -270,6 +281,10 @@ async def run_redactor(state: Dict[str, Any]) -> Dict[str, Any]:
     log(f"⏳ Generando borrador (timeout: {timeout:.0f}s)...")
 
     emit_token = state.get("_emit_token") or (lambda t: None)
+    # Quien no conoce sus unidades no emite: el que falta aquí deja la
+    # interfaz en indeterminado, que es la respuesta honesta (AC5).
+    emit_progress = state.get("_emit_progress") or (lambda c, t, u="": None)
+    seguimiento = SectionTracker(language)
 
     try:
         draft_chunks = []
@@ -280,6 +295,12 @@ async def run_redactor(state: Dict[str, Any]) -> Dict[str, Any]:
         ):
             emit_token(token)
             draft_chunks.append(token)
+            # Progreso por unidades reales (T18.4 / AC5): cuando aparece el
+            # encabezado de una sección, esa sección ha empezado. Es un hecho
+            # observado, no un porcentaje derivado de tokens ni de tiempo.
+            nueva = seguimiento.feed(token)
+            if nueva is not None:
+                emit_progress(nueva, seguimiento.total, "secciones")
         draft_text = "".join(draft_chunks)
 
         if not draft_text:

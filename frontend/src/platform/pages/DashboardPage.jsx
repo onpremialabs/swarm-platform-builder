@@ -10,6 +10,7 @@ import {
 import { useAuthStore } from '../store/authStore';
 import { useProjectStore } from '../store/projectStore';
 import api from '../api/client';
+import RunningBar from '../components/RunningBar';
 import toast from 'react-hot-toast';
 
 const USE_CASE_ICON = {
@@ -293,6 +294,9 @@ export default function DashboardPage() {
 
         {/* Page content */}
         <Outlet />
+        {/* Vive aquí, por encima del Outlet, para que cambiar de pestaña no lo
+            desmonte: ese es el punto de que sea persistente (T18.7). */}
+        <RunningBar />
       </div>
     </div>
   );
