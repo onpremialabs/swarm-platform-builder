@@ -109,6 +109,22 @@ T9.1. Quien conoce el dato lo anota; un proceso posterior que recorriera la tabl
 para hashearla sería un segundo sitio que puede quedarse atrás, y una cadena que se
 calcula tarde no distingue «nadie lo ha tocado» de «aún no lo he mirado».
 
+**Qué entra en el canónico, y qué no.** Entran los campos de contenido del paso.
+Quedan fuera `id` y `run_id` —claves sustitutas, no contenido—, `correlation_id`
+—sirve para cruzar logs y puede faltar— y `created_at`, que no sobrevive de forma
+fiable al viaje de ida y vuelta por SQLite: precisión y zona horaria varían, y una
+cadena que da falsos positivos por eso entrena a ignorar la alarma, que es el peor
+resultado posible de un sello de integridad. La **posición** de cada paso sigue
+protegida, pero por el encadenado (`prev_hash`): es lo que detecta borrados e
+inserciones, y no depende de ninguna marca de tiempo. La lista de campos es
+explícita y no «todas las columnas», de modo que añadir una a la tabla no invalide
+en silencio las cadenas ya escritas; ampliarla obliga a subir `CANON_VERSION`.
+
+**Las filas anteriores a T17.2 no tienen hash, y eso no es manipulación.** La
+verificación las cuenta aparte, como «sin cadena». Presentarlas como íntegras sería
+mentir y presentarlas como rotas, alarmismo: lo que hay es ausencia de prueba, y la
+interfaz lo dice con esas palabras.
+
 **La agrupación (AC7)** reutiliza `group_executions` de T9.2 en vez de inventar
 otra: un artículo reejecutado tiene sus ejecuciones en la misma tabla y se separan
 porque `step_index` vuelve a 0. Si la verificación usara otro criterio, dos

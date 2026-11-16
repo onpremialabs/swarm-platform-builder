@@ -963,6 +963,173 @@ async def get_article_agent_runs(
     )
 
 
+#: Esquema de la exportación JSONL (T17.4 / AC3), **versionado**: un fichero
+#: exportado hoy tiene que seguir siendo legible cuando la tabla gane columnas.
+#: Es una lista explícita y no «todas las columnas» para que añadir una al modelo
+#: no cambie el formato sin que nadie lo decida.
+EXPORT_SCHEMA_VERSION = 1
+EXPORT_SCHEMA = (
+    "id", "run_id", "article_id", "project_id", "correlation_id",
+    "agent_name", "step_index", "iteration", "status", "error_message",
+    "model", "params", "input_digest", "output_text", "rag_sources",
+    "tokens_in", "tokens_out", "latency_ms", "decision", "rationale",
+    "created_at", "content_hash", "prev_hash", "hash_version",
+)
+
+
+async def _articulo_y_pasos(article_id, token_data, project, session):
+    """Autoriza el artículo y devuelve él y sus pasos, en orden cronológico.
+
+    Lo comparten `/explain`, `/integrity` y `/export.jsonl`. Es el control de
+    acceso: tenerlo escrito una vez y no tres es lo que evita que una de las
+    copias se quede sin la comprobación de proyecto cuando alguien toque otra.
+    """
+    res = await session.execute(select(ArticleModel).where(ArticleModel.id == article_id))
+    article = res.scalars().first()
+    if not article:
+        raise HTTPException(status_code=404, detail="Article not found")
+    if str(article.author_id) != token_data["user_id"] and token_data.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Forbidden: You do not own this article")
+
+    # Con proyecto activo, el artículo tiene que ser de ese proyecto. 404 y no
+    # 403: la respuesta no debe distinguir «existe pero es de otro proyecto» de
+    # «no existe». Un artículo heredado (sin proyecto) no se bloquea por esto.
+    if project is not None and article.project_id is not None:
+        if article.project_id != project.project_id:
+            raise HTTPException(status_code=404, detail="Article not found")
+
+    # Cronológico: es el orden en el que ocurrieron. `step_index` desempata dos
+    # pasos con la misma marca de tiempo, que en SQLite es posible.
+    pasos = list((await session.execute(
+        select(AgentRunStepModel)
+        .where(AgentRunStepModel.article_id == article_id)
+        .order_by(AgentRunStepModel.created_at.asc(), AgentRunStepModel.step_index.asc())
+    )).scalars().all())
+    return article, pasos
+
+
+@router.get("/{article_id}/integrity")
+async def verify_article_integrity(
+    article_id: UUID,
+    token_data=Depends(get_current_user),
+    project: ProjectContext | None = Depends(get_optional_project_context),
+    session: AsyncSession = Depends(get_session),
+):
+    """Verifica la cadena de integridad del artículo (SPEC-029 / T17.3 / AC5).
+
+    Cada ejecución se verifica **por separado**, con la agrupación de
+    `group_executions`: un artículo reejecutado tiene varias cadenas en la misma
+    tabla, y verificarlas juntas las leería como una sola rota (AC7).
+
+    El informe incluye `scope`, que es la mitad honesta de un sello de
+    integridad (AC6): la cadena detecta que **esta tabla** fue alterada después
+    de escribirse, y no protege frente a quien pueda reescribir la base entera
+    —incluidos los propios hashes—. Viaja en la respuesta para que la interfaz
+    no pueda enseñarlo sin enseñar también sus límites.
+    """
+    _, pasos = await _articulo_y_pasos(article_id, token_data, project, session)
+    ejecuciones = explainability.group_executions(pasos)
+
+    informes = []
+    for numero, grupo in enumerate(ejecuciones, start=1):
+        informe = explainability.verify_chain(grupo)
+        informe["run_number"] = numero
+        informe["runs_total"] = len(ejecuciones)
+        informes.append(informe)
+
+    # Mismo criterio que por ejecución: «rota» manda, y si no hay ni una cadena
+    # que comprobar se dice eso y no «rota» (ver `verify_chain`).
+    if any(i["status"] == "rota" for i in informes):
+        estado = "rota"
+    elif informes and all(i["status"] == "sin_cadena" for i in informes):
+        estado = "sin_cadena"
+    elif informes:
+        estado = "intacta"
+    else:
+        estado = "sin_cadena"
+
+    return {
+        "article_id": str(article_id),
+        "executions": informes,
+        "status": estado,
+        "intact": estado == "intacta",
+        "available": bool(pasos),
+        "scope": {
+            "guarantees": (
+                "Detecta que un paso de la traza se haya modificado, borrado o "
+                "insertado después de escribirse, y dice cuál y en qué posición."
+            ),
+            "does_not_guarantee": (
+                "No protege frente a quien pueda reescribir la base entera: con "
+                "acceso de escritura se pueden recalcular los hashes y presentar "
+                "una cadena coherente. No hay notarización externa ni firma: la "
+                "cadena vive en la misma base que los datos que sella."
+            ),
+        },
+    }
+
+
+@router.get("/{article_id}/export.jsonl")
+async def export_article_trace(
+    article_id: UUID,
+    scope: str = "last",
+    token_data=Depends(get_current_user),
+    project: ProjectContext | None = Depends(get_optional_project_context),
+    session: AsyncSession = Depends(get_session),
+):
+    """Exporta la traza en JSONL (SPEC-029 / T17.4 / AC3).
+
+    Una línea por paso, con los hashes incluidos: eso es lo que hace la cadena
+    verificable **fuera** de la plataforma, que es lo que la vuelve útil aunque
+    no haya notarización. La primera línea es una cabecera con el esquema y su
+    versión, para que un fichero guardado siga diciendo de qué habla.
+
+    **No se vuelca nada que la traza no guarde ya.** `input_digest` es un
+    resumen a propósito (`MAX_TEXTO`) y la exportación no lo convierte en un
+    segundo almacén del artículo: el cuerpo completo vive en `articles` y se rige
+    por su propia retención.
+    """
+    if scope not in ("last", "all"):
+        raise HTTPException(status_code=400, detail="scope debe ser 'last' o 'all'")
+
+    _, pasos = await _articulo_y_pasos(article_id, token_data, project, session)
+    ejecuciones = explainability.group_executions(pasos)
+    visibles = ejecuciones[-1] if (scope == "last" and ejecuciones) else pasos
+
+    def lineas():
+        yield json.dumps({
+            "type": "header",
+            "schema": EXPORT_SCHEMA,
+            "schema_version": EXPORT_SCHEMA_VERSION,
+            "canon_version": explainability.CANON_VERSION,
+            "article_id": str(article_id),
+            "scope": scope,
+            "executions": len(ejecuciones),
+            "steps": len(visibles),
+            "note": (
+                "input_digest es un resumen, no el prompt completo. La "
+                "exportación respeta la retención de la traza."
+            ),
+        }, ensure_ascii=False) + "\n"
+
+        for paso in visibles:
+            fila = {campo: getattr(paso, campo, None) for campo in EXPORT_SCHEMA}
+            for clave in ("id", "article_id", "project_id", "run_id"):
+                if fila.get(clave) is not None:
+                    fila[clave] = str(fila[clave])
+            if fila.get("created_at") is not None:
+                fila["created_at"] = fila["created_at"].isoformat()
+            yield json.dumps(fila, ensure_ascii=False, default=str) + "\n"
+
+    return StreamingResponse(
+        lineas(),
+        media_type="application/x-ndjson",
+        headers={
+            "Content-Disposition": f'attachment; filename="traza-{article_id}.jsonl"',
+        },
+    )
+
+
 @router.get("/{article_id}/explain", response_model=ArticleExplainResponse)
 async def explain_article_run(
     article_id: UUID,
@@ -989,31 +1156,9 @@ async def explain_article_run(
     # la traza no dice nada que su dueño no pueda ver ya. Deliberadamente **no**
     # se exige `X-Project-Id`: los endpoints de artículo no la piden en este
     # repo, y volverla obligatoria solo aquí es una trampa para el siguiente
-    # cliente. Pero si viene, se comprueba —ver más abajo—, que es lo que hace
-    # `get_optional_project_context`: tolerar la ausencia no es tolerar que
+    # cliente. Pero si viene, se comprueba: tolerar la ausencia no es tolerar que
     # alguien apunte a un proyecto que no es suyo.
-    res = await session.execute(select(ArticleModel).where(ArticleModel.id == article_id))
-    article = res.scalars().first()
-    if not article:
-        raise HTTPException(status_code=404, detail="Article not found")
-    if str(article.author_id) != token_data["user_id"] and token_data.get("role") != "admin":
-        raise HTTPException(status_code=403, detail="Forbidden: You do not own this article")
-
-    # Con proyecto activo, el artículo tiene que ser de ese proyecto. 404 y no
-    # 403: la respuesta no debe distinguir «existe pero es de otro proyecto» de
-    # «no existe». Un artículo heredado (sin proyecto) no se bloquea por esto.
-    if project is not None and article.project_id is not None:
-        if article.project_id != project.project_id:
-            raise HTTPException(status_code=404, detail="Article not found")
-
-    # Cronológico: es el orden en el que ocurrieron. `step_index` desempata dos
-    # pasos con la misma marca de tiempo, que en SQLite es posible.
-    stmt = (
-        select(AgentRunStepModel)
-        .where(AgentRunStepModel.article_id == article_id)
-        .order_by(AgentRunStepModel.created_at.asc(), AgentRunStepModel.step_index.asc())
-    )
-    pasos = list((await session.execute(stmt)).scalars().all())
+    article, pasos = await _articulo_y_pasos(article_id, token_data, project, session)
 
     ejecuciones = explainability.group_executions(pasos)
     visibles = ejecuciones[-1] if (scope == "last" and ejecuciones) else pasos

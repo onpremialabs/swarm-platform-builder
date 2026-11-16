@@ -28,6 +28,29 @@ export const agentsApi = {
   getExplain: (articleId, scope = 'last') =>
     api.get(`/api/v1/agents/${articleId}/explain`, { params: { scope } }).then(r => r.data),
 
+  // Verificación de la cadena de integridad (SPEC-029 / T17.3). La respuesta
+  // trae `scope`, que dice qué garantiza la cadena **y qué no**: la interfaz lo
+  // enseña desde ahí para que no pueda mostrar el sello sin sus límites (AC6).
+  getIntegrity: (articleId) =>
+    api.get(`/api/v1/agents/${articleId}/integrity`).then(r => r.data),
+
+  // Descarga del JSONL (SPEC-029 / T17.4). Va por axios y no por navegación
+  // directa: el endpoint pide Bearer y `X-Project-Id`, y un <a href> no los
+  // lleva. Se descarga como blob y se guarda desde el cliente.
+  downloadExport: async (articleId, scope = 'last') => {
+    const r = await api.get(`/api/v1/agents/${articleId}/export.jsonl`, {
+      params: { scope }, responseType: 'blob',
+    });
+    const url = URL.createObjectURL(r.data);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `traza-${articleId}.jsonl`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  },
+
   // Agent definitions
   getDefinitions: () =>
     api.get('/api/v1/agents/definitions').then(r => r.data),

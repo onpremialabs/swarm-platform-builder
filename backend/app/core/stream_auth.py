@@ -51,6 +51,40 @@ async def consume_ticket(ticket: str, article_id: str) -> str | None:
     return datos.get("user_id")
 
 
+async def issue_project_ticket(user_id: str, project_id: str,
+                               ttl_seconds: int = DEFAULT_TTL_SECONDS) -> str:
+    """Ticket para el log en vivo de un proyecto (SPEC-029 / T17.5 / AC2).
+
+    Hermano de `issue_ticket` y no un parámetro suyo: el ticket de artículo ata
+    a un artículo y este a un proyecto, y mezclarlos abriría la puerta a canjear
+    uno donde vale el otro. Dos funciones con dos comprobaciones distintas es más
+    difícil de confundir que una con un modo.
+    """
+    ticket = secrets.token_urlsafe(32)
+    await get_bus().store_ticket(
+        ticket,
+        {"user_id": str(user_id), "project_id": str(project_id)},
+        ttl_seconds,
+    )
+    return ticket
+
+
+async def consume_project_ticket(ticket: str, project_id: str) -> str | None:
+    """Devolver el `user_id` atado si el ticket vale para *project_id*.
+
+    Un ticket de artículo no sirve aquí: no lleva `project_id`, así que la
+    comparación falla y se rechaza.
+    """
+    if not ticket:
+        return None
+    datos = await get_bus().take_ticket(ticket)
+    if datos is None:
+        return None
+    if datos.get("project_id") != str(project_id):
+        return None
+    return datos.get("user_id")
+
+
 async def reset_stream_tickets() -> None:
     """Vaciar los tickets pendientes (lo usan los tests para aislar casos)."""
     await get_bus().clear_tickets()

@@ -208,6 +208,26 @@ async def log_run_end(
         logger.error(f"Error logging run end for run {run_id}: {str(e)}")
 
 
+async def _hash_anterior(session, article_id, step_index: int) -> str | None:
+    """Hash del paso anterior de la **misma** ejecución (SPEC-029 / T17.2 / AC4).
+
+    `step_index == 0` abre ejecución —el mismo criterio que `group_executions`—,
+    así que ancla en vez de enlazar con la ejecución previa del artículo. Una
+    reanudación no reinicia el índice y por tanto continúa la cadena, que es
+    justo lo que AC7 pide para no dar falso positivo.
+    """
+    if step_index == 0 or article_id is None:
+        return None
+    fila = (await session.execute(
+        select(AgentRunStepModel.content_hash)
+        .where(AgentRunStepModel.article_id == article_id)
+        .order_by(AgentRunStepModel.created_at.desc(),
+                  AgentRunStepModel.step_index.desc())
+        .limit(1)
+    )).first()
+    return fila[0] if fila else None
+
+
 async def log_run_step(**campos) -> None:
     """Persiste un paso de la traza de explicabilidad (SPEC-014 / T9.1 / AC1).
 
@@ -215,9 +235,19 @@ async def log_run_step(**campos) -> None:
     guardarla no puede tumbar el pipeline que describe. Se registra en el log —a
     nivel WARNING, no en silencio— porque una traza que se pierde sin avisar es
     peor que no tenerla: da confianza infundada.
+
+    Aquí se sella también la cadena de integridad (T17.2): al cerrar el paso, que
+    es cuando se conoce su contenido. Un proceso posterior que recorriera la tabla
+    para hashearla sería un segundo sitio que puede quedarse atrás, y una cadena
+    calculada tarde no distingue «nadie lo ha tocado» de «aún no lo he mirado».
     """
     try:
         async with AsyncSessionLocal() as session:
+            prev = await _hash_anterior(
+                session, campos.get("article_id"), campos.get("step_index") or 0)
+            campos["prev_hash"] = prev
+            campos["hash_version"] = explainability.CANON_VERSION
+            campos["content_hash"] = explainability.compute_hash(campos, prev)
             session.add(AgentRunStepModel(**campos))
             await session.commit()
     except Exception as error:
@@ -559,6 +589,10 @@ class Orchestrator:
             active_tasks[article_id] = current_task
             bus.register_cancel_handler(article_id, current_task.cancel)
         await bus.mark_running(article_id)
+        # Log en vivo del proyecto (SPEC-029 / T17.5 / AC2): sin este vínculo los
+        # eventos del artículo no se encaminan a ningún flujo de proyecto. Aquí
+        # y no en el endpoint porque es donde se conoce el proyecto de verdad.
+        bus.bind_project(article_id, initial_state.get("project_id"))
 
         # Span raíz de la ejecución (SPEC-019/T5.3/AC3): los de cada agente cuelgan
         # de este, así que la traza enseña dónde se fue el tiempo dentro del

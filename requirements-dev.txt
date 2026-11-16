@@ -7,3 +7,11 @@
 # (grafo en graphify-out/, ignorado por git). Skill de Claude Code: /graphify.
 # CLI/import: `graphify`.  Web: https://graphify.net
 graphifyy>=0.9.11
+
+# fakeredis — implementación del protocolo Redis en memoria, para probar el
+# camino de `RedisBus` (log en vivo por proyecto, SPEC-029/T17.5) sin levantar un
+# servidor. Ese camino es el de varios workers: un error de encaminamiento ahí no
+# se ve en desarrollo, donde corre `InProcessBus`, y sí en producción.
+# `tests/test_project_log_stream_redis.py` se **salta** si no está instalado, así
+# que la CI —que no instala este archivo— sigue pasando.
+fakeredis>=2.26

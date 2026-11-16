@@ -81,6 +81,11 @@ graphify-out/
 *.db-journal
 *.db-wal
 *.db-shm
+# Copias de respaldo: `*.db` no las cubre porque el sufijo va **después** de la
+# extensión (`dev.db.bak-...`), y una copia de la base trae los mismos datos que
+# la base. Se coló una así al resellar una migración.
+*.db.*
+*.sqlite.*
 
 # Claude Code: configuración personal (puede contener secretos/credenciales).
 # La configuración compartida del equipo va en .claude/settings.json (versionada).
