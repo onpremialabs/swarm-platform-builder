@@ -14,6 +14,7 @@ from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.core.logging_config import request_id_ctx
 from app.platform import explainability
+from app.platform import llm as llm_dispatcher
 from app.platform.llm import TransientLLMError, resolve_agent_model
 from app.platform.project_context import ProjectContext
 from app.models import AgentRunModel, AgentRunStepModel, ArticleModel, ArticleStatus
@@ -227,6 +228,44 @@ async def log_run_step(**campos) -> None:
         )
 
 
+#: Cuánto espera la cancelación a que Ollama confirme la descarga (#509/AC3). El
+#: propio `unload_model` ya corta antes; esto es el techo por si se quedara colgado.
+UNLOAD_WAIT_SECONDS = 6.0
+
+
+async def _release_model_after_cancel(agent_name: str, model: Optional[str]) -> None:
+    """Pide a Ollama que suelte el modelo del agente cancelado (#509).
+
+    Mejor-esfuerzo (AC3): liberar memoria no puede impedir que la cancelación se
+    complete, así que cualquier fallo se registra con su motivo y se sigue. Sin
+    modelo (agente sin LLM, como el Publicador) no hay nada que liberar; con un
+    proveedor remoto `unload_model` ya no hace nada (AC4).
+
+    La descarga corre en una **tarea aparte**: la actual está cancelada y su
+    contador de cancelaciones pendientes puede confundir a los temporizadores del
+    cliente HTTP. `shield` hace que, si llega una segunda cancelación mientras se
+    espera, la petición de descarga termine igualmente.
+    """
+    if not model:
+        return
+    try:
+        descarga = asyncio.ensure_future(llm_dispatcher.unload_model(model))
+        liberado = await asyncio.wait_for(asyncio.shield(descarga), UNLOAD_WAIT_SECONDS)
+    except asyncio.TimeoutError:
+        logger.warning(
+            "Cancelación de '%s': Ollama no confirmó la descarga de '%s' en %.0fs",
+            agent_name, model, UNLOAD_WAIT_SECONDS,
+        )
+        return
+    except Exception as error:  # noqa: BLE001 — mejor-esfuerzo
+        logger.warning(
+            "Cancelación de '%s': no se pudo descargar '%s': %s", agent_name, model, error,
+        )
+        return
+    if liberado:
+        logger.info("Cancelación de '%s': modelo '%s' liberado", agent_name, model)
+
+
 def make_node_wrapper(agent_name: str, run_fn):
     """
     Return an async LangGraph node function that wraps run_fn with logging,
@@ -351,6 +390,24 @@ def make_node_wrapper(agent_name: str, run_fn):
 
             res["current_step_index"] = state.get("current_step_index", 0) + 1
             return res
+        except asyncio.CancelledError:
+            # Cancelación pedida por la persona (#509). Lo primero es liberar el
+            # modelo: el `keep_alive=0` que manda cada agente se aplica al acabar la
+            # petición, y la que se acaba de abandonar a mitad de stream no acaba.
+            await _release_model_after_cancel(agent_name, _paso_comun["model"])
+            await log_run_end(run_id, {}, "cancelled", error_message="Cancelado por el usuario")
+            # AC1 de T9.1: la traza existe también cuando el paso «se cancela».
+            await log_run_step(
+                **_paso_comun,
+                status="cancelled",
+                error_message="Cancelado por el usuario",
+                rag_sources=_acumulador.rag_sources,
+                tokens_in=_acumulador.tokens_in,
+                tokens_out=_acumulador.tokens_out,
+                latency_ms=(time.perf_counter() - _inicio_agente) * 1000,
+            )
+            _estado_agente = "cancelled"
+            raise
         except Exception as e:
             logger.error(f"Error executing agent {agent_name}: {str(e)}")
             await log_run_end(run_id, {}, "failed", error_message=str(e))
