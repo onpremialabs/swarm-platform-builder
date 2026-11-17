@@ -254,7 +254,14 @@ async def test_reejecucion_aparece_como_dos_ejecuciones(dos_proyectos):
         assert resp.status_code == 200, resp.text
         body = resp.json()
 
+        history = await ac.get(f"/api/v1/agents/{a1.id}/history", headers=headers)
+        assert history.status_code == 200, history.text
+        history_ids = {
+            run["run_number"]: run["id"] for run in history.json()["executions"]
+        }
+
     del_articulo = [e for e in body["executions"] if e["article_id"] == str(a1.id)]
+    assert {row["run_number"]: row["trace_id"] for row in del_articulo} == history_ids
     assert len(del_articulo) == 2, "la reejecución se fundió con la primera pasada"
     assert {e["run_number"] for e in del_articulo} == {1, 2}
     assert all(e["runs_total"] == 2 for e in del_articulo)
@@ -268,6 +275,45 @@ async def test_reejecucion_aparece_como_dos_ejecuciones(dos_proyectos):
     # La magnitud de la portada cuenta pasadas, no filas de agent_runs (una por paso).
     assert body["executions_total"] == 2
     assert body["steps_total"] == 3
+
+
+@pytest.mark.asyncio
+async def test_execution_started_before_window_still_links_to_history(dos_proyectos):
+    from app.main import app
+    from app.platform.summary import WINDOW_DAYS
+
+    project = dos_proyectos["p1"]
+    article = dos_proyectos["a1"]
+    boundary = datetime.now(timezone.utc) - timedelta(days=WINDOW_DAYS)
+    async with AsyncSessionLocal() as session:
+        spanning = ArticleModel(
+            title="Cruza la ventana", author_id=article.author_id, project_id=project.id
+        )
+        session.add(spanning)
+        await session.flush()
+        article_id = spanning.id
+        session.add_all([
+            AgentRunStepModel(
+                article_id=article_id, project_id=project.id, agent_name=agent,
+                step_index=index, status="completed", created_at=boundary + offset,
+            )
+            for index, (agent, offset) in enumerate([
+                ("investigador", -timedelta(seconds=30)),
+                ("redactor", timedelta(seconds=30)),
+            ])
+        ])
+        await session.commit()
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        headers = await _token_y_cabeceras(client, project.id)
+        response = await client.get("/api/v1/dashboard/summary", headers=headers)
+        assert response.status_code == 200, response.text
+        row = next(run for run in response.json()["executions"] if run["article_id"] == str(article_id))
+        detail = await client.get(
+            f"/api/v1/agents/{article_id}/history/{row['trace_id']}", headers=headers
+        )
+        assert detail.status_code == 200, detail.text
+        assert row["steps"] == len(detail.json()["steps"]) == 2
 
 
 async def _token_y_cabeceras(ac, project_id):
