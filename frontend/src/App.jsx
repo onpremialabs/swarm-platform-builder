@@ -17,6 +17,7 @@ import ConfigPage        from './platform/pages/ConfigPage';
 import DocumentsPage     from './platform/pages/DocumentsPage';
 import ExecutionPage     from './projects/alejandria-magazine/pages/ExecutionPage';
 import TraceabilityPage    from './projects/alejandria-magazine/pages/TraceabilityPage';
+import ArticleTraceHistoryPage from './projects/alejandria-magazine/pages/ArticleTraceHistoryPage';
 import MetricsDashboardPage from './projects/alejandria-magazine/pages/MetricsDashboardPage';
 import UsersPage         from './platform/pages/UsersPage';
 import MagazinePage      from './projects/alejandria-magazine/pages/MagazinePage';
@@ -170,6 +171,7 @@ export default function App() {
             <Route path="agents"        element={<AgentsPage />} />
             <Route path="articles"            element={<ArticlesPage />} />
             <Route path="articles/:id"        element={<ArticleDetailPage />} />
+            <Route path="articles/:id/observability" element={<ArticleTraceHistoryPage />} />
             <Route path="execution/:articleId" element={<TraceabilityPage />} />
             <Route path="traceability"         element={<MetricsDashboardPage />} />
             <Route path="documents"           element={<DocumentsPage />} />

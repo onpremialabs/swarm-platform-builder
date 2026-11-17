@@ -288,6 +288,23 @@ async def project_swarm_state(session: AsyncSession, project_id: UUID) -> dict:
     }
 
 
+def _execution_outcome(steps) -> dict:
+    """Los reintentos conservan sus errores, pero decide el último intento del paso."""
+    latest = {}
+    for step in steps:
+        latest[(step.agent_name, step.step_index, step.iteration)] = step
+    failures = [step for step in steps if step.status not in {"completed", "running"}]
+    unresolved = any(step.status not in {"completed", "running"} for step in latest.values())
+    running = any(step.status == "running" for step in latest.values())
+    recovered = sum(
+        latest[(step.agent_name, step.step_index, step.iteration)].status == "completed"
+        for step in failures
+    )
+    status = "running" if running else ("failed" if unresolved else "completed")
+    return {"status": status, "failed": status == "failed",
+            "failed_steps": len(failures), "recovered_failures": recovered}
+
+
 async def project_executions(session: AsyncSession, project_id: UUID) -> list[dict]:
     """Las ejecuciones del proyecto, una por pasada del pipeline (SPEC-029 / T17.1 / AC1).
 
@@ -301,17 +318,21 @@ async def project_executions(session: AsyncSession, project_id: UUID) -> list[di
     paso y no por ejecución, ni por ``correlation_id``, que puede faltar.
     """
     since = datetime.now(timezone.utc) - timedelta(days=WINDOW_DAYS)
-
+    recent_articles = select(AgentRunStepModel.article_id).where(
+        AgentRunStepModel.project_id == project_id,
+        AgentRunStepModel.created_at >= since,
+    )
+    # Agrupar antes de aplicar el corte mantiene el mismo ID que el historial
+    # si el primer paso de una pasada cae justo fuera de la ventana.
     rows = (await session.execute(
         select(AgentRunStepModel).where(
-            and_(
-                AgentRunStepModel.project_id == project_id,
-                AgentRunStepModel.created_at >= since,
-            )
+            AgentRunStepModel.project_id == project_id,
+            AgentRunStepModel.article_id.in_(recent_articles),
         ).order_by(
             AgentRunStepModel.article_id,
             AgentRunStepModel.created_at,
             AgentRunStepModel.step_index,
+            AgentRunStepModel.id,
         )
     )).scalars().all()
 
@@ -319,6 +340,11 @@ async def project_executions(session: AsyncSession, project_id: UUID) -> list[di
     for article_id, pasos in _por_articulo(rows).items():
         grupos = group_executions(pasos)
         for numero, grupo in enumerate(grupos, start=1):
+            ended_at = grupo[-1].created_at
+            if ended_at.tzinfo is None:
+                ended_at = ended_at.replace(tzinfo=timezone.utc)
+            if ended_at < since:
+                continue
             por_agente: dict[str, dict] = {}
             for p in grupo:
                 ag = por_agente.setdefault(p.agent_name, {
@@ -338,12 +364,12 @@ async def project_executions(session: AsyncSession, project_id: UUID) -> list[di
 
             tokens_in = sum(p.tokens_in or 0 for p in grupo)
             tokens_out = sum(p.tokens_out or 0 for p in grupo)
-            fallidos = [p for p in grupo if p.status not in {"completed", "running"}]
-            ejecutando = any(p.status == "running" for p in grupo)
+            outcome = _execution_outcome(grupo)
 
             ejecuciones.append({
                 # Estable entre peticiones: sirve de clave en la tabla del cliente.
                 "execution_id": f"{article_id}:{numero}",
+                "trace_id": str(grupo[0].id),
                 "article_id": str(article_id),
                 #: Qué pasada es, y de cuántas: «2 de 3» es lo que distingue una
                 #: reejecución de un retroceso inexplicado.
@@ -361,8 +387,7 @@ async def project_executions(session: AsyncSession, project_id: UUID) -> list[di
                 "latency_ms": round(sum(p.latency_ms or 0.0 for p in grupo), 1),
                 #: Vueltas del bucle revisor→redactor (0 = aprobado a la primera).
                 "loops": max((p.iteration or 0) for p in grupo),
-                "failed": bool(fallidos),
-                "status": "failed" if fallidos else ("running" if ejecutando else "completed"),
+                **outcome,
             })
 
     # La más reciente primero: es la que explica el texto actual del artículo.

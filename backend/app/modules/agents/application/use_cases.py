@@ -209,6 +209,27 @@ async def log_run_end(
         logger.error(f"Error logging run end for run {run_id}: {str(e)}")
 
 
+async def _hash_anterior(session, article_id, step_index: int) -> str | None:
+    """Hash del paso anterior de la **misma** ejecución (SPEC-029 / T17.2 / AC4).
+
+    `step_index == 0` abre ejecución —el mismo criterio que `group_executions`—,
+    así que ancla en vez de enlazar con la ejecución previa del artículo. Una
+    reanudación no reinicia el índice y por tanto continúa la cadena, que es
+    justo lo que AC7 pide para no dar falso positivo.
+    """
+    if step_index == 0 or article_id is None:
+        return None
+    fila = (await session.execute(
+        select(AgentRunStepModel.content_hash)
+        .where(AgentRunStepModel.article_id == article_id)
+        .order_by(AgentRunStepModel.created_at.desc(),
+                  AgentRunStepModel.step_index.desc(),
+                  AgentRunStepModel.id.desc())
+        .limit(1)
+    )).first()
+    return fila[0] if fila else None
+
+
 async def log_run_step(**campos) -> None:
     """Persiste un paso de la traza de explicabilidad (SPEC-014 / T9.1 / AC1).
 
@@ -219,6 +240,11 @@ async def log_run_step(**campos) -> None:
     """
     try:
         async with AsyncSessionLocal() as session:
+            prev = await _hash_anterior(
+                session, campos.get("article_id"), campos.get("step_index") or 0)
+            campos["prev_hash"] = prev
+            campos["hash_version"] = explainability.CANON_VERSION
+            campos["content_hash"] = explainability.compute_hash(campos, prev)
             session.add(AgentRunStepModel(**campos))
             await session.commit()
     except Exception as error:
