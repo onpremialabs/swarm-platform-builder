@@ -3,7 +3,7 @@
 ## 2026-11-22 14:40 — Completada ✅
 
 - **Rama:** `feat/528-investigador-solo-verificadas`
-- **PR:** ver el enlace en la PR (`Closes #528`) → `develop`
+- **PR:** #611 → `develop` (`Closes #528`)
 - **Spec/ADR:** [SPEC-034](../specs/SPEC-034-verified-literature-discovery-and-library.md) (AC5, AC7, Clarifications) · [ADR-0011](../adr/0011-publication-gate-fail-closed.md) · SPEC-032 (V09) · [edd-discipline](../governance/edd-discipline.md)
 - **Dependencias:** #526 (T22.3, modelos `library_documents`/`search_logs`) cerrada. T22.1/T22.2/T22.7 ya en `develop` (PR #608, #609, #610); T22.6 (umbral RAG, PR #603).
 
