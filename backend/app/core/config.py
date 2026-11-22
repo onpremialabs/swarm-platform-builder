@@ -49,6 +49,8 @@ class Settings(BaseModel):
     RETENTION_AGENT_RUN_STEPS_DAYS: int = 90
     #: Informes de la compuerta de publicación (SPEC-032/AC16): solo los de artículos no publicados.
     RETENTION_GATE_REPORTS_DAYS: int = 90
+    #: Registro de búsqueda bibliográfica (SPEC-034/AC6): el de artículos publicados no caduca.
+    RETENTION_SEARCH_LOGS_DAYS: int = 365
     RETENTION_CHECKPOINTS_DAYS: int = 30
     RETENTION_NOTIFICATIONS_DAYS: int = 90
     RETENTION_ORPHAN_ASSETS_DAYS: int = 30
@@ -259,6 +261,7 @@ def _build_settings() -> Settings:
         "RETENTION_AGENT_RUNS_DAYS": retention.get("agent_runs_days", 90),
         "RETENTION_AGENT_RUN_STEPS_DAYS": retention.get("agent_run_steps_days", 90),
         "RETENTION_GATE_REPORTS_DAYS": retention.get("gate_reports_days", 90),
+        "RETENTION_SEARCH_LOGS_DAYS": retention.get("search_logs_days", 365),
         "RETENTION_CHECKPOINTS_DAYS": retention.get("checkpoints_days", 30),
         "RETENTION_NOTIFICATIONS_DAYS": retention.get("notifications_days", 90),
         "RETENTION_ORPHAN_ASSETS_DAYS": retention.get("orphan_assets_days", 30),

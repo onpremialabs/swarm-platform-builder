@@ -31,7 +31,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Iterable
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -43,6 +43,7 @@ from app.models.checkpoint import FlowCheckpointModel
 from app.models.notification import NotificationModel
 from app.models.enums import ArticleStatus
 from app.models.publication_gate_report import PublicationGateReportModel
+from app.models.search_log import SearchLogModel
 
 logger = logging.getLogger(__name__)
 
@@ -176,6 +177,17 @@ async def purge(session: AsyncSession, *, apply: bool = False) -> PurgeResult:
          settings.RETENTION_GATE_REPORTS_DAYS,
          PublicationGateReportModel.article_id.notin_(
              select(ArticleModel.id).where(ArticleModel.status == ArticleStatus.PUBLISHED)
+         )),
+        # Registro de búsqueda bibliográfica (SPEC-034/AC6): es el apartado de métodos
+        # del artículo, así que el de un artículo publicado no caduca. Los demás
+        # (borradores, búsquedas sin artículo) sí.
+        ("search_logs", SearchLogModel, SearchLogModel.searched_at,
+         settings.RETENTION_SEARCH_LOGS_DAYS,
+         or_(
+             SearchLogModel.article_id.is_(None),
+             SearchLogModel.article_id.notin_(
+                 select(ArticleModel.id).where(ArticleModel.status == ArticleStatus.PUBLISHED)
+             ),
          )),
         # Solo las ya leídas: una notificación sin leer sigue siendo pendiente de
         # alguien, por vieja que sea.

@@ -60,6 +60,15 @@ from app.models.agent_run_step import (
     ExplainSource,
     ExplainTotals,
 )
+from app.models.library_document import (
+    CurationStatus,
+    LibraryDocumentModel,
+    SourceDB,
+    TextStatus,
+    VerificationMethod,
+    normalize_doi,
+)
+from app.models.search_log import SearchLogModel
 from app.models.publication_gate_report import (
     GateReportResponse,
     PublicationGateReportModel,
@@ -132,6 +141,14 @@ __all__ = [
     "AgentRunRequest",
     "AgentRunDetailResponse",
     "AgentRunListResponse",
+    # Biblioteca y registro de búsqueda (SPEC-034)
+    "LibraryDocumentModel",
+    "SearchLogModel",
+    "SourceDB",
+    "TextStatus",
+    "CurationStatus",
+    "VerificationMethod",
+    "normalize_doi",
     # Saved flow
     "SavedFlowModel",
     "CreateSavedFlowDTO",
