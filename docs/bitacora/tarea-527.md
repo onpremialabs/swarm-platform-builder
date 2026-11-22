@@ -3,7 +3,7 @@
 ## 2026-11-22 15:45 — Completada ✅
 
 - **Rama:** `feat/527-doi-pdfs-subidos`
-- **PR:** pendiente de número → `develop` (`Closes #527`)
+- **PR:** #612 → `develop` (`Closes #527`)
 - **Spec/ADR:** [SPEC-034](../specs/SPEC-034-verified-literature-discovery-and-library.md) (AC4) · [ADR-0011](../adr/0011-publication-gate-fail-closed.md)
 - **Dependencias:** #525 (T22.2, verificación) y #526 (T22.3, modelos) cerradas; #611 (T22.5) ya mergeada en `develop`.
 
