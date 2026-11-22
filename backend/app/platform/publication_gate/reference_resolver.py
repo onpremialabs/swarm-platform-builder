@@ -232,6 +232,38 @@ async def _default_fetch(url: str, *, params=None, headers=None, timeout: float 
     )
 
 
+def fetch_for(quien: str) -> Fetch:
+    """Un `fetch` que sale por la puerta de egress con la identidad `quien`.
+
+    La compuerta usa `_default_fetch` (`publication_gate`); otra capacidad que reutilice
+    el resolver (descubrimiento de literatura, SPEC-034/T22.2) pide el suyo para que la
+    allowlist y el registro de egress la distingan.
+    """
+    async def fetch(url: str, *, params=None, headers=None, timeout: float = 10.0):
+        from app.platform.egress import safe_get
+
+        return await safe_get(url, quien=quien, params=params, headers=headers, timeout=timeout)
+
+    return fetch
+
+
+@dataclass(frozen=True)
+class ResolverMetrics:
+    """A dónde van las métricas del resolver. Por defecto, las de la compuerta."""
+
+    reference: Callable[[str], None]
+    external_error: Callable[[str, str], None]
+
+
+#: Se resuelven al llamar (no al importar) para que un test o un despliegue que
+#: sustituya `observe_gate_*` en este módulo lo vea.
+GATE_METRICS = ResolverMetrics(
+    reference=lambda outcome: observe_gate_reference(outcome),
+    external_error=lambda provider, reason: observe_gate_external_error(provider, reason),
+)
+NO_METRICS = ResolverMetrics(reference=lambda outcome: None, external_error=lambda p, r: None)
+
+
 # ── Caché de positivos ──────────────────────────────────────────────────────
 
 
@@ -266,10 +298,13 @@ def _proveedor(url: str) -> str:
 
 
 class _Session:
-    def __init__(self, cfg: ResolverConfig, fetch: Fetch, sleep, clock, cache: PositiveCache):
+    def __init__(self, cfg: ResolverConfig, fetch: Fetch, sleep, clock, cache: PositiveCache,
+                 metrics: ResolverMetrics = GATE_METRICS,
+                 user_agent: str = "AlejandrIA-PublicationGate/1.0"):
         self.cfg, self.fetch, self.sleep, self.clock, self.cache = cfg, fetch, sleep, clock, cache
+        self.metrics = metrics
         self.started = clock()
-        ua = "AlejandrIA-PublicationGate/1.0"
+        ua = user_agent
         # El correo de contacto identifica al cliente ante Crossref/OpenAlex (su «polite
         # pool»). Sale de la configuración, nunca del repositorio.
         from app.core.config import settings
@@ -302,12 +337,12 @@ class _Session:
                     return data
                 # 429 y 5xx: transitorios; se reintenta con espera, sin insistir más.
                 ultimo = f"HTTP {r.status_code}"
-                observe_gate_external_error(_proveedor(url), "rate_limited" if r.status_code == 429 else "http_error")
+                self.metrics.external_error(_proveedor(url), "rate_limited" if r.status_code == 429 else "http_error")
             except Unavailable as exc:
                 ultimo = str(exc)
             except Exception as exc:  # red, TLS, tiempo agotado, egress bloqueado
                 ultimo = f"{type(exc).__name__}: {exc}"
-                observe_gate_external_error(_proveedor(url), "network")
+                self.metrics.external_error(_proveedor(url), "network")
             if intento < self.cfg.retries:
                 await self.sleep(self.cfg.backoff_s * (2**intento))
         raise Unavailable(ultimo)
@@ -316,7 +351,7 @@ class _Session:
 async def _lookup_doi(sess: _Session, doi: str) -> Optional[Canonical]:
     cached = sess.cache.get(doi)
     if cached:
-        observe_gate_reference("cache_hit")
+        sess.metrics.reference("cache_hit")
         return cached
     errors = []
     fetchers = (_crossref_doi, _openalex_doi)
@@ -414,6 +449,10 @@ class ReferenceOutcome:
     doi: str = ""
     provider: str = ""
     source: dict = field(default_factory=dict)
+    #: Causa estructurada para quien reutiliza el resolver (SPEC-034/T22.2); la compuerta
+    #: sigue usando `status` y `reason`. `not_found` | `mismatch` | `unavailable` |
+    #: `no_search_data` | `no_match` | `ambiguous`; vacío si pasó.
+    kind: str = ""
 
 
 async def _resolve_one(sess: _Session, src: dict) -> ReferenceOutcome:
@@ -424,20 +463,23 @@ async def _resolve_one(sess: _Session, src: dict) -> ReferenceOutcome:
             rec = await _lookup_doi(sess, doi)
             if rec is None:
                 return ReferenceOutcome(
-                    CriterionStatus.FAILED, f"el DOI {doi} no existe en Crossref ni en OpenAlex"
+                    CriterionStatus.FAILED, f"el DOI {doi} no existe en Crossref ni en OpenAlex",
+                    kind="not_found",
                 )
         else:
             title, authors = str(src.get("title", "")).strip(), str(src.get("authors", "")).strip()
             if not title or not authors:
                 return ReferenceOutcome(
-                    CriterionStatus.NOT_VERIFIED, "sin DOI ni título y autores con los que buscar"
+                    CriterionStatus.NOT_VERIFIED, "sin DOI ni título y autores con los que buscar",
+                    kind="no_search_data",
                 )
             cands = await _search(sess, title, authors)
             cands = [c for c in cands if not _compare({**src, "year": "", "journal": ""}, c, cfg)]
             dois = {c.doi for c in cands}
             if not dois:
                 return ReferenceOutcome(
-                    CriterionStatus.NOT_VERIFIED, "ninguna coincidencia fiable por título y autores"
+                    CriterionStatus.NOT_VERIFIED, "ninguna coincidencia fiable por título y autores",
+                    kind="no_match",
                 )
             if len(dois) > 1:
                 # Varios registros pasan por título y autores (una misma obra con dos DOI,
@@ -451,26 +493,50 @@ async def _resolve_one(sess: _Session, src: dict) -> ReferenceOutcome:
                 return ReferenceOutcome(
                     CriterionStatus.NOT_VERIFIED,
                     "varios candidatos por título y autores y ninguno coincide en año y revista",
+                    kind="no_match",
                 )
             if len(dois) > 1:
                 return ReferenceOutcome(
                     CriterionStatus.NOT_VERIFIED,
                     f"varios candidatos igualmente plausibles ({', '.join(sorted(dois)[:3])})",
+                    kind="ambiguous",
                 )
             rec = cands[0]
             sess.cache.put(rec.doi, rec)
     except Unavailable as exc:
-        return ReferenceOutcome(CriterionStatus.NOT_VERIFIED, f"servicio no disponible: {exc}")
+        return ReferenceOutcome(
+            CriterionStatus.NOT_VERIFIED, f"servicio no disponible: {exc}", kind="unavailable"
+        )
 
     issues = _compare(src, rec, cfg)
     if issues:
         return ReferenceOutcome(
-            CriterionStatus.FAILED, "; ".join(issues), rec.doi, rec.provider
+            CriterionStatus.FAILED, "; ".join(issues), rec.doi, rec.provider, kind="mismatch"
         )
     return ReferenceOutcome(
         CriterionStatus.PASSED, "existe y coincide", rec.doi, rec.provider,
         source=_enrich(src, rec),
     )
+
+
+def open_session(
+    cfg: ResolverConfig = ResolverConfig(),
+    *,
+    fetch: Fetch = _default_fetch,
+    cache: Optional[PositiveCache] = None,
+    sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+    clock: Callable[[], float] = time.monotonic,
+    metrics: ResolverMetrics = GATE_METRICS,
+    user_agent: str = "AlejandrIA-PublicationGate/1.0",
+) -> _Session:
+    """Sesión del resolver con la identidad de salida y las métricas de quien la pide."""
+    return _Session(cfg, fetch, sleep, clock, cache or PositiveCache(cfg.cache_ttl_days),
+                    metrics, user_agent)
+
+
+async def resolve_reference(sess: _Session, src: dict) -> ReferenceOutcome:
+    """Resuelve **una** referencia (DOI, o título y autores) con su causa estructurada."""
+    return await _resolve_one(sess, src)
 
 
 def _enrich(src: dict, rec: Canonical) -> dict:

@@ -126,6 +126,9 @@ HOSTS_LITERATURA = (
     "api.semanticscholar.org",
     "export.arxiv.org",
     "eutils.ncbi.nlm.nih.gov",
+    # La verificación de candidatos (SPEC-034/T22.2) reutiliza el resolver de la compuerta,
+    # y los DOI de arXiv (10.48550/...) los registra DataCite, no Crossref.
+    "api.datacite.org",
 )
 QUIEN_LITERATURA = "literature_discovery"
 
