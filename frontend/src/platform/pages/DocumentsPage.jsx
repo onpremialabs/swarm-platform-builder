@@ -5,6 +5,7 @@ import { mensajeDeCarga } from '../api/errors';
 import { Database, FileText, FolderOpen, Loader, RefreshCw, Trash2, Upload, X } from 'lucide-react';
 import { agentsApi } from '../api/agents';
 import toast from 'react-hot-toast';
+import LibraryRecordsPanel from '../components/library/LibraryRecordsPanel';
 
 /**
  * Global document library: shows all vectorised files stored in Qdrant (or local store)
@@ -187,6 +188,9 @@ export default function DocumentsPage() {
           </div>
         </div>
       )}
+
+      {/* ── Fichas bibliográficas: DOI, año, revista, verificación (SPEC-034 / T22.8) ── */}
+      <LibraryRecordsPanel />
 
       {/* ── Collections list ── */}
       <AsyncState

@@ -128,6 +128,24 @@ export const agentsApi = {
   deleteLibraryDocument: (collection, docId) =>
     api.delete(`/api/v1/agents/rag/library/${encodeURIComponent(collection)}/${docId}`).then(r => r.data),
 
+  // Fichas bibliograficas de la biblioteca (SPEC-034 / T22.8): DOI, año, revista,
+  // estado de verificacion y curacion de candidatos.
+  getLibraryRecords: () =>
+    api.get('/api/v1/agents/rag/library/records').then(r => r.data),
+
+  updateLibraryRecord: (id, changes) =>
+    api.patch(`/api/v1/agents/rag/library/records/${id}`, changes).then(r => r.data),
+
+  // status: 'candidate' | 'accepted' | 'discarded'
+  curateLibraryRecord: (id, status, mustCite = false) =>
+    api.post(`/api/v1/agents/rag/library/records/${id}/curation`, {
+      status, must_cite: mustCite,
+    }).then(r => r.data),
+
+  // Exactamente uno de { bibtex } o { dois } (texto).
+  importLibraryRecords: (payload) =>
+    api.post('/api/v1/agents/rag/library/import', payload).then(r => r.data),
+
   // Tool calling catalog
   getAvailableTools: () =>
     api.get('/api/v1/agents/tools').then(r => r.data),
