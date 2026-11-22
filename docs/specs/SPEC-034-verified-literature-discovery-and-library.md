@@ -28,6 +28,12 @@
 - Existe una búsqueda arXiv/Wikipedia en `capabilities/tools.py`
   (`ddg_search_with_urls`) que el Investigador no invoca y que no cubre OpenAlex,
   Crossref, Semantic Scholar ni PubMed.
+- **Hallazgo de T22.10 (2026-11-22):** el descubrimiento y la verificación
+  (`run_literature_search`, `verification.add_candidate_to_library`) existen como
+  librería y solo los ejecutan los tests: **ningún endpoint, nodo ni pantalla los
+  invoca**. El panel de candidatos queda vacío porque nada crea filas
+  `curation_status=candidate`, así que AC1 y AC3 no se pueden ejercer de punta a punta.
+  Además, el flag `LITERATURE_DISCOVERY_ENABLED` del apartado 7 no existe en el código.
 
 ## 2. Objetivos / No-objetivos
 
@@ -118,6 +124,18 @@
   *Then* se acepta con `text_status=abstract_only`, con etiqueta visible «solo
   resumen», y el autor puede subir el PDF después (pasa a `full_text`). Nunca se
   descargan PDFs de pago ni se eluden paywalls.
+- [ ] **AC12** — *Given* la persona autora en la pantalla Documentos del proyecto activo
+  *When* lanza una búsqueda con su consulta *Then* se ejecuta `run_literature_search`
+  sobre las bases de `research.sources` del proyecto (por defecto OpenAlex y Crossref),
+  se escribe su registro (AC6) y **cada candidato verificado cuyo DOI aún no está en la
+  biblioteca del proyecto** se guarda con `curation_status=candidate` y sus `doi`, `year`,
+  `journal`, `authors`, `source_db` y la URL de acceso abierto si la hay; aparece en el
+  panel «Candidatos». *And* un candidato no verificado nunca se guarda; un DOI ya presente
+  en la biblioteca (aceptado, candidato o descartado) no se vuelve a crear ni a ofrecer; y la
+  respuesta indica cuántos candidatos nuevos hubo y el estado de cada base (una base caída
+  o limitada no oculta a las demás). *And* con `LITERATURE_DISCOVERY_ENABLED` apagado el
+  endpoint responde «descubrimiento desactivado», no hace ninguna petición de red y el
+  panel sigue funcionando con lo ya importado.
 
 ## 4. Diseño propuesto
 
@@ -133,6 +151,17 @@
   `template.yaml` declara `requires: [rag_results, llm, literature]`.
 - **Frontend:** panel «Candidatos» (aceptar/descartar/imprescindible) y columnas
   nuevas en `DocumentsPage.jsx`.
+- **Cableado del descubrimiento (AC12, T22.11).** Lo dispara la **persona autora**, no el
+  Investigador: un endpoint `POST /agents/rag/library/search` (con `require_redactor` y
+  `get_project_context`, como el resto de la biblioteca) llama a `run_literature_search` con
+  las bases de `research.sources` del proyecto y persiste los verificados nuevos como
+  candidatos con `verification.add_candidate_to_library`. El panel gana un formulario de
+  búsqueda (consulta y bases activas) y muestra el resultado por base. Se mantiene así que
+  la consulta es del autor (AC1) y que el Investigador no inventa cadenas de búsqueda: sigue
+  usando solo la biblioteca verificada (T22.5). El flag `LITERATURE_DISCOVERY_ENABLED`
+  (apartado 7) se implementa en esta tarea, apagado por defecto, y se declara en
+  `.env.example`; la búsqueda se limita con el limitador de peticiones existente. Queda fuera
+  de esta spec que el Investigador lance búsquedas por su cuenta durante la ejecución.
 - **Seguridad:** claves de API solo por variable de entorno; User-Agent genérico
   de la plataforma (sin datos del usuario) y cabecera de contacto configurable.
 
@@ -211,11 +240,16 @@ tasks:
   - id: T22.9
     title: "Casos EDD de cobertura bibliográfica sobre papers de acceso abierto"
     sev: medium
-    depends_on: [T22.5]
+    depends_on: [T22.5, T22.11]
     acceptance: [AC5, AC7]
   - id: T22.10
     title: "Descarga de PDF de acceso abierto por safe_get y estado «solo resumen» (text_status)"
     sev: medium
     depends_on: [T22.1, T22.3]
     acceptance: [AC11]
+  - id: T22.11
+    title: "Cablear la búsqueda: endpoint y formulario que crean candidatos verificados, y flag LITERATURE_DISCOVERY_ENABLED"
+    sev: high
+    depends_on: [T22.1, T22.2, T22.3, T22.7, T22.8]
+    acceptance: [AC12]
 ```
