@@ -96,7 +96,10 @@ def test_texto_sin_encabezados_falla_y_sin_diccionario_no_se_verifica():
 
 def test_la_plantilla_de_alejandria_declara_la_compuerta():
     assert GATE is not None
-    assert GATE.placeholders == DEFAULT_PLACEHOLDERS  # AC1: lista cerrada, sin deriva
+    # AC1: los literales son la lista cerrada, sin deriva; los `regex:` los añade SPEC-037/AC2.
+    literales = tuple(m for m in GATE.placeholders if not m.startswith("regex:"))
+    assert literales == DEFAULT_PLACEHOLDERS
+    assert any(m.startswith("regex:") for m in GATE.placeholders)
     assert GATE.references.title_similarity == 0.90
     assert {p.id for p in GATE.pending} == {"V01", "V05", "V06", "V07", "V08", "V12", "V13", "V14", "V16"}
     assert all(p.phase for p in GATE.pending)

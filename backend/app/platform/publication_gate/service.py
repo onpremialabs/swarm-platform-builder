@@ -51,7 +51,10 @@ async def evaluate_and_store(
     **resolver_kwargs: Any,
 ) -> tuple[PublicationGateReportModel, GateReport]:
     """Evalúa el texto actual del artículo y guarda el informe (sin hacer commit)."""
-    report = await evaluate_gate(article.body or "", sources or [], config, **resolver_kwargs)
+    report = await evaluate_gate(
+        article.body or "", sources or [], config,
+        created_at=getattr(article, "created_at", None), **resolver_kwargs,
+    )
     if not sources:
         # Sin fuentes estructuradas no hay nada que resolver, y un manuscrito sin
         # referencias comprobables no se aprueba por ausencia (ADR-0011).

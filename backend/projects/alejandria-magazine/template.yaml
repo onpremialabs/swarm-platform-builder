@@ -112,6 +112,16 @@ gate:
     - "TODO"
     - "TBD"
     - "XXX"
+    # Expresiones regulares (prefijo `regex:`, SPEC-037 AC2): se validan al cargar.
+    # Plantilla de autoría sin rellenar: «[Su Nombre/Autoría]», «[Your Name]», «[Autor]».
+    # No casa con enlaces markdown `[Autor](url)` (lookahead).
+    - 'regex:(?i)\[\s?(?:su |tu |your )?(?:nombre|name|autor(?:[ií]a)?|author)(?:\s?/\s?(?:nombre|name|autor(?:[ií]a)?|author))?\s?\](?!\()'
+  # Fechas de metadatos (líneas «Fecha: …») fuera del rango de vida del artículo: la
+  # fecha de creación del artículo la pasa el servicio de la compuerta. Una fecha en el
+  # cuerpo o en una cita no se examina.
+  dates:
+    labels: [Fecha, Date, Fecha de publicación, Publication date, Published]
+    tolerance_days: 1
   references:
     title_similarity: 0.90     # similitud mínima del título con el registro
     other_authors_ratio: 0.5   # fracción de los demás autores que debe coincidir
