@@ -8,6 +8,7 @@ from app.core.database import AsyncSessionLocal
 from app.models import ArticleModel, ArticleStatus
 from app.modules.agents.adapters.paper_layout import build_paper_html
 from app.platform.capabilities.binding import provider
+from app.platform.manuscript_metadata import strip_llm_metadata, system_authors, system_date
 from app.platform.publication_gate.decision import assign_published, legacy_decision
 
 logger = logging.getLogger(__name__)
@@ -49,6 +50,11 @@ async def run_publicador(state: Dict[str, Any]) -> Dict[str, Any]:
             result = await session.execute(stmt)
             article = result.scalars().first()
             if article:
+                # SPEC-037/T25.1: autor, filiación y fecha los pone el sistema;
+                # lo que el LLM escribió en el encabezado se descarta.
+                final_text, descartadas = strip_llm_metadata(final_text)
+                if descartadas:
+                    log(f"🧹 Descartados {len(descartadas)} campos de autoría/fecha escritos por el modelo.")
                 article.body = final_text
                 fmt = state.get("scientific_format")
                 if fmt and fmt != "none":
@@ -64,10 +70,11 @@ async def run_publicador(state: Dict[str, Any]) -> Dict[str, Any]:
                     maquetar = provider(state, "format", build_paper_html)
                     article.paper_html = maquetar(
                         title=article.title or "",
-                        authors=article.authors or [],
+                        authors=system_authors(article.authors),
                         abstract=article.abstract or "",
                         body_markdown=final_text,
                         scientific_format=paper_format,
+                        date=system_date(article.created_at),
                     )
                     log(f"🧾 Maquetación tipo paper generada (formato {paper_format.upper()}).")
                 except Exception as layout_exc:

@@ -455,6 +455,7 @@ def _stylesheet(scientific_format: str, theme: Dict[str, Any] | None = None) -> 
       gap: 8px 48px;
       margin-bottom: 24px;
     }}
+    .paper-date {{ text-align: center; font-size: 10pt; color: #444; margin-bottom: 0.6em; }}
     .author {{ text-align: center; font-size: 10pt; }}
     .author-name {{ font-weight: 600; font-size: 11pt; }}
     .author-affil {{ color: #333; white-space: pre-line; }}
@@ -509,6 +510,7 @@ def build_paper_html(
     scientific_format: str,
     theme: Dict[str, Any] | None = None,
     asset_resolver=None,
+    date: str = "",
 ) -> str:
     """Assemble a complete, self-contained printable HTML document.
 
@@ -526,6 +528,9 @@ def build_paper_html(
 
     safe_title = html.escape((title or "Untitled").strip())
     authors_html = _authors_block(authors or [])
+    # La fecha la pone el sistema (SPEC-037/T25.1); sin ella, salida idéntica a antes.
+    if date and date.strip():
+        authors_html += f'<div class="paper-date">{html.escape(date.strip())}</div>'
     abstract_html = ""
     if abstract and abstract.strip():
         abstract_html = (
