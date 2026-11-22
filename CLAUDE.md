@@ -167,7 +167,11 @@ Docker (`docker compose up --build`, backend en `:8080`).
   El descubrimiento de literatura
   (capacidad `literature`, SPEC-034: OpenAlex, Crossref, Semantic Scholar, arXiv, PubMed) sale igual
   por `safe_get(quien="literature_discovery")`, con sus hosts añadidos a la allowlist solo para él;
-  las bases las elige `research.sources` en `template.yaml`. **Ollama, Qdrant y los
+  las bases las elige `research.sources` en `template.yaml`. Los candidatos se verifican
+  (`literature/verification.py`, T22.2) **con el resolver de la compuerta** —no hay un segundo
+  verificador—, parametrizado con otro `quien` y sin sus métricas; falla cerrada: sin respuesta del
+  resolver, el candidato no se ofrece. Para ello DataCite también está abierto a esa capacidad.
+  **Ollama, Qdrant y los
   proveedores de LLM quedan fuera a propósito**: son `localhost` o red privada
   adrede y su URL sale de la configuración, no de una entrada de usuario.
 - **Config con precedencia**: env vars > `config.yaml` (raíz o `backend/`) >

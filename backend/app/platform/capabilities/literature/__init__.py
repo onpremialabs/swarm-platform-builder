@@ -10,3 +10,6 @@ from app.platform.capabilities.literature.models import (  # noqa: F401
     LiteratureResult, UnknownSourceError,
 )
 from app.platform.capabilities.literature.transport import LiteratureConfig, SourceError  # noqa: F401
+from app.platform.capabilities.literature.verification import (  # noqa: F401
+    DiscardedCandidate, VerificationResult, VerifiedCandidate, verify_candidates,
+)

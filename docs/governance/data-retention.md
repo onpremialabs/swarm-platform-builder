@@ -119,6 +119,9 @@ Decisiones ya tomadas en el código, no aspiraciones:
   `EGRESS_ALLOWED_DOMAINS` definida, sus hosts se añaden solo para esa capacidad. El `User-Agent`
   es genérico y el correo de contacto, si lo hay, es `LITERATURE_CONTACT_EMAIL` (nunca el de la
   persona usuaria). El registro persistente de la búsqueda es T22.7.
+  **Al verificar los candidatos** (T22.2) se envía a Crossref, OpenAlex y DataCite (mismo
+  `quien`) el DOI —o título y autores— del candidato que la propia base devolvió: metadatos
+  publicados, no del manuscrito. DataCite se abre a esta capacidad por los DOI de arXiv.
 - **Las claves de API no se versionan ni se exponen**: `ANTHROPIC_API_KEY` se
   inyecta por entorno y la interfaz solo informa de si está presente.
 

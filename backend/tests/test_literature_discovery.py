@@ -480,7 +480,9 @@ def test_con_allowlist_los_hosts_de_las_bases_se_abren_solo_para_esta_capacidad(
 
 def test_la_capacidad_no_abre_otros_hosts_ni_gana_los_del_resto(monkeypatch, publico):
     _allowlist(monkeypatch, "otro.org")
-    assert not egress.is_egress_allowed("https://api.datacite.org/dois", quien="literature_discovery").allowed
+    # DataCite sí: la verificación de candidatos (T22.2) resuelve los DOI de arXiv por ahí.
+    assert egress.is_egress_allowed("https://api.datacite.org/dois", quien="literature_discovery").allowed
+    assert not egress.is_egress_allowed("https://api.datacite.org/dois", quien="egress").allowed
     assert not egress.is_egress_allowed("https://evil.example/", quien="literature_discovery").allowed
     assert egress.is_egress_allowed("https://api.datacite.org/dois", quien="publication_gate").allowed
 
@@ -495,7 +497,9 @@ def test_sin_allowlist_sigue_bloqueando_lo_interno_para_esta_capacidad(monkeypat
 
 def test_la_url_de_cada_cliente_esta_en_los_hosts_permitidos():
     urls = [openalex.URL, crossref.URL, semantic_scholar.URL, arxiv.URL, pubmed.ESEARCH, pubmed.EFETCH]
-    assert {httpx.URL(u).host for u in urls} == set(egress.HOSTS_LITERATURA)
+    # + DataCite: no es un cliente de búsqueda, es el registrador que consulta la
+    # verificación (T22.2) para los DOI de arXiv.
+    assert {httpx.URL(u).host for u in urls} | {"api.datacite.org"} == set(egress.HOSTS_LITERATURA)
     assert all(u.startswith("https://") for u in urls)
 
 
@@ -525,7 +529,11 @@ def test_el_unico_punto_de_salida_es_safe_get():
 
 
 def test_el_paquete_no_depende_de_la_compuerta():
+    # Los clientes y el descubrimiento no la conocen. La única excepción es la verificación
+    # (T22.2), que existe para reutilizar el resolver de la compuerta en vez de duplicarlo.
     for fichero in LIT_DIR.glob("*.py"):
+        if fichero.name == "verification.py":
+            continue
         assert "publication_gate" not in "\n".join(
             l for l in fichero.read_text(encoding="utf-8").splitlines() if l.lstrip().startswith(("import", "from"))
         ), fichero.name
