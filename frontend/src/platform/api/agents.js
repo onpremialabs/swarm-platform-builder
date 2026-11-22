@@ -19,6 +19,11 @@ export const agentsApi = {
   submitDecision: (articleId, decision) =>
     api.post(`/api/v1/agents/${articleId}/decision`, { decision }).then(r => r.data),
 
+  getTraceHistory: (articleId, signal) =>
+    api.get(`/api/v1/agents/${articleId}/history`, { signal }).then(r => r.data),
+  getTraceHistoryDetail: (articleId, executionId, signal) =>
+    api.get(`/api/v1/agents/${articleId}/history/${executionId}`, { signal }).then(r => r.data),
+
   // Get run history
   getRuns: (articleId) =>
     api.get(`/api/v1/agents/${articleId}/runs`).then(r => r.data),
@@ -27,6 +32,29 @@ export const agentsApi = {
   // `scope` es 'last' (la ejecución que produjo el texto actual) o 'all'.
   getExplain: (articleId, scope = 'last') =>
     api.get(`/api/v1/agents/${articleId}/explain`, { params: { scope } }).then(r => r.data),
+
+  // Verificación de la cadena de integridad (SPEC-029 / T17.3). La respuesta
+  // trae `scope`, que dice qué garantiza la cadena **y qué no**: la interfaz lo
+  // enseña desde ahí para que no pueda mostrar el sello sin sus límites (AC6).
+  getIntegrity: (articleId) =>
+    api.get(`/api/v1/agents/${articleId}/integrity`).then(r => r.data),
+
+  // Descarga del JSONL (SPEC-029 / T17.4). Va por axios y no por navegación
+  // directa: el endpoint pide Bearer y `X-Project-Id`, y un <a href> no los
+  // lleva. Se descarga como blob y se guarda desde el cliente.
+  downloadExport: async (articleId, scope = 'last') => {
+    const r = await api.get(`/api/v1/agents/${articleId}/export.jsonl`, {
+      params: { scope }, responseType: 'blob',
+    });
+    const url = URL.createObjectURL(r.data);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `traza-${articleId}.jsonl`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  },
 
   // Agent definitions
   getDefinitions: () =>
