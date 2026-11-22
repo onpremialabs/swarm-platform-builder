@@ -3,7 +3,7 @@
 ## 2026-11-22 10:50 — Completada ✅
 
 - **Rama:** `feat/551-marcadores-regex`
-- **PR:** ver la PR que cierra #551 → `develop` (relacionada con #600 / T25.1, pero independiente: no comparten archivos ni se bloquean)
+- **PR:** #601 → `develop` (relacionada con #600 / T25.1, pero independiente: no comparten archivos ni se bloquean)
 - **Spec/ADR:** SPEC-037 (AC2, §1 y §4) · SPEC-032 / ADR-0011 (falla cerrada)
 - **Dependencias:** ninguna
 
