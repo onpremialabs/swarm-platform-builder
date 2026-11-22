@@ -36,7 +36,7 @@ backend/
 │   │       ├── application/
 │   │       │   └── use_cases.py     # Orchestrator · compile_graph · active_tasks · SSE
 │   │       ├── adapters/
-│   │       │   ├── investigador.py  # RAG local + EuropePMC + web scraping + síntesis
+│   │       │   ├── investigador.py  # RAG local + biblioteca verificada (solo DOI verificado se cita) + abstención + síntesis
 │   │       │   ├── redactor.py      # Borrador Markdown · feedback loop · RAG lookup
 │   │       │   ├── revisor.py       # Score 0-100 · JSON structured output
 │   │       │   ├── formateador.py   # APA · IEEE · Vancouver · Chicago · Nature
@@ -85,10 +85,9 @@ flowchart TD
 
     subgraph INV["Etapa 1 — Investigación (Investigador)"]
         RAG["RAG local\n(Qdrant: rag_docs)"]
-        PMC["EuropePMC API"]
-        WEB["Web scraping\narXiv · Wikipedia · Semantic Scholar"]
-        SYNTH["Síntesis LLM\nmistral:7b con fuentes · llama3.2:1b sin fuentes\ntimeout 600s · num_ctx 8192"]
-        RAG & PMC & WEB --> SYNTH
+        LIB["Biblioteca del proyecto\n(solo DOI verificado se cita)"]
+        SYNTH["Síntesis LLM\ntimeout 600s · num_ctx 8192\n(abstención si faltan fuentes verificadas)"]
+        RAG --> LIB --> SYNTH
     end
 
     Investigador --> Redactor["✍️ Redactor\nllama3.2:3b · num_ctx 4096 · keep_alive 0"]
@@ -106,7 +105,7 @@ flowchart TD
 
 | Agente | Modelo por defecto | Responsabilidad |
 |---|---|---|
-| **Investigador** | `mistral:7b` / `llama3.2:1b` (fallback) | 3 etapas de búsqueda: RAG local (Qdrant), EuropePMC, scraping web (arXiv, Wikipedia, Semantic Scholar). Re-ranking semántico con `nomic-embed-text`. Síntesis con LLM (`timeout 600s`, `num_ctx 8192`). Cuando no hay fuentes externas usa `llama3.2:1b` para síntesis paramétrica. |
+| **Investigador** | `gemma2:2b` (perfil) | RAG local (Qdrant) con umbral de similitud, cruzado con la biblioteca del proyecto: solo los documentos con DOI verificado entran en `sources`/Referencias; el resto es solo contexto. Con menos de `research.min_sources` (3 por defecto, en `template.yaml`) **se abstiene** y detiene el pipeline: no sintetiza desde el conocimiento del modelo. No consulta APIs externas ni raspa la web (SPEC-034). |
 | **Redactor** | `llama3.2:3b` | Genera borrador académico en Markdown (Abstract, Introducción, Metodología, Resultados y Discusión). RAG lookup adicional con timeout de 25 s. Incorpora feedback del Revisor en iteraciones. `num_ctx 4096`, `keep_alive 0`. |
 | **Revisor** | `llama3.2:3b` | Devuelve JSON `{approval_score, feedback[]}`. Si `approval_score < 80` y `loop_count < MAX_REVIEW_LOOPS (3)` → reenvía al Redactor. `num_ctx 4096`, `keep_alive 0`. |
 | **Formateador** | `llama3.2:1b` | Reescribe únicamente las citas en el estilo solicitado (APA, IEEE, Vancouver, Chicago, Nature). Si el output es < 50 % del input en longitud, devuelve el original. `num_ctx 4096`, `keep_alive 0`. |
@@ -162,7 +161,7 @@ Cada agente descarga su modelo antes de que el siguiente lo cargue, garantizando
 
 | Agente | Responsabilidad |
 |---|---|
-| **Investigador** | Consulta Qdrant (RAG local) y APIs científicas públicas (EuropePMC, OpenAlex) para obtener contexto y fuentes reales |
+| **Investigador** | Consulta Qdrant (RAG local) y cita solo documentos de la biblioteca con DOI verificado; se abstiene si no hay evidencia suficiente |
 | **Redactor** | Genera un borrador académico en Markdown usando Ollama (`llama3.2`), incorporando el contexto de investigación y el feedback previo del Revisor |
 | **Revisor** | Evalúa el borrador con Ollama, devuelve una puntuación (0-100) y comentarios. Si `score < 80` y `loops < 3`, reenvía al Redactor |
 | **Formateador** | Reformatea las citas y referencias según el estilo solicitado: **APA**, **IEEE** o **Vancouver** |

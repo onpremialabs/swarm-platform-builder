@@ -208,6 +208,18 @@ def decision_of(salida: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     Solo la tienen los pasos que **deciden** —hoy el revisor—; para el resto la
     columna queda a `NULL`, que dice más que un diccionario vacío.
     """
+    # Una abstención (SPEC-034/AC7) es una decisión del paso y se declara en la traza: sin
+    # ella, el panel mostraría un paso vacío sin explicar por qué no hubo investigación.
+    abstencion = salida.get("abstention")
+    if salida.get("abstained") and isinstance(abstencion, dict):
+        return {
+            "abstained": True,
+            "reason": abstencion.get("reason"),
+            "verified_sources": abstencion.get("verified_sources"),
+            "min_sources": abstencion.get("min_sources"),
+            "similarity_threshold": abstencion.get("similarity_threshold"),
+            "context_only_documents": abstencion.get("context_only_documents"),
+        }
     claves = ("approval_score", "coherent", "user_decision", "review_status")
     if not any(clave in salida for clave in claves):
         return None
@@ -226,6 +238,9 @@ def decision_of(salida: Dict[str, Any]) -> Optional[Dict[str, Any]]:
 
 def rationale_of(salida: Dict[str, Any]) -> Optional[str]:
     """El porqué de la decisión, en palabras: el feedback del revisor."""
+    abstencion = salida.get("abstention")
+    if salida.get("abstained") and isinstance(abstencion, dict) and abstencion.get("message"):
+        return _recortar(abstencion["message"])
     feedback = salida.get("feedback")
     if not feedback:
         return None

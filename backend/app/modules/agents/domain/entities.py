@@ -26,6 +26,10 @@ class AgentState(TypedDict):
     # Fuentes que el Formateador dejó fuera por incompletas, con los campos que faltan (SPEC-032/AC2)
     reference_issues: List[Dict[str, Any]]
     published_url: str
+    # El Investigador se abstuvo por falta de fuentes verificadas (SPEC-034/AC7): el motor
+    # detiene el flujo tras ese nodo. `abstention` lleva el motivo y el mensaje al autor.
+    abstained: bool
+    abstention: Dict[str, Any]
     # La compuerta de publicación bloqueó el texto final y qué criterios (SPEC-032/AC14)
     gate_failed: bool
     gate_blockers: List[Dict[str, Any]]

@@ -102,6 +102,11 @@ graph:
 # entorno: sin ella se omite con aviso. Activa arxiv/pubmed según la disciplina.
 research:
   sources: [openalex, crossref]
+  # Abstención del Investigador (AC7): con menos de N fuentes **verificadas** (DOI resuelto
+  # o aportado por el autor) por encima del umbral de similitud, no investiga ni sintetiza
+  # desde el conocimiento del modelo: se detiene y se lo dice al autor. Entero >= 1, por
+  # defecto 3. Es de la plantilla: el autor no lo puede bajar desde el artículo.
+  min_sources: 3
 
 # ── Compuerta de publicación (SPEC-032, ADR-0011) ───────────────────────────
 # Comprobaciones deterministas, sin LLM, sobre el texto final tras el Formateador.

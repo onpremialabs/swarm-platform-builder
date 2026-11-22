@@ -415,6 +415,18 @@ def make_node_wrapper(agent_name: str, run_fn):
                     "blockers": res.get("gate_blockers", []),
                 })
 
+            # SPEC-034/AC7: el agente se abstuvo por falta de evidencia verificada. El motor
+            # ya detiene el flujo; aquí se le dice a la persona qué falta, además del `log`.
+            if res.get("abstained"):
+                abstencion = res.get("abstention") or {}
+                publish_event(article_id, {
+                    "type": "abstained",
+                    "agent": agent_name,
+                    "message": abstencion.get("message"),
+                    "verified_sources": abstencion.get("verified_sources"),
+                    "min_sources": abstencion.get("min_sources"),
+                })
+
             res["current_step_index"] = state.get("current_step_index", 0) + 1
             return res
         except asyncio.CancelledError:
