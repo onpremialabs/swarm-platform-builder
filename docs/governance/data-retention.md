@@ -21,6 +21,7 @@ Qué guarda la plataforma, cuánto tiempo y cómo se purga. Las ventanas viven e
 | `users` | correo, nombre, hash de contraseña, rol | **Sí** |
 | `projects`, `agent_profiles`, `saved_flows` | configuración de la plataforma | No |
 | `articles` | título, cuerpo, resumen, autores, HTML maquetado | Nombres de autor |
+| `library_documents` | biblioteca de investigación: DOI, título, autores, año, revista, estado de curación y de verificación (SPEC-034) | Nombres de autor; referencia a quien lo añadió |
 | `user_project_access` | qué usuario accede a qué proyecto | Referencia |
 | Figuras (`backend/app/.assets/`) | imágenes subidas a los artículos | Posible |
 
@@ -36,6 +37,7 @@ explícita de su propietario, no por un proceso automático.
 | `agent_runs` | entrada y salida de cada ejecución del pipeline | Posible | **90 días** | `RETENTION_AGENT_RUNS_DAYS` |
 | `agent_run_steps` | traza de explicabilidad: paso a paso de cada ejecución | Posible | **90 días** | `RETENTION_AGENT_RUN_STEPS_DAYS` |
 | `publication_gate_reports` | informe de la compuerta de publicación: evidencia por criterio, huella del texto y fuentes resueltas (títulos y autores de las referencias) | Nombres de autor | **90 días**, solo de artículos no publicados | `RETENTION_GATE_REPORTS_DAYS` |
+| `search_logs` | registro de búsqueda bibliográfica (SPEC-034): cadena de búsqueda, bases, filtros, recuentos y fecha de corte | Posible (la cadena la escribe el autor) | **365 días**, salvo las de artículos publicados | `RETENTION_SEARCH_LOGS_DAYS` |
 | `flow_checkpoints` | estado intermedio para reanudar un pipeline | Posible | **30 días** | `RETENTION_CHECKPOINTS_DAYS` |
 | `notifications` (leídas) | avisos en la aplicación | Referencia | **90 días** | `RETENTION_NOTIFICATIONS_DAYS` |
 | Figuras huérfanas | imágenes que ningún artículo referencia | Posible | **30 días** | `RETENTION_ORPHAN_ASSETS_DAYS` |
@@ -63,6 +65,19 @@ Por qué esas ventanas:
   ejecuciones del pipeline (`agent_runs`), que es de donde sale la evidencia. Se
   borran además en cascada con el artículo. Contienen títulos y autores de las
   referencias, nunca el texto del manuscrito.
+- **`search_logs`, 365 días y no caduca si el artículo está publicado**
+  (SPEC-034/AC6). Es el registro que permite declarar y reproducir la búsqueda en el
+  apartado de métodos, y un artículo se escribe a lo largo de meses, así que una
+  ventana de 90 días lo borraría antes de que sirva; un año cubre un ciclo de
+  redacción y revisión sin acumularlo indefinidamente. Si el artículo se publica,
+  el registro es parte de su método y se conserva mientras exista; las búsquedas sin
+  artículo o de borradores caducan. Guarda la **cadena de búsqueda** que el autor
+  escribió —que es lo que se envía a las bases— y nunca el texto del manuscrito ni
+  claves de API.
+- **`library_documents` no caduca**: es contenido del producto (la biblioteca de
+  investigación del proyecto: DOI, autores, año, revista, estado de curación y de
+  verificación). Se elimina por decisión de su autor o en cascada con el proyecto, y
+  guarda quién lo añadió y quién aportó un DOI a mano (referencia a `users`).
 - **`flow_checkpoints`, 30 días.** Son puntos de reanudación. Un checkpoint de hace
   un mes ya no se va a reanudar; solo ocupa y conserva borradores.
 - **`notifications`, 90 días, solo las leídas.** Una notificación **sin leer** sigue
@@ -123,6 +138,7 @@ retention:
   agent_runs_days: 90
   agent_run_steps_days: 90
   gate_reports_days: 90
+  search_logs_days: 365
   checkpoints_days: 30
   notifications_days: 90
   orphan_assets_days: 30
