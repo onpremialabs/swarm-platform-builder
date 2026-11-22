@@ -6,6 +6,14 @@ import { useFlowStore } from '../store/flowStore';
 import { agentMeta, flowAutoPublishes } from '../agentCatalog';
 import toast from 'react-hot-toast';
 
+// Etiquetas de la lista, juntas para extraerlas cuando llegue el i18n (SPEC-041).
+// Publicar exige compuerta determinista y aprobación humana (SPEC-032): ningún flujo
+// publica solo, así que la etiqueta no puede decir «Auto-publica» (SPEC-037 AC8).
+const FLOW_LABELS = {
+  withPublisher: 'Pasa por compuerta y aprobación humana',
+  withoutPublisher: 'No publica: queda en borrador',
+};
+
 export default function FlowsPage() {
   const navigate = useNavigate();
   const { flows, fetchFlows, loadFlow, deleteFlow, newFlow, isLoading, error } = useFlowStore();
@@ -89,8 +97,8 @@ export default function FlowsPage() {
 
               <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
                 {hasPublicador(flow)
-                  ? <span className="badge badge-published">Auto-publica</span>
-                  : <span className="badge badge-pending">Revisión manual</span>
+                  ? <span className="badge badge-pending">{FLOW_LABELS.withPublisher}</span>
+                  : <span className="badge badge-draft">{FLOW_LABELS.withoutPublisher}</span>
                 }
                 <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
                   <Clock size={11} />
