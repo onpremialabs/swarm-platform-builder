@@ -57,6 +57,7 @@ from app.platform.project_access import (
 from app.platform.project_context import ProjectContext, bucket_of
 from app.platform.projects.profiles import agents_dir as project_agents_dir
 from app.platform import explainability
+from app.platform import library, library_upload
 from app.platform.library import SEARCH_RECORD_FIELDS, SEARCH_RECORD_VERSION, search_record
 
 router = APIRouter(prefix="/api/v1/agents", tags=["agents"])
@@ -285,6 +286,7 @@ async def upload_to_rag_library(
     chunk_overlap: int | None = Form(None),
     token_data=Depends(require_redactor),
     project: ProjectContext = Depends(get_project_context),
+    session: AsyncSession = Depends(get_session),
 ):
     """Sube un documento a la biblioteca compartida **del proyecto activo**.
 
@@ -339,6 +341,14 @@ async def upload_to_rag_library(
     if count <= 0:
         raise HTTPException(status_code=502, detail="No se pudo indexar el documento")
 
+    # Ficha de biblioteca (SPEC-034 / T22.4 / AC4): se intenta resolver el DOI; si no
+    # resuelve queda «sin verificar» y no podrá citarse hasta que el autor lo aporte.
+    ficha = await library_upload.register_uploaded_document(
+        session, project.project_id, doc_id=doc_id, filename=file.filename,
+        title=metadata.get("title", ""), authors=metadata.get("authors", ""),
+        added_by=UUID(token_data["user_id"]),
+    )
+
     return {
         "status": "indexed",
         "doc_id": doc_id,
@@ -347,7 +357,52 @@ async def upload_to_rag_library(
         "chunks": count,
         "title": metadata.get("title", ""),
         "authors": metadata.get("authors", ""),
+        "library_document": library_upload.document_view(ficha["document"]),
+        "doi_resolution": ficha["resolution"],
+        "doi_resolution_detail": ficha["detail"],
     }
+
+
+@router.get("/rag/library/records")
+async def list_library_records(
+    token_data=Depends(get_current_user),
+    project: ProjectContext = Depends(get_project_context),
+    session: AsyncSession = Depends(get_session),
+):
+    """Fichas de biblioteca del proyecto activo, con su estado de verificación (AC4)."""
+    docs = await library.list_documents(session, project.project_id)
+    return {"documents": [library_upload.document_view(d) for d in docs]}
+
+
+class LibraryRecordUpdate(BaseModel):
+    title: str | None = None
+    authors: str | list[str] | None = None
+    year: int | None = None
+    journal: str | None = None
+    doi: str | None = None
+
+
+@router.patch("/rag/library/records/{document_id}")
+async def update_library_record(
+    document_id: UUID,
+    payload: LibraryRecordUpdate,
+    token_data=Depends(require_redactor),
+    project: ProjectContext = Depends(get_project_context),
+    session: AsyncSession = Depends(get_session),
+):
+    """Edita los metadatos de una ficha; un DOI aportado queda registrado con quién y cuándo."""
+    cambios = payload.model_dump(exclude_unset=True)
+    try:
+        doc = await library_upload.update_metadata(
+            session, project.project_id, document_id, cambios, user_id=UUID(token_data["user_id"]),
+        )
+    except library.DuplicateDocumentError:
+        raise HTTPException(status_code=409, detail="Ese DOI ya está en la biblioteca del proyecto")
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error))
+    if doc is None:
+        raise HTTPException(status_code=404, detail="Documento no encontrado")
+    return library_upload.document_view(doc)
 
 
 @router.post("/rag/backfill-metadata")

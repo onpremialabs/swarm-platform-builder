@@ -234,7 +234,9 @@ Cada ejecución de agente se registra en la tabla `agent_runs` para trazabilidad
 | Método | Ruta | Descripción |
 |---|---|---|
 | `GET` | `/api/v1/agents/rag/library` | Listar documentos indexados |
-| `POST` | `/api/v1/agents/rag/library/upload` | Subir documento a biblioteca global |
+| `POST` | `/api/v1/agents/rag/library/upload` | Subir documento a la biblioteca del proyecto; crea su ficha e intenta resolver el DOI por título/autores (`doi_resolution`) |
+| `GET` | `/api/v1/agents/rag/library/records` | Fichas de biblioteca del proyecto con estado de verificación y `citable` |
+| `PATCH` | `/api/v1/agents/rag/library/records/{id}` | Editar metadatos; un DOI aportado verifica como `author_supplied` (quién y cuándo) |
 | `DELETE` | `/api/v1/agents/rag/library/{collection}/{doc_id}` | Eliminar documento |
 | `POST` | `/api/v1/agents/{agent}/rag/upload` | Subir documento a agente específico |
 
