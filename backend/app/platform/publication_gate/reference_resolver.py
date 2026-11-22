@@ -348,6 +348,14 @@ class _Session:
         raise Unavailable(ultimo)
 
 
+async def lookup_doi(sess: _Session, doi: str) -> Optional[Canonical]:
+    """Registro canónico de un DOI (o `None` si no existe); `Unavailable` si nadie responde.
+
+    Fachada pública de `_lookup_doi` para quien solo tiene el DOI (importar una lista, T22.8).
+    """
+    return await _lookup_doi(sess, doi)
+
+
 async def _lookup_doi(sess: _Session, doi: str) -> Optional[Canonical]:
     cached = sess.cache.get(doi)
     if cached:

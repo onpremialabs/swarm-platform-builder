@@ -237,6 +237,8 @@ Cada ejecución de agente se registra en la tabla `agent_runs` para trazabilidad
 | `POST` | `/api/v1/agents/rag/library/upload` | Subir documento a la biblioteca del proyecto; crea su ficha e intenta resolver el DOI por título/autores (`doi_resolution`) |
 | `GET` | `/api/v1/agents/rag/library/records` | Fichas de biblioteca del proyecto con estado de verificación y `citable` |
 | `PATCH` | `/api/v1/agents/rag/library/records/{id}` | Editar metadatos; un DOI aportado verifica como `author_supplied` (quién y cuándo) |
+| `POST` | `/api/v1/agents/rag/library/records/{id}/curation` | Aceptar, descartar o marcar «imprescindible» un candidato (T22.8) |
+| `POST` | `/api/v1/agents/rag/library/import` | Importar BibTeX o lista de DOI; verifica cada DOI, el resto queda sin verificar (T22.8) |
 | `DELETE` | `/api/v1/agents/rag/library/{collection}/{doc_id}` | Eliminar documento |
 | `POST` | `/api/v1/agents/{agent}/rag/upload` | Subir documento a agente específico |
 

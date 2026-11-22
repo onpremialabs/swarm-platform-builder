@@ -57,7 +57,7 @@ from app.platform.project_access import (
 from app.platform.project_context import ProjectContext, bucket_of
 from app.platform.projects.profiles import agents_dir as project_agents_dir
 from app.platform import explainability
-from app.platform import library, library_upload
+from app.platform import library, library_import, library_upload
 from app.platform.library import SEARCH_RECORD_FIELDS, SEARCH_RECORD_VERSION, search_record
 
 router = APIRouter(prefix="/api/v1/agents", tags=["agents"])
@@ -403,6 +403,65 @@ async def update_library_record(
     if doc is None:
         raise HTTPException(status_code=404, detail="Documento no encontrado")
     return library_upload.document_view(doc)
+
+
+class LibraryCuration(BaseModel):
+    status: str
+    must_cite: bool = False
+
+
+@router.post("/rag/library/records/{document_id}/curation")
+async def curate_library_record(
+    document_id: UUID,
+    payload: LibraryCuration,
+    token_data=Depends(require_redactor),
+    project: ProjectContext = Depends(get_project_context),
+    session: AsyncSession = Depends(get_session),
+):
+    """Acepta, descarta o marca «imprescindible» un candidato (SPEC-034 / T22.8 / AC3)."""
+    try:
+        doc = await library.set_curation(
+            session, project.project_id, document_id, payload.status, must_cite=payload.must_cite,
+        )
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Estado de curación no válido")
+    if doc is None:
+        raise HTTPException(status_code=404, detail="Documento no encontrado")
+    return library_upload.document_view(doc)
+
+
+class LibraryImport(BaseModel):
+    bibtex: str | None = None
+    dois: str | None = None
+
+
+@router.post("/rag/library/import")
+async def import_library_records(
+    payload: LibraryImport,
+    token_data=Depends(require_redactor),
+    project: ProjectContext = Depends(get_project_context),
+    session: AsyncSession = Depends(get_session),
+):
+    """Importa referencias desde BibTeX o una lista de DOI (SPEC-034 / T22.8 / AC9).
+
+    Cada entrada se verifica con el resolver de la compuerta; las que no resuelven se
+    importan **sin verificar** (no citables). Devuelve el resultado de cada entrada.
+    """
+    if bool(payload.bibtex and payload.bibtex.strip()) == bool(payload.dois and payload.dois.strip()):
+        raise HTTPException(status_code=422, detail="Envía BibTeX o una lista de DOI, no ambos ni ninguno")
+    if max(len(payload.bibtex or ""), len(payload.dois or "")) > 1_000_000:
+        raise HTTPException(status_code=413, detail="Entrada demasiado grande")
+    user_id = UUID(token_data["user_id"])
+    if payload.bibtex and payload.bibtex.strip():
+        resultados = await library_import.import_bibtex(
+            session, project.project_id, payload.bibtex, added_by=user_id)
+    else:
+        resultados = await library_import.import_dois(
+            session, project.project_id, payload.dois, added_by=user_id)
+    if not resultados:
+        raise HTTPException(status_code=422, detail="No se encontró ninguna entrada ni DOI válidos")
+    return {"results": resultados,
+            "imported": sum(1 for r in resultados if r["status"] == library_import.IMPORTED)}
 
 
 @router.post("/rag/backfill-metadata")

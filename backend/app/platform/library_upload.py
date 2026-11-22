@@ -192,7 +192,7 @@ def document_view(doc: LibraryDocumentModel) -> Dict[str, Any]:
         "id": str(doc.id), "doc_id": doc.doc_id, "doi": doc.doi, "title": doc.title,
         "authors": list(doc.authors or []), "year": doc.year, "journal": doc.journal,
         "source_db": doc.source_db, "text_status": doc.text_status,
-        "curation_status": doc.curation_status,
+        "curation_status": doc.curation_status, "must_cite": bool(doc.must_cite),
         "verified": bool(doc.verified), "verification_method": doc.verification_method,
         "verified_at": doc.verified_at.isoformat() + "Z" if doc.verified_at else None,
         "verified_by": str(doc.verified_by) if doc.verified_by else None,
