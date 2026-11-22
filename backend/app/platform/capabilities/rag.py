@@ -884,6 +884,25 @@ def _anotar_traza(collection: str, resultados: List[Dict[str, Any]]) -> None:
         logger.debug("No se pudo anotar la traza RAG", exc_info=True)
 
 
+def resolve_score_threshold(score_threshold: Optional[float] = None) -> float:
+    """Umbral de similitud efectivo (SPEC-034 AC8 / T22.6).
+
+    El umbral se resuelve **aquí**, dentro de la capacidad, y no en cada llamador:
+    antes `RAG_SCORE_THRESHOLD` existía pero nadie lo pasaba, así que la búsqueda
+    corría con 0.0 y una fuente con similitud 0,00 llegaba al artículo. Un llamador
+    que no dice nada obtiene el ajuste global; uno que lo fija explícitamente
+    (``0.0`` desactiva el filtro) lo hace a la vista.
+    """
+    from app.core.config import settings  # lazy to avoid circular imports
+
+    if score_threshold is None:
+        score_threshold = getattr(settings, "RAG_SCORE_THRESHOLD", 0.0)
+    try:
+        return max(0.0, float(score_threshold))
+    except (TypeError, ValueError):
+        return 0.0
+
+
 async def _fetch_agent_results(
     qdrant_url: str,
     collection: str,
@@ -971,6 +990,27 @@ async def _fetch_agent_results(
         return []
 
 
+async def _fallback_sin_ranking(
+    umbral: float, motivo: str, qdrant_url, collection, agent_name, limit, api_key, doc_ids,
+) -> List[Dict[str, Any]]:
+    """Respaldo cuando no se puede ordenar por similitud (T22.6).
+
+    Con el umbral **activo**, un fragmento sin puntuación no se puede demostrar
+    por encima de él, así que devolverlo reintroduciría justo lo que el umbral
+    filtra. Decisión: sin ranking no hay fuentes (lista vacía + aviso en el log).
+    Excepción: si la persona usuaria eligió documentos concretos (`doc_ids`),
+    esa elección es la señal de relevancia y el respaldo se conserva.
+    Con el umbral en 0.0 (filtro desactivado) todo sigue como antes.
+    """
+    if umbral > 0.0 and not doc_ids:
+        logger.warning(
+            f"semantic_search_results: {motivo}; sin ranking no se devuelven "
+            f"fragmentos (umbral {umbral} activo)."
+        )
+        return []
+    return await _fetch_agent_results(qdrant_url, collection, agent_name, limit, api_key, doc_ids)
+
+
 async def semantic_search_results(
     query: str,
     qdrant_url: str,
@@ -979,20 +1019,27 @@ async def semantic_search_results(
     ollama_base_url: str,
     embedding_model: str,
     limit: int = 5,
-    score_threshold: float = 0.0,
+    score_threshold: Optional[float] = None,
     api_key: Optional[str] = None,
     doc_ids: Optional[list] = None,
 ) -> List[Dict[str, Any]]:
     """Semantic search returning per-chunk payloads ({text, filename, doc_id,
     agent_name}) so callers can build real citations. Filters by agent bucket(s),
-    or by doc_ids only when the user selected specific documents."""
+    or by doc_ids only when the user selected specific documents.
+
+    `score_threshold=None` (lo normal) aplica `RAG_SCORE_THRESHOLD`; ver
+    `resolve_score_threshold`. Los llamadores **no** deben fijarlo a 0.0."""
+    umbral = resolve_score_threshold(score_threshold)
+
     if not await is_qdrant_available(qdrant_url, api_key):
-        return await _fetch_agent_results(qdrant_url, collection, agent_name, limit, api_key, doc_ids)
+        return await _fallback_sin_ranking(
+            umbral, "Qdrant no disponible", qdrant_url, collection, agent_name, limit, api_key, doc_ids)
 
     query_vector = await get_embedding(query, ollama_base_url, embedding_model)
     if query_vector is None:
         logger.warning("semantic_search_results: embedding failed, falling back to scroll")
-        return await _fetch_agent_results(qdrant_url, collection, agent_name, limit, api_key, doc_ids)
+        return await _fallback_sin_ranking(
+            umbral, "falló el embedding", qdrant_url, collection, agent_name, limit, api_key, doc_ids)
 
     headers = {"api-key": api_key} if api_key else {}
     try:
@@ -1014,17 +1061,23 @@ async def semantic_search_results(
                 "with_payload": True,
                 "with_vector": False,
             }
-            if score_threshold > 0.0:
-                payload["score_threshold"] = score_threshold
+            if umbral > 0.0:
+                payload["score_threshold"] = umbral
 
             resp = await client.post(f"/collections/{collection}/points/search", json=payload)
             if resp.status_code != 200:
                 logger.warning(f"Qdrant search returned {resp.status_code}: {resp.text[:200]}")
-                return await _fetch_agent_results(qdrant_url, collection, agent_name, limit, api_key, doc_ids)
+                return await _fallback_sin_ranking(
+                    umbral, f"Qdrant respondió {resp.status_code}",
+                    qdrant_url, collection, agent_name, limit, api_key, doc_ids)
 
             out: List[Dict[str, Any]] = []
             for r in resp.json().get("result", []):
                 pl = r.get("payload", {})
+                score = r.get("score")
+                # Defensa en profundidad: no depender solo de que Qdrant filtre.
+                if umbral > 0.0 and (score is None or score < umbral):
+                    continue
                 if pl.get("text"):
                     out.append({
                         "text": pl.get("text", ""),
@@ -1037,14 +1090,15 @@ async def semantic_search_results(
                         "agent_name": pl.get("agent_name", ""),
                         "doc_title": pl.get("doc_title", ""),
                         "doc_authors": pl.get("doc_authors", ""),
-                        "score": r.get("score"),
+                        "score": score,
                     })
             logger.info(f"semantic_search_results: {len(out)} chunks for query '{query[:60]}'")
             _anotar_traza(collection, out)
             return out
     except Exception as error:
         logger.warning(f"Semantic RAG search failed for agent '{agent_name}': {error}")
-        return await _fetch_agent_results(qdrant_url, collection, agent_name, limit, api_key, doc_ids)
+        return await _fallback_sin_ranking(
+            umbral, "la búsqueda falló", qdrant_url, collection, agent_name, limit, api_key, doc_ids)
 
 
 async def semantic_search_context(
@@ -1055,7 +1109,7 @@ async def semantic_search_context(
     ollama_base_url: str,
     embedding_model: str,
     limit: int = 5,
-    score_threshold: float = 0.0,
+    score_threshold: Optional[float] = None,
     api_key: Optional[str] = None,
     doc_ids: Optional[list] = None,
 ) -> str:

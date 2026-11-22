@@ -189,7 +189,7 @@ class Settings(BaseModel):
     RAG_CHUNK_SIZE: int = 800
     RAG_CHUNK_OVERLAP: int = 80
     RAG_TOP_K: int = 6
-    RAG_SCORE_THRESHOLD: float = 0.0
+    RAG_SCORE_THRESHOLD: float = 0.3
 
     # MinIO
     MINIO_URL: str = "http://localhost:9000"
@@ -320,7 +320,7 @@ def _build_settings() -> Settings:
         "RAG_CHUNK_SIZE": yaml_config.get("rag", {}).get("chunk_size", 800),
         "RAG_CHUNK_OVERLAP": yaml_config.get("rag", {}).get("chunk_overlap", 80),
         "RAG_TOP_K": yaml_config.get("rag", {}).get("top_k", 6),
-        "RAG_SCORE_THRESHOLD": yaml_config.get("rag", {}).get("score_threshold", 0.0),
+        "RAG_SCORE_THRESHOLD": yaml_config.get("rag", {}).get("score_threshold", 0.3),
     }
 
     # Environment variables override config.yaml
