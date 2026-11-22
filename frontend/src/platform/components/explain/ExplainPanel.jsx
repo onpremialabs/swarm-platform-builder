@@ -234,6 +234,12 @@ function Paso({ paso, abierto, onToggle }) {
             {decision.hitl_outcome && (
               <div>Decisión humana: <strong>{decision.hitl_outcome}</strong></div>
             )}
+            {decision.abstained && (
+              <div>
+                Se abstuvo: <strong>{decision.verified_sources ?? 0} de {decision.min_sources ?? '?'}</strong> fuentes
+                verificadas necesarias
+              </div>
+            )}
             {paso.rationale && (
               <div style={{ marginTop: 6, whiteSpace: 'pre-wrap' }}>{paso.rationale}</div>
             )}

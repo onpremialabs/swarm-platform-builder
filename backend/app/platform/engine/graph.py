@@ -17,7 +17,7 @@ from typing import Any, Callable, Dict, Sequence, Tuple
 
 from langgraph.graph import END, START, StateGraph
 
-from app.platform.engine.routing import FIN, ReviewLoop, make_review_router
+from app.platform.engine.routing import FIN, ReviewLoop, make_halt_router, make_review_router
 
 
 class UnknownAgent(ValueError):
@@ -98,6 +98,12 @@ def build_graph(
         elif indice == len(spec.sequence) - 1:
             workflow.add_edge(nombre, END)
         else:
-            workflow.add_edge(nombre, spec.sequence[indice + 1])
+            # Un nodo que se abstiene (`abstained`, SPEC-034/AC7) detiene el flujo: lo que
+            # sigue se apoyaría en una investigación que no existe. El motor no sabe quién
+            # se abstiene ni por qué; solo respeta la marca.
+            siguiente = spec.sequence[indice + 1]
+            workflow.add_conditional_edges(
+                nombre, make_halt_router(siguiente), {FIN: END, siguiente: siguiente},
+            )
 
     return workflow.compile(checkpointer=checkpointer)

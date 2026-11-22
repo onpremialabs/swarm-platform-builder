@@ -89,14 +89,33 @@ async def test_ollama_sin_tope_no_manda_num_predict(monkeypatch):
 
 # ── La síntesis del investigador pide tope ───────────────────────────────────
 
+class _SesionFalsa:
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *_exc):
+        return False
+
+
+def _fila_verificada(n):
+    from types import SimpleNamespace
+    return SimpleNamespace(
+        title=f"Paper {n}", authors=["Autora"], year=2020, journal="J", doi=f"10.1/p{n}", url="",
+        verification_method="doi_resolved", curation_status="accepted", verified=True,
+    )
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize("con_fuentes", [True, False])
 async def test_la_sintesis_del_investigador_lleva_tope(monkeypatch, con_fuentes):
+    """Con evidencia verificada suficiente la síntesis lleva tope; sin ella (T22.5/AC7) no hay
+    síntesis: el Investigador se abstiene y no llama al modelo."""
     async def rag_results(**kwargs):
         if not con_fuentes:
             return []
-        return [{"text": "fragmento " * 50, "filename": "paper.pdf", "doc_id": "d1",
-                 "doc_title": "Un paper", "doc_authors": "Autora"}]
+        return [{"text": "fragmento " * 50, "filename": f"p{n}.pdf", "doc_id": f"d{n}",
+                 "doc_title": f"Paper {n}", "doc_authors": "Autora", "score": 0.9}
+                for n in (1, 2, 3)]
 
     llamadas = []
 
@@ -107,7 +126,12 @@ async def test_la_sintesis_del_investigador_lleva_tope(monkeypatch, con_fuentes)
     async def backend(*args, **kwargs):
         return "qdrant"
 
+    async def biblioteca(_session, _project, doc_ids):
+        return {d: _fila_verificada(i) for i, d in enumerate(doc_ids, start=1)}
+
     monkeypatch.setattr(adapter_investigador, "get_rag_backend", backend)
+    monkeypatch.setattr(adapter_investigador, "AsyncSessionLocal", _SesionFalsa)
+    monkeypatch.setattr(adapter_investigador.library, "documents_by_rag_id", biblioteca)
     estado = {
         "article_id": str(uuid.uuid4()),
         "project_id": str(uuid.uuid4()),
@@ -116,8 +140,12 @@ async def test_la_sintesis_del_investigador_lleva_tope(monkeypatch, con_fuentes)
         binding.CLAVE_ESTADO: binding.CapabilityBundle({"rag_results": rag_results, "llm": llm_falso}),
     }
 
-    await adapter_investigador.run_investigador(estado)
+    salida = await adapter_investigador.run_investigador(estado)
 
+    if not con_fuentes:
+        assert llamadas == [], "sin fuentes verificadas no se sintetiza (AC7)"
+        assert salida["abstained"] is True
+        return
     assert len(llamadas) == 1, "la síntesis debería llamar al LLM una vez"
     tope = llamadas[0].get("max_tokens")
     assert tope is not None and 0 < tope <= 2048, f"síntesis sin tope razonable: {tope!r}"

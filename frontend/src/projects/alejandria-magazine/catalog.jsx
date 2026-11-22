@@ -39,16 +39,11 @@ const PanelInvestigador = () => (
       El agente ejecuta las siguientes etapas en orden:
       <ol style={{ margin: '8px 0 0 16px', display: 'flex', flexDirection: 'column', gap: 4 }}>
         <li><strong>RAG local</strong> — búsqueda vectorial (cosine similarity) en Qdrant con las keywords del artículo como query. Controlado por <em>Top-K RAG</em> y <em>coleción</em> del tab RAG.</li>
-        <li><strong>EuropePMC</strong> — consulta la API REST de EuropePMC y recupera artículos científicos en abierto relacionados con las keywords.</li>
-        <li><strong>Web scraping</strong> — si EuropePMC no aporta suficiente contexto, raspa arXiv, Wikipedia y Semantic Scholar. Cuando <em>Semantic re-rank</em> está activo, re-ordena las páginas descargadas por similitud coseno antes de pasarlas al modelo.</li>
-        <li><strong>Síntesis con Ollama</strong> — combina todas las fuentes y genera el campo <code>research_data</code> que recibe el Redactor.
-          <ul style={{ margin: '4px 0 0 16px', display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <li>Con fuentes externas: usa el modelo configurado (por defecto <code>mistral:7b</code>) con <code>num_ctx = 8192</code> y timeout de 10 min.</li>
-            <li>Sin fuentes (solo parametric): usa <code>llama3.2:1b</code> como fallback con <code>num_ctx = 2048</code> y timeout de 2 min.</li>
-          </ul>
-        </li>
+        <li><strong>Biblioteca verificada</strong> — cruza cada documento recuperado con la biblioteca del proyecto. Solo los documentos <em>aceptados y con DOI verificado</em> pueden citarse (entran en las Referencias); los demás sirven como contexto y nunca se citan. No consulta APIs externas ni raspa páginas web.</li>
+        <li><strong>Abstención</strong> — si hay menos fuentes verificadas que el mínimo del proyecto (por defecto 3, no editable desde el artículo), el agente se detiene, no escribe desde el conocimiento del modelo y te dice qué falta.</li>
+        <li><strong>Síntesis con el LLM</strong> — resume el material citable y genera el campo <code>research_data</code> que recibe el Redactor, con el modelo configurado en <em>Configuración → Agentes → Investigador</em>.</li>
       </ol>
-      <div style={{ marginTop: 8 }}>Gestiona los documentos propios del investigador en el tab <strong>RAG</strong>. Cambia el modelo de síntesis en <em>Configuración → Agentes → Investigador</em>.</div>
+      <div style={{ marginTop: 8 }}>Gestiona los documentos propios del investigador en el tab <strong>RAG</strong>.</div>
     </div>
 );
 

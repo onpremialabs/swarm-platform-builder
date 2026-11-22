@@ -92,6 +92,46 @@ async def citable_documents(session: AsyncSession, project_id: UUID) -> list[Lib
     )
 
 
+def is_citable(doc: LibraryDocumentModel) -> bool:
+    """¿Puede el documento entrar en `sources` y Referencias? (AC5, ADR-0011.)
+
+    Aceptado por el autor **y** con DOI verificado —por el sistema o aportado por el autor—.
+    Es el mismo predicado que `citable_documents`, para un documento ya cargado. No hay
+    excepción para un «documento interno»: sin DOI verificado, solo es contexto.
+    """
+    return (
+        doc.curation_status == CurationStatus.ACCEPTED.value
+        and bool(doc.verified)
+        and bool(doc.doi)
+    )
+
+
+async def documents_by_rag_id(
+    session: AsyncSession, project_id: UUID, doc_ids: list[str]
+) -> dict[str, LibraryDocumentModel]:
+    """Filas de la biblioteca del proyecto que apuntan a estos `doc_id` del RAG.
+
+    Solo del proyecto indicado: dos proyectos con el mismo `doc_id` no se ven. Si varias filas
+    comparten `doc_id` (no hay unicidad), gana la citable. Un `doc_id` del RAG **sin fila** no
+    aparece en el resultado: es un documento subido antes de la biblioteca (T22.5, transición)
+    y quien llama lo trata como «sin verificar».
+    """
+    ids = [d for d in dict.fromkeys(doc_ids) if d]
+    if not ids:
+        return {}
+    filas = await session.scalars(
+        select(LibraryDocumentModel).where(
+            LibraryDocumentModel.project_id == project_id, LibraryDocumentModel.doc_id.in_(ids)
+        )
+    )
+    por_id: dict[str, LibraryDocumentModel] = {}
+    for fila in filas:
+        previa = por_id.get(fila.doc_id)
+        if previa is None or (is_citable(fila) and not is_citable(previa)):
+            por_id[fila.doc_id] = fila
+    return por_id
+
+
 async def set_curation(
     session: AsyncSession,
     project_id: UUID,

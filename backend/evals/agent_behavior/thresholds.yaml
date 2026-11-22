@@ -46,12 +46,18 @@ agents:
       # Es la métrica que da sentido al RAG de este agente: si cita algo que no está
       # en el corpus, se lo ha inventado. No se admite margen.
       citation_fidelity: {min: 100, baseline: 100.0}
+      # SPEC-034/T22.5 (AC5): solo se cita lo que tiene DOI verificado; no hay excepción
+      # para «documento interno» (ADR-0011). Sin margen: o está verificado o no.
+      source_verification: {min: 100, baseline: 100.0}
+      # SPEC-034/T22.5 (AC7): se abstiene sin texto con evidencia insuficiente y no se
+      # abstiene con suficiente. Sin margen.
+      abstention: {min: 100, baseline: 100.0}
       # Coherencia la juzga un modelo con rúbrica fija; su número tiene más ruido
       # que el de una expresión regular, así que el margen es mayor.
       coherence: {min: 70, baseline: 84.0}
       # El presupuesto puntúa margen, no aprobado: bajar aquí significa que el
       # agente consume más para lo mismo.
-      budget: {min: 60, baseline: 73.75}
+      budget: {min: 60, baseline: 75.0}
 
   redactor:
     dataset: redactor-golden

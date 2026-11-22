@@ -19,7 +19,7 @@ _DEFAULT_TEMPLATE_ES = (
     "\nTítulo: {title}\n"
     "Palabras clave: {keywords}\n"
     "{context_section}"
-    "### Contexto de investigación (incorpora estos datos y cita apropiadamente):\n"
+    "### Contexto de investigación (incorpora estos datos; cita SOLO las fuentes listadas como citables, el resto es contexto y no se cita):\n"
     "{research_data}\n"
     "{feedback_section}\n"
     "Escribe un manuscrito científico estructurado que contenga:\n"
@@ -36,7 +36,7 @@ _DEFAULT_TEMPLATE_EN = (
     "\nTitle: {title}\n"
     "Keywords: {keywords}\n"
     "{context_section}"
-    "### Research Context (incorporate this data and cite appropriately):\n"
+    "### Research Context (incorporate this data; cite ONLY the sources listed as citable, anything else is context and must not be cited):\n"
     "{research_data}\n"
     "{feedback_section}\n"
     "Write a structured scientific manuscript containing:\n"
@@ -118,47 +118,67 @@ async def run_redactor(state: Dict[str, Any]) -> Dict[str, Any]:
         for item in feedback:
             log(f"  → {item}")
 
-    # ── RAG lookup: pull additional context from the knowledge base ───────────
+    # ── RAG lookup: más fragmentos, pero solo de las fuentes citables ─────────
+    # El Redactor **no añade fuentes propias** (SPEC-034/AC5): lo citable es exactamente
+    # `state["sources"]`, que el Investigador construyó con documentos de DOI verificado. Antes
+    # hacía su propia consulta sobre todo el RAG y pegaba esos fragmentos en `research_data`,
+    # así que podía citar documentos que nunca pasaron por `sources` ni por la verificación
+    # (hallazgo 0.6 de la matriz). Ahora solo amplía con fragmentos de los mismos documentos.
+    #   * Citable: las fuentes de `state["sources"]` (y sus fragmentos).
+    #   * Contexto: `research_data` (incluida la síntesis, que puede apoyarse en documentos sin
+    #     verificar, y el feedback del revisor). Orienta; no se cita.
+    #   * Sin fuentes (p. ej. un flujo sin Investigador): no hay búsqueda ni material citable.
     rag_bucket = (agent_cfg.get("rag_collection") or "").strip() or settings.QDRANT_COLLECTION
     rag_collection = collection_for_state(state, rag_bucket)
+    source_doc_ids = [
+        str(src["doc_id"]) for src in (state.get("sources") or [])
+        if isinstance(src, dict) and src.get("doc_id")
+    ]
     rag_doc_ids = agent_cfg.get("rag_doc_ids") or None
     if isinstance(rag_doc_ids, list) and len(rag_doc_ids) == 0:
         rag_doc_ids = None
+    if rag_doc_ids:
+        # La selección del autor solo puede restringir, nunca ampliar más allá de `sources`.
+        source_doc_ids = [d for d in source_doc_ids if d in set(rag_doc_ids)]
 
-    log(f"🔎 Consultando base de conocimiento (colección: {rag_collection}, límite: 10)...")
-    try:
-        rag_query = f"{title} {' '.join(keywords[:6])}"
-        buscar = provider(state, "rag", semantic_search_context)
-        extra_rag = await asyncio.wait_for(
-            buscar(
-                query=rag_query,
-                qdrant_url=settings.QDRANT_URL,
-                collection=rag_collection,
-                agent_name=["investigador", LIBRARY_AGENT],   # investigador data + shared library
-                ollama_base_url=settings.OLLAMA_BASE_URL,
-                embedding_model=settings.OLLAMA_EMBED_MODEL,
-                limit=10,
-                api_key=settings.QDRANT_API_KEY,
-                doc_ids=rag_doc_ids,
-            ),
-            timeout=25.0,
-        )
-        if extra_rag:
-            extra_words = len(extra_rag.split())
-            research_data = (
-                research_data
-                + "\n\n---\n\n### Contexto adicional desde base de conocimiento:\n"
-                + extra_rag
+    if not source_doc_ids:
+        log("ℹ️ Sin fuentes citables con documento en la base: el Redactor no consulta el RAG por su cuenta.")
+    else:
+        log(f"🔎 Ampliando desde las {len(source_doc_ids)} fuente(s) citable(s) (colección: {rag_collection}, límite: 10)...")
+        try:
+            rag_query = f"{title} {' '.join(keywords[:6])}"
+            buscar = provider(state, "rag", semantic_search_context)
+            extra_rag = await asyncio.wait_for(
+                buscar(
+                    query=rag_query,
+                    qdrant_url=settings.QDRANT_URL,
+                    collection=rag_collection,
+                    agent_name=["investigador", LIBRARY_AGENT],
+                    ollama_base_url=settings.OLLAMA_BASE_URL,
+                    embedding_model=settings.OLLAMA_EMBED_MODEL,
+                    limit=10,
+                    api_key=settings.QDRANT_API_KEY,
+                    # Solo documentos de `sources`: lo que el filtro deja pasar es lo citable.
+                    doc_ids=source_doc_ids,
+                ),
+                timeout=25.0,
             )
-            log(f"✅ RAG: {extra_words} palabras de contexto adicional encontradas.")
-        else:
-            log("ℹ️ RAG no devolvió contexto adicional para este tema.")
-    except asyncio.TimeoutError:
-        logger.warning("Redactor RAG lookup timed out after 25s — skipping")
-        log("ℹ️ RAG omitido (timeout 25s) — continuando sin contexto adicional.")
-    except Exception as exc:
-        logger.warning("Redactor RAG lookup failed: %s", exc)
-        log(f"⚠️ RAG no disponible: {exc}", "warning")
+            if extra_rag:
+                extra_words = len(extra_rag.split())
+                research_data = (
+                    research_data
+                    + "\n\n---\n\n### Fragmentos adicionales de las fuentes citables:\n"
+                    + extra_rag
+                )
+                log(f"✅ RAG: {extra_words} palabras adicionales de las fuentes citables.")
+            else:
+                log("ℹ️ RAG no devolvió fragmentos adicionales de las fuentes citables.")
+        except asyncio.TimeoutError:
+            logger.warning("Redactor RAG lookup timed out after 25s — skipping")
+            log("ℹ️ RAG omitido (timeout 25s) — continuando sin contexto adicional.")
+        except Exception as exc:
+            logger.warning("Redactor RAG lookup failed: %s", exc)
+            log(f"⚠️ RAG no disponible: {exc}", "warning")
 
     # Build context section from user-provided description and outline
     context_parts = []

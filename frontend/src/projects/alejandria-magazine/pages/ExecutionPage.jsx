@@ -142,6 +142,11 @@ export default function ExecutionPage() {
           // SPEC-032/AC7: se agotaron las vueltas sin aprobar; solo una persona decide.
           setGateNotice({ kind: 'requires_human_review', score: data.score, feedback: data.feedback || [] });
           addLog('⏸️ El Revisor no aprobó tras agotar las vueltas: el artículo requiere revisión humana', 'warn');
+        } else if (data.type === 'abstained') {
+          // SPEC-034/AC7: sin fuentes verificadas suficientes el Investigador se abstiene y el
+          // pipeline se detiene; el mensaje dice qué falta y cómo resolverlo.
+          setGateNotice({ kind: 'abstained', message: data.message, verified: data.verified_sources, min: data.min_sources });
+          addLog('⛔ El Investigador se abstuvo: faltan fuentes verificadas. El artículo sigue en borrador.', 'warn');
         } else if (data.type === 'log') {
           addLog(data.message, data.level || '');
         } else if (data.type === 'done') {
@@ -369,6 +374,12 @@ export default function ExecutionPage() {
                     </li>
                   ))}
                 </ul>
+              </>
+            ) : gateNotice.kind === 'abstained' ? (
+              <>
+                <strong>El Investigador se abstuvo.</strong>
+                {typeof gateNotice.verified === 'number' && <> Fuentes verificadas: {gateNotice.verified}/{gateNotice.min}.</>}
+                <div style={{ marginTop: 6 }}>{gateNotice.message}</div>
               </>
             ) : (
               <>

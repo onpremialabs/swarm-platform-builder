@@ -51,6 +51,22 @@ class ReviewLoop:
     on_exhausted: str = "advance"
 
 
+def make_halt_router(siguiente: str) -> Callable[[Dict[str, Any]], str]:
+    """Arista de un nodo sin bucle: sigue al `siguiente`, salvo que el nodo se haya abstenido.
+
+    `abstained` en el estado termina la ejecución en ese punto, igual que `on_exhausted: stop`
+    lo hace con la revisión. Quien se abstiene deja dicho el porqué en `abstention`.
+    """
+
+    def router(state: Dict[str, Any]) -> str:
+        if state.get("abstained"):
+            logger.info("Un nodo se abstuvo: se detiene el flujo antes de '%s'.", siguiente)
+            return FIN
+        return siguiente
+
+    return router
+
+
 def next_after(flow: Sequence[str], node: str) -> str:
     """Nodo que sigue a `node` en el flujo, o el final."""
     try:
@@ -93,6 +109,9 @@ def make_review_router(loop: ReviewLoop) -> Callable[[Dict[str, Any]], str]:
     def router(state: Dict[str, Any]) -> str:
         flow = list(state.get("flow_sequence") or [])
         decision = state.get("user_decision")
+
+        if state.get("abstained"):
+            return FIN
 
         if decision == "add_source":
             for candidato in loop.retry_targets:

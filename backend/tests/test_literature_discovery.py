@@ -589,7 +589,7 @@ def test_una_base_mal_escrita_falla_al_cargar_la_plantilla(tmp_path, fuentes, fr
 
 
 def test_el_bloque_research_rechaza_claves_desconocidas_y_formas_raras(tmp_path):
-    for malo, fragmento in [({"sources": ["openalex"], "min_sources": 3}, "min_sources"),
+    for malo, fragmento in [({"sources": ["openalex"], "max_sources": 3}, "max_sources"),
                             ("texto", "mapa")]:
         raiz = _plantilla(tmp_path / str(len(fragmento)), lambda d: d.update(research=malo))
         with pytest.raises(TemplateError) as exc:
