@@ -1,0 +1,64 @@
+"""Bloque `research:` de `template.yaml` (SPEC-034 / AC1).
+
+Se valida **al cargar la plantilla**: una base desconocida es un `ResearchConfigError`
+(que el loader convierte en `TemplateError`), no un fallo a mitad de la ejecución.
+
+Solo `sources`. `research.min_sources` (la abstención del Investigador, AC7) es de T22.5
+y se añadirá allí: hasta entonces una clave desconocida se rechaza, para que un error de
+escritura no se quede en silencio.
+
+Semantic Scholar es válida en `sources` aunque no haya clave: la plantilla es un dato del
+proyecto y no puede cambiar de validez según el entorno donde se cargue. Sin clave, la
+base se omite en tiempo de ejecución con un aviso explícito (ver `discovery.py`).
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any, Tuple
+
+from app.platform.capabilities.literature.models import DEFAULT_SOURCES, KNOWN_SOURCES
+
+CLAVES_SOPORTADAS = ("sources",)
+
+
+class ResearchConfigError(ValueError):
+    """El bloque `research:` no es utilizable. El mensaje dice por qué."""
+
+
+@dataclass(frozen=True)
+class ResearchConfig:
+    sources: Tuple[str, ...] = DEFAULT_SOURCES
+
+
+def parse_research(crudo: Any) -> ResearchConfig:
+    """Valida el bloque `research:`. `None` o ausente -> valores por defecto."""
+    if crudo is None:
+        return ResearchConfig()
+    if not isinstance(crudo, dict):
+        raise ResearchConfigError("'research' debe ser un mapa")
+    desconocidas = sorted(set(crudo) - set(CLAVES_SOPORTADAS))
+    if desconocidas:
+        raise ResearchConfigError(
+            f"'research' tiene claves que no se reconocen: {', '.join(map(str, desconocidas))} "
+            f"(se admiten: {', '.join(CLAVES_SOPORTADAS)})"
+        )
+    if "sources" not in crudo or crudo["sources"] is None:
+        return ResearchConfig()
+    fuentes = crudo["sources"]
+    if not isinstance(fuentes, list) or not fuentes:
+        raise ResearchConfigError("'research.sources' debe ser una lista no vacía")
+    nombres = []
+    for fuente in fuentes:
+        if not isinstance(fuente, str):
+            raise ResearchConfigError(f"'research.sources' solo admite nombres de base, no {fuente!r}")
+        nombre = fuente.strip().lower()
+        if nombre not in KNOWN_SOURCES:
+            raise ResearchConfigError(
+                f"'research.sources' nombra la base desconocida {fuente!r} "
+                f"(conocidas: {', '.join(KNOWN_SOURCES)})"
+            )
+        if nombre in nombres:
+            raise ResearchConfigError(f"'research.sources' repite la base '{nombre}'")
+        nombres.append(nombre)
+    return ResearchConfig(sources=tuple(nombres))
+
