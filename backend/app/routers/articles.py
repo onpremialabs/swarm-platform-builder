@@ -757,6 +757,7 @@ async def get_article_paper(
     if not paper_html.strip():
         from app.modules.agents.adapters.paper_layout import build_paper_html
         from app.platform.assets import make_project_resolver
+        from app.platform.manuscript_metadata import system_date
 
         fmt = (article.scientific_format.value if article.scientific_format else None) or "apa"
         paper_html = build_paper_html(
@@ -765,6 +766,7 @@ async def get_article_paper(
             abstract=article.abstract or "",
             body_markdown=article.body or "",
             scientific_format=fmt,
+            date=system_date(article.created_at),
             theme=await resolve_article_theme(session, article),
             asset_resolver=make_project_resolver(str(article.project_id or "")),
         )
