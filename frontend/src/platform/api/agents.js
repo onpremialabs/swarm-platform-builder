@@ -114,9 +114,11 @@ export const agentsApi = {
       params: collection ? { collection } : {},
     }).then(r => r.data),
 
-  uploadLibraryDocument: (file, collection, chunkSize, chunkOverlap) => {
+  uploadLibraryDocument: (file, collection, chunkSize, chunkOverlap, documentId) => {
     const form = new FormData();
     form.append('file', file);
+    // Ficha existente «solo resumen» a la que se adjunta el PDF (T22.10): pasa a full_text.
+    if (documentId) form.append('document_id', documentId);
     if (collection) form.append('collection', collection);
     if (chunkSize != null) form.append('chunk_size', String(chunkSize));
     if (chunkOverlap != null) form.append('chunk_overlap', String(chunkOverlap));
