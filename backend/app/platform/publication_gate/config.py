@@ -6,7 +6,12 @@ una compuerta mal escrita se entera al arrancar, no al publicar.
 from dataclasses import dataclass, field
 from typing import Any, Mapping
 
-from app.platform.publication_gate.placeholders import DEFAULT_PLACEHOLDERS
+from app.platform.publication_gate.dates import DateRules
+from app.platform.publication_gate.placeholders import (
+    DEFAULT_PLACEHOLDERS,
+    MarkerError,
+    validate_marker,
+)
 from app.platform.publication_gate.reference_resolver import ResolverConfig
 
 DEFAULT_SECTIONS = ("introduction", "methods", "results", "discussion", "references")
@@ -23,6 +28,8 @@ class PendingCriterion:
 @dataclass(frozen=True)
 class GateConfig:
     placeholders: tuple = DEFAULT_PLACEHOLDERS
+    #: fechas de metadatos fuera del rango de vida del artículo (SPEC-037 AC2).
+    dates: DateRules = field(default_factory=DateRules)
     references: ResolverConfig = field(default_factory=ResolverConfig)
     sections: tuple = DEFAULT_SECTIONS
     titles: Mapping[str, Mapping[str, tuple]] = field(default_factory=dict)
@@ -61,6 +68,28 @@ def parse_gate(raw: Any) -> GateConfig:
         and bool(marcadores)
         and all(isinstance(m, str) and m.strip() for m in marcadores),
         "'gate.placeholders' debe ser una lista no vacía de textos",
+    )
+    for m in marcadores:
+        # Un `regex:` roto o catastrófico se descubre aquí, no al publicar.
+        try:
+            validate_marker(m)
+        except MarkerError as exc:
+            raise GateConfigError(f"'gate.placeholders': {m!r}: {exc}") from exc
+
+    fechas = raw.get("dates", {})
+    fechas = {} if fechas is None else fechas
+    _exigir(isinstance(fechas, dict), "'gate.dates' debe ser un mapa")
+    for clave in fechas:
+        _exigir(clave in ("labels", "tolerance_days"), f"'gate.dates.{clave}' no es un ajuste conocido")
+    etiquetas = fechas.get("labels", [])
+    _exigir(
+        isinstance(etiquetas, list) and all(isinstance(x, str) and x.strip() for x in etiquetas),
+        "'gate.dates.labels' debe ser una lista de textos",
+    )
+    tolerancia = fechas.get("tolerance_days", 1)
+    _exigir(
+        isinstance(tolerancia, int) and not isinstance(tolerancia, bool) and 0 <= tolerancia <= 31,
+        "'gate.dates.tolerance_days' debe ser un entero entre 0 y 31",
     )
 
     refs = raw.get("references") or {}
@@ -114,6 +143,7 @@ def parse_gate(raw: Any) -> GateConfig:
 
     return GateConfig(
         placeholders=tuple(marcadores),
+        dates=DateRules(labels=tuple(x.strip() for x in etiquetas), tolerance_days=tolerancia),
         references=ResolverConfig(**valores),
         sections=secciones,
         titles=titulos,

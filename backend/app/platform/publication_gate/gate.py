@@ -7,6 +7,7 @@ referencias, 2) validar su estructura, 3) marcadores, 4) estructura IMRaD,
 5) criterios `not_implemented`.
 """
 from dataclasses import dataclass, field
+from datetime import datetime
 import logging
 from typing import Any
 
@@ -63,15 +64,25 @@ class GateReport:
 
 
 async def evaluate_gate(
-    text: str, sources: list, config: GateConfig, **resolver_kwargs: Any
+    text: str,
+    sources: list,
+    config: GateConfig,
+    *,
+    created_at: datetime | None = None,
+    now: datetime | None = None,
+    **resolver_kwargs: Any,
 ) -> GateReport:
+    """`created_at` es el dato de creación del artículo (lo pasa el servicio; la
+    compuerta no conoce agentes ni modelos) y sirve a la comprobación de fechas."""
     existence, enriched = await check_reference_existence(
         sources, config.references, **resolver_kwargs
     )
     criteria: list[CriterionResult] = [
         existence,
         check_reference_structure(enriched),
-        check_placeholders(text, config.placeholders),
+        check_placeholders(
+            text, config.placeholders, dates=config.dates, created_at=created_at, now=now
+        ),
         check_structure(text, config.sections, config.titles),
     ]
     pending = [{"id": p.id, "phase": p.phase} for p in config.pending]
