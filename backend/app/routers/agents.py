@@ -57,7 +57,9 @@ from app.platform.project_access import (
 from app.platform.project_context import ProjectContext, bucket_of
 from app.platform.projects.profiles import agents_dir as project_agents_dir
 from app.platform import explainability
-from app.platform import library, library_fulltext, library_import, library_upload
+from app.platform import library, library_discovery, library_fulltext, library_import, library_upload
+from app.core.rate_limit import literature_search_limiter
+from app.platform.capabilities.literature.models import LiteratureQueryError, UnknownSourceError
 from app.models.library_document import CurationStatus
 from app.platform.library import SEARCH_RECORD_FIELDS, SEARCH_RECORD_VERSION, search_record
 
@@ -490,6 +492,67 @@ async def import_library_records(
         raise HTTPException(status_code=422, detail="No se encontró ninguna entrada ni DOI válidos")
     return {"results": resultados,
             "imported": sum(1 for r in resultados if r["status"] == library_import.IMPORTED)}
+
+
+class LibrarySearch(BaseModel):
+    query: str
+    sources: list[str] | None = None
+
+
+def _project_sources() -> list[str]:
+    """Bases de `research.sources` del proyecto (por defecto OpenAlex y Crossref)."""
+    return list(alejandria.package().research.sources)
+
+
+@router.get("/rag/library/search/config")
+async def library_search_config(
+    token_data=Depends(get_current_user),
+    project: ProjectContext = Depends(get_project_context),
+):
+    """Si el descubrimiento está activo y qué bases ofrece el proyecto (T22.11)."""
+    activo = library_discovery.is_enabled()
+    return {"enabled": activo, "sources": _project_sources(),
+            "message": None if activo else library_discovery.DISABLED_MESSAGE}
+
+
+@router.post("/rag/library/search")
+async def search_library_literature(
+    payload: LibrarySearch,
+    token_data=Depends(require_redactor),
+    project: ProjectContext = Depends(get_project_context),
+    session: AsyncSession = Depends(get_session),
+):
+    """Busca literatura, verifica y guarda candidatos nuevos (SPEC-034 / T22.11 / AC12).
+
+    La consulta es de la persona autora (no texto del manuscrito). Solo se guardan los
+    verificados cuyo DOI no está ya en la biblioteca del proyecto en ningún estado.
+    """
+    if not library_discovery.is_enabled():
+        return await library_discovery.discover_and_store(
+            session, project.project_id, payload.query, [])
+    permitidas = _project_sources()
+    pedidas = [s.strip().lower() for s in (payload.sources or permitidas)]
+    fuera = [s for s in pedidas if s not in permitidas]
+    if fuera or not pedidas:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Bases no activas en este proyecto: {', '.join(fuera) or '(ninguna)'}")
+    retry_after = literature_search_limiter.check_and_record(
+        token_data["user_id"], settings.LITERATURE_SEARCH_RATELIMIT_MAX,
+        settings.LITERATURE_SEARCH_RATELIMIT_WINDOW_SECONDS)
+    if retry_after is not None:
+        raise HTTPException(
+            status_code=429, detail="Demasiadas búsquedas. Inténtalo de nuevo más tarde.",
+            headers={"Retry-After": str(int(retry_after) + 1)})
+    try:
+        return await library_discovery.discover_and_store(
+            session, project.project_id, payload.query, list(dict.fromkeys(pedidas)),
+            user_id=UUID(token_data["user_id"]))
+    except (LiteratureQueryError, UnknownSourceError) as error:
+        raise HTTPException(status_code=422, detail=str(error))
+    except Exception:
+        logger.exception("library search failed")
+        raise HTTPException(status_code=502, detail="La búsqueda falló; no se guardó ningún candidato.")
 
 
 @router.post("/rag/backfill-metadata")

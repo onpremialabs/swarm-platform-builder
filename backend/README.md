@@ -239,6 +239,8 @@ Cada ejecución de agente se registra en la tabla `agent_runs` para trazabilidad
 | `PATCH` | `/api/v1/agents/rag/library/records/{id}` | Editar metadatos; un DOI aportado verifica como `author_supplied` (quién y cuándo) |
 | `POST` | `/api/v1/agents/rag/library/records/{id}/curation` | Aceptar, descartar o marcar «imprescindible» un candidato (T22.8) |
 | `POST` | `/api/v1/agents/rag/library/import` | Importar BibTeX o lista de DOI; verifica cada DOI, el resto queda sin verificar (T22.8) |
+| `GET` | `/api/v1/agents/rag/library/search/config` | Si el descubrimiento está activo (`LITERATURE_DISCOVERY_ENABLED`) y qué bases ofrece el proyecto (`research.sources`) (T22.11) |
+| `POST` | `/api/v1/agents/rag/library/search` | Busca literatura (consulta de la autora, bases del proyecto), verifica por DOI y guarda como `candidate` solo los verificados cuyo DOI no está en la biblioteca del proyecto en ningún estado; devuelve nuevos y estado por base. Apagado: «descubrimiento desactivado» sin red. Limitado por usuario (`LITERATURE_SEARCH_RATELIMIT_*`, 429) (T22.11) |
 | `DELETE` | `/api/v1/agents/rag/library/{collection}/{doc_id}` | Eliminar documento |
 | `POST` | `/api/v1/agents/{agent}/rag/upload` | Subir documento a agente específico |
 

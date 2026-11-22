@@ -148,6 +148,12 @@ export const agentsApi = {
   importLibraryRecords: (payload) =>
     api.post('/api/v1/agents/rag/library/import', payload).then(r => r.data),
 
+  // Descubrimiento de literatura (T22.11): config = { enabled, sources, message }.
+  getLibrarySearchConfig: () =>
+    api.get('/api/v1/agents/rag/library/search/config').then(r => r.data),
+  searchLibrary: (query, sources) =>
+    api.post('/api/v1/agents/rag/library/search', { query, sources }).then(r => r.data),
+
   // Tool calling catalog
   getAvailableTools: () =>
     api.get('/api/v1/agents/tools').then(r => r.data),
