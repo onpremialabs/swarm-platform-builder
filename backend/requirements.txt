@@ -504,9 +504,9 @@ distro==1.9.0 \
     --hash=sha256:2fa77c6fd8940f116ee1d6b94a2f90b13b5ea8d019b98bc8bafdcabcdd9bdbed \
     --hash=sha256:7bffd925d65168f85027d8da9af6bddab658135b840670a223589bc0c8ef02b2
     # via langsmith
-dnspython==2.9.0 \
-    --hash=sha256:9a4aedb833c3c1b49214d04d44d3032ab7a9135f7c1d29a549b4ff78fd82fda9 \
-    --hash=sha256:b44dc6b18f07a8b1c56676a19fbfdb5209415b046a9cece286baafa87ff3f7f1
+dnspython==2.9.2 \
+    --hash=sha256:8d4d39a513e649d634004ce4d39ade2352efcea472a0247535a5c2d18a9d7ba9 \
+    --hash=sha256:af15f7d385a6ae2fb35a796fde2138004c8c42c7389090e2addc83e3b3340fd8
     # via email-validator
 docstring-parser==0.18.0 \
     --hash=sha256:292510982205c12b1248696f44959db3cdd1740237a968ea1e2e7a900eeb2015 \
@@ -960,9 +960,9 @@ openai==3.6.0 \
     --hash=sha256:18fe3f6e96390ef41ee27b152fc9effefca321c33673bd9b956a572493d3ab9b \
     --hash=sha256:508e2158bf971687f953b62e44b02f207792c815aac306816386d7ba34d37f5f
     # via -r requirements.in
-opentelemetry-api==1.45.1 \
-    --hash=sha256:aa38ed19bcc084ba42782a73255b3582283eced7ad6dddbd6695189e69adfb75 \
-    --hash=sha256:b31553efa588ae44bc306f863c785c5333a9ecc091248c6ee68b4b6c87fdedfb
+opentelemetry-api==1.45.2 \
+    --hash=sha256:2cbd737377e710ee740d261c94e93fa0f08e6d037c18f17513cc0a2d94479a34 \
+    --hash=sha256:d7b0008e21e5fd61cbe7a7f34ca3b6905a78ab677d9bc395e299359c75cda6b4
     # via
     #   opentelemetry-exporter-http-transport
     #   opentelemetry-exporter-otlp-proto-http
@@ -990,16 +990,16 @@ opentelemetry-proto==1.45.1 \
     # via
     #   opentelemetry-exporter-otlp-proto-common
     #   opentelemetry-exporter-otlp-proto-http
-opentelemetry-sdk==1.45.1 \
-    --hash=sha256:63d24a6ca645019a631e6a51999c73e93adcac1196ca640b8ae78a7cc4762bf3 \
-    --hash=sha256:c604c11dc429810812348989115fa44bd558772a3d7442afc43d024f2c250ca4
+opentelemetry-sdk==1.45.2 \
+    --hash=sha256:7eec4de13dd21ff3a1670dcb0e02079e692736f94d733dfdce5af461d884248d \
+    --hash=sha256:ff974ea70ee4f1d51e2ec152db37c2b626c7bf82bb3f7d86114fd8704e7199c6
     # via
     #   -r requirements.in
     #   opentelemetry-exporter-otlp-common
     #   opentelemetry-exporter-otlp-proto-http
-opentelemetry-semantic-conventions==0.66b1 \
-    --hash=sha256:497ca63bf383723411e8eaf60c8779e9877633c936bb641080adab59d0eb6ec8 \
-    --hash=sha256:d4cddeb4315490b35213f55e2bdc9ac54bb1e4d318927475bed62b35545e581b
+opentelemetry-semantic-conventions==0.66b2 \
+    --hash=sha256:4cbe61e5f9275d57ab31708446e7938ef4291ebbe6a7fca6f7a629c5acae87d8 \
+    --hash=sha256:7da5f1a5dc4383eb66711d4d3d3e71824d9403ac1559fea021cc103c1a4c4976
     # via opentelemetry-sdk
 orjson==3.12.0 \
     --hash=sha256:010811c1b69773450a01cef97727a67b223242f350b77d4ca000e59a9ef2155a \
