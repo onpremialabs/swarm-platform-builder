@@ -62,6 +62,15 @@ Spec Kit).
 | [SPEC-022](SPEC-022-editable-paper-output.md) | Maquetación editable del paper y personalización antes de publicar | Ready | E11 |
 | [SPEC-023](SPEC-023-claude-default-engine.md) | Claude por defecto como motor agéntico, multi-proveedor y multi-modelo por agente | Ready | E12 |
 | [SPEC-025](SPEC-025-model-benchmark-scientific-writing.md) | Benchmark comparativo de modelos LLM open-source para redacción científica (ruta on-prem/Ollama) | In progress | E13 |
+| [SPEC-033](SPEC-033-paper-brief-and-author-data.md) | Brief del paper y datos del autor (ficha de estudio y log de resultados) | Ready | E21 |
+| [SPEC-034](SPEC-034-verified-literature-discovery-and-library.md) | Descubrimiento de literatura verificado y biblioteca de investigación | Ready | E22 |
+| [SPEC-035](SPEC-035-citation-support-and-retractions.md) | Soporte de cada cita y comprobación de retractaciones | Ready | E23 |
+| [SPEC-036](SPEC-036-scientific-review-by-criteria.md) | Revisión científica por criterios, independiente y con regla de reversión | Ready | E24 |
+| [SPEC-037](SPEC-037-authorship-declarations-and-manuscript-metadata.md) | Autoría, declaraciones y metadatos del manuscrito | Ready | E25 |
+| [SPEC-038](SPEC-038-team-collaboration.md) | Colaboración de equipo sobre un manuscrito | Ready | E26 |
+| [SPEC-039](SPEC-039-manuscript-export-and-paper-template.md) | Exportación del manuscrito y plantilla «Paper científico» | Ready | E27 |
+| [SPEC-040](SPEC-040-research-second-brain.md) | Second brain de investigación (fichas de afirmación y notas enlazadas) | Ready | E28 |
+| [SPEC-041](SPEC-041-ui-theme-and-language.md) | Tema claro/oscuro e idioma de la interfaz (español / inglés) | Ready | E29 |
 
 > Con SPEC-015…020 **todas las épicas del backlog (E1–E9) están respaldadas por
 > una spec**: las tareas sembradas por el bootstrap
