@@ -210,3 +210,38 @@ async def list_searches(
     if article_id is not None:
         query = query.where(SearchLogModel.article_id == article_id)
     return list(await session.scalars(query.order_by(SearchLogModel.searched_at)))
+
+
+#: Formato del registro de búsqueda exportado (SPEC-034 / T22.7 / AC6). Versionado:
+#: un fichero guardado hoy tiene que seguir siendo legible cuando el registro gane
+#: campos. Es una lista explícita —no «todas las columnas»— para que añadir una
+#: columna al modelo no cambie lo que sale sin que alguien lo decida. No incluye
+#: `user_id` ni nada que no sea cadena de búsqueda y metadatos de resultados.
+SEARCH_RECORD_VERSION = 1
+SEARCH_RECORD_FIELDS = (
+    "id", "article_id", "query", "sources", "filters", "searched_at", "status",
+    "result_count", "verified_count", "discarded", "per_source",
+)
+
+
+def search_record(log: SearchLogModel) -> dict:
+    """El registro de una búsqueda en su forma estable (JSON-serializable).
+
+    `searched_at` es UTC y sale con sufijo `Z`: la columna es ingenua y sin la marca
+    un lector fuera de la plataforma no sabría en qué zona leerla.
+    """
+    registro = {
+        "id": str(log.id),
+        "article_id": str(log.article_id) if log.article_id else None,
+        "query": log.query,
+        "sources": list(log.sources or []),
+        "filters": dict(log.filters or {}),
+        "searched_at": log.searched_at.replace(microsecond=0).isoformat() + "Z"
+        if log.searched_at else None,
+        "status": log.status,
+        "result_count": log.result_count,
+        "verified_count": log.verified_count,
+        "discarded": dict(log.discarded or {}),
+        "per_source": dict(log.per_source or {}),
+    }
+    return {campo: registro[campo] for campo in SEARCH_RECORD_FIELDS}

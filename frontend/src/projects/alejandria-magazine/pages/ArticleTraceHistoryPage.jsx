@@ -78,12 +78,13 @@ export default function ArticleTraceHistoryPage() {
   const run = data?.execution;
   const steps = data?.steps || [];
   const sources = data?.sources || [];
+  const searches = data?.searches || [];
   const agents = Object.values(steps.reduce((all,s) => { const a = all[s.agent_name] ||= {name:s.agent_name,steps:0,tokens:0,time:0,errors:0}; a.steps++; a.tokens+=(s.tokens_in||0)+(s.tokens_out||0); a.time+=s.latency_ms||0; a.errors+=!['completed','running'].includes(s.status)?1:0; return all; },{}));
   const logLevel = step => ['completed', 'running'].includes(step.status) ? 'INFO' : 'ERROR';
   const events = steps.filter(s => (!agent || s.agent_name===agent) && (!level || logLevel(s)===level) && (!search || `${s.agent_name} ${s.error_message||''} ${s.status} ${s.id}`.toLocaleLowerCase().includes(search.toLocaleLowerCase())));
   const trace = steps.find(s=>s.id===selected);
   function exportTrace() {
-    const rows = [{type:'manifest',schema_version:1,article_id:id,title:data.title,execution:run,integrity:data.integrity,scope:data.integrity_scope},...steps.map(s=>({type:'step',...s}))];
+    const rows = [{type:'manifest',schema_version:1,article_id:id,title:data.title,execution:run,integrity:data.integrity,scope:data.integrity_scope,searches:searches.length},...steps.map(s=>({type:'step',...s})),...searches.map(b=>({type:'search',...b}))];
     const blob = new Blob([rows.map(row=>JSON.stringify(row)).join('\n')+'\n'],{type:'application/x-ndjson'});
     const url=URL.createObjectURL(blob); const link=document.createElement('a'); link.href=url; link.download=`traza-${id}-${run.id}.jsonl`; link.click(); setTimeout(()=>URL.revokeObjectURL(url),1000);
   }
@@ -201,6 +202,7 @@ export default function ArticleTraceHistoryPage() {
         </div>
       )}
       {tab==='sources' && <Card title={`Fuentes recuperadas (${sources.length})`}><p className="ath-muted">Recuperación RAG registrada; no demuestra que el artículo final cite estas fuentes. No se guardó el texto completo de los fragmentos en estas trazas.</p>{sources.length ? sources.map(s=><article className="ath-source" key={s.doc_id}><h3><FileText size={16}/>{s.title||s.doc_id}</h3><p>{s.authors||'Autoría no registrada'} · Colección: {s.collection||'—'}</p><p>Similitud registrada: {Number(s.score||0).toFixed(2)} · Recuperada por: {(s.used_by||[]).map(name).join(', ')}</p><details><summary>{s.chunk_ids?.length||0} fragmentos registrados · Ver identificadores</summary><Json value={{doc_id:s.doc_id,chunk_ids:s.chunk_ids}}/></details></article>) : <p>No hay fuentes recuperadas registradas para esta ejecución.</p>}</Card>}
+      {tab==='sources' && <Card title={`Búsquedas bibliográficas (${searches.length})`}><p className="ath-muted">Registro reproducible de cada búsqueda: bases consultadas, cadena, filtros y fecha (UTC). Solo se guarda la cadena de búsqueda y recuentos, no el texto del manuscrito. Incluye todas las búsquedas del artículo y se exporta en el JSONL.</p>{searches.length ? searches.map(b=><article className="ath-source" key={b.id}><h3><Database size={16}/>{b.query}</h3><p>Fecha: {date(b.searched_at)} · Estado: {b.status} · Bases: {(b.sources||[]).join(', ')||'—'}</p><p>Resultados: {b.result_count} · Verificados: {b.verified_count}{Object.keys(b.discarded||{}).length ? ` · Descartados: ${Object.entries(b.discarded).map(([k,v])=>`${k} ${v}`).join(', ')}` : ''}</p><details><summary>Filtros y detalle por base</summary><Json value={{filters:b.filters,per_source:b.per_source}}/></details></article>) : <p>No hay búsquedas bibliográficas registradas para este artículo.</p>}</Card>}
       {tab==='integrity' && <Card title="Integridad de los pasos"><p>{data.integrity.status === 'intacta'
         ? <span className="ath-badge ath-completed"><ShieldCheck size={14} aria-hidden="true" />Cadena verificada</span>
         : data.integrity.status === 'rota'

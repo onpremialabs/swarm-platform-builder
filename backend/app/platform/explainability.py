@@ -47,6 +47,9 @@ class StepAccumulator:
     tokens_in: int = 0
     tokens_out: int = 0
     rag_sources: List[Dict[str, Any]] = field(default_factory=list)
+    #: Búsquedas de literatura del paso (SPEC-034 / T22.7): un resumen por búsqueda,
+    #: con el `search_id` que apunta al registro completo en `search_logs`.
+    searches: List[Dict[str, Any]] = field(default_factory=list)
 
 
 _paso: ContextVar[Optional[StepAccumulator]] = ContextVar("explain_step", default=None)
@@ -131,6 +134,32 @@ def record_rag_hits(collection: str, resultados: Iterable[Dict[str, Any]]) -> No
                 fuente["score"] = score if anterior is None else max(anterior, score)
     except Exception:  # pragma: no cover - defensivo
         logger.debug("No se pudieron anotar las fuentes RAG del paso", exc_info=True)
+
+
+#: Campos del resumen de búsqueda que viajan en la traza del paso. Explícito: lo que
+#: no esté aquí (cabeceras, mensajes de error de las bases, texto del manuscrito) no
+#: llega nunca a la traza por descuido.
+CAMPOS_BUSQUEDA = (
+    "search_id", "query", "sources", "status", "result_count", "verified_count",
+    "discarded", "searched_at",
+)
+
+
+def record_search(resumen: Dict[str, Any]) -> None:
+    """Anota una búsqueda de literatura en el paso en curso (SPEC-034 / T22.7 / AC6).
+
+    Igual que el RAG: quien busca (`run_literature_search`) lo anota donde está y el
+    orquestador lo recoge al cerrar el paso, así que el Investigador queda trazado sin
+    instrumentarlo. Fuera de un paso (una búsqueda manual) no hace nada: el registro
+    completo ya está en `search_logs`.
+    """
+    acumulador = _paso.get()
+    if acumulador is None:
+        return
+    try:
+        acumulador.searches.append({c: resumen.get(c) for c in CAMPOS_BUSQUEDA})
+    except Exception:  # pragma: no cover - defensivo
+        logger.debug("No se pudo anotar la búsqueda del paso", exc_info=True)
 
 
 # ── Construcción del registro ───────────────────────────────────────────────
@@ -255,7 +284,7 @@ def group_executions(pasos: List[Any]) -> List[List[Any]]:
 #: mañana cambia qué campos entran o cómo se formatean, las cadenas ya escritas
 #: tienen que seguir verificándose con la versión que las produjo. Sin este
 #: número, un cambio de formato convertiría toda la traza vieja en «manipulada».
-CANON_VERSION: int = 1
+CANON_VERSION: int = 2
 
 #: Ancla del primer paso de cada ejecución (AC4: «ancla en un valor conocido»).
 #: Es un valor fijo y público: no aporta secreto, aporta que la cadena empiece en
@@ -272,6 +301,14 @@ _CAMPOS_CANONICOS = (
     "output_text", "rag_sources", "tokens_in", "tokens_out", "latency_ms",
     "decision", "rationale",
 )
+
+#: v2 (T22.7) añade `searches`: las búsquedas de literatura del paso. La v1 se conserva
+#: tal cual para que las cadenas ya escritas sigan verificándose con la versión que las
+#: produjo; mover un campo aquí sin subir la versión las daría por manipuladas.
+_CAMPOS_POR_VERSION = {
+    1: _CAMPOS_CANONICOS,
+    2: _CAMPOS_CANONICOS + ("searches",),
+}
 
 #: Fuera del hash, a propósito:
 #:   * `id` y `run_id` son claves sustitutas, no contenido.
@@ -292,6 +329,9 @@ def _normalizar(clave: str, valor: Any) -> Any:
     a una décima: el único que entra es `latency_ms`, y su dígito dieciséis no
     dice nada que merezca un falso positivo.
     """
+    if clave == "searches":
+        # Ausente y vacío son lo mismo: un paso sin búsquedas.
+        return valor or []
     if valor is None:
         return None
     if clave in ("article_id", "project_id"):
@@ -312,7 +352,8 @@ def canonical_form(paso: Any, *, version: int = CANON_VERSION) -> str:
         bruto = paso.get(clave) if isinstance(paso, dict) else getattr(paso, clave, None)
         return _normalizar(clave, bruto)
 
-    datos = {clave: leer(clave) for clave in _CAMPOS_CANONICOS}
+    campos = _CAMPOS_POR_VERSION.get(version, _CAMPOS_POR_VERSION[max(_CAMPOS_POR_VERSION)])
+    datos = {clave: leer(clave) for clave in campos}
     datos["__v"] = version
     # `sort_keys` para que el orden no dependa del dict, y separadores sin
     # espacios para que no dependa del formateador.
