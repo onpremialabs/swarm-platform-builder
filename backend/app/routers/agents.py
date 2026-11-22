@@ -57,7 +57,8 @@ from app.platform.project_access import (
 from app.platform.project_context import ProjectContext, bucket_of
 from app.platform.projects.profiles import agents_dir as project_agents_dir
 from app.platform import explainability
-from app.platform import library, library_import, library_upload
+from app.platform import library, library_fulltext, library_import, library_upload
+from app.models.library_document import CurationStatus
 from app.platform.library import SEARCH_RECORD_FIELDS, SEARCH_RECORD_VERSION, search_record
 
 router = APIRouter(prefix="/api/v1/agents", tags=["agents"])
@@ -284,6 +285,7 @@ async def upload_to_rag_library(
     collection: str | None = Form(None),
     chunk_size: int | None = Form(None),
     chunk_overlap: int | None = Form(None),
+    document_id: UUID | None = Form(None),
     token_data=Depends(require_redactor),
     project: ProjectContext = Depends(get_project_context),
     session: AsyncSession = Depends(get_session),
@@ -304,6 +306,13 @@ async def upload_to_rag_library(
 
     # Extension + real content (magic bytes), before any parsing or indexing.
     validate_upload(file.filename, raw, {".txt", ".md", ".pdf", ".docx"})
+
+    # T22.10: subir el PDF de una ficha existente («solo resumen») la pasa a full_text.
+    existente = None
+    if document_id is not None:
+        existente = await library.get_document(session, project.project_id, document_id)
+        if existente is None:
+            raise HTTPException(status_code=404, detail="Documento no encontrado")
 
     text = extract_text(file.filename, raw)
     if not text.strip():
@@ -340,6 +349,17 @@ async def upload_to_rag_library(
 
     if count <= 0:
         raise HTTPException(status_code=502, detail="No se pudo indexar el documento")
+
+    if existente is not None:
+        existente = await library.set_text_status(
+            session, project.project_id, existente.id, "full_text", doc_id=doc_id)
+        return {
+            "status": "indexed", "doc_id": doc_id, "filename": file.filename,
+            "collection": bucket_of(col), "chunks": count,
+            "title": metadata.get("title", ""), "authors": metadata.get("authors", ""),
+            "library_document": library_upload.document_view(existente),
+            "doi_resolution": "existing_record", "doi_resolution_detail": "",
+        }
 
     # Ficha de biblioteca (SPEC-034 / T22.4 / AC4): se intenta resolver el DOI; si no
     # resuelve queda «sin verificar» y no podrá citarse hasta que el autor lo aporte.
@@ -419,12 +439,20 @@ async def curate_library_record(
     session: AsyncSession = Depends(get_session),
 ):
     """Acepta, descarta o marca «imprescindible» un candidato (SPEC-034 / T22.8 / AC3)."""
-    try:
-        doc = await library.set_curation(
-            session, project.project_id, document_id, payload.status, must_cite=payload.must_cite,
-        )
-    except ValueError:
+    if payload.status not in {s.value for s in CurationStatus}:
         raise HTTPException(status_code=422, detail="Estado de curación no válido")
+    if payload.status == CurationStatus.ACCEPTED.value:
+        # T22.10 / AC11: al aceptar se intenta el PDF de acceso abierto; si falla, se acepta
+        # igualmente como «solo resumen».
+        res = await library_fulltext.accept_with_fulltext(
+            session, project, document_id, must_cite=payload.must_cite)
+        if res is None:
+            raise HTTPException(status_code=404, detail="Documento no encontrado")
+        return {**library_upload.document_view(res["document"]),
+                "fulltext": res["fulltext"], "fulltext_detail": res["detail"]}
+    doc = await library.set_curation(
+        session, project.project_id, document_id, payload.status, must_cite=payload.must_cite,
+    )
     if doc is None:
         raise HTTPException(status_code=404, detail="Documento no encontrado")
     return library_upload.document_view(doc)

@@ -204,7 +204,7 @@ function ImportModal({ onClose, onDone }) {
   );
 }
 
-function RecordRow({ record, busy, onCurate, onEdit }) {
+function RecordRow({ record, busy, onCurate, onEdit, onUploadPdf }) {
   const meta = [record.year, record.journal].filter(Boolean).join(' · ');
   const estado = record.curation_status;
   return (
@@ -226,7 +226,9 @@ function RecordRow({ record, busy, onCurate, onEdit }) {
           <span>DOI: {record.doi ? <code>{record.doi}</code> : <em>sin DOI</em>}</span>
           <span>Base: {record.source_db}</span>
           <VerificationBadge record={record} />
-          {record.text_status === 'abstract_only' && <span>Solo resumen</span>}
+          {record.text_status === 'abstract_only' && (
+            <span className="badge badge-pending" title="Solo hay el resumen de la base: sube el PDF para tener el texto completo">solo resumen</span>
+          )}
         </div>
       </div>
       <div style={{ display: 'flex', gap: 'var(--space-1)', flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
@@ -244,6 +246,14 @@ function RecordRow({ record, busy, onCurate, onEdit }) {
         {estado !== 'discarded' && (
           <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => onCurate(record, 'discarded', false)}
             aria-label={`Descartar ${record.title}`}><X size={14} style={{ color: 'var(--error)' }} /> Descartar</button>
+        )}
+        {estado === 'accepted' && record.text_status === 'abstract_only' && (
+          <label className="btn btn-ghost btn-sm" style={{ cursor: busy ? 'not-allowed' : 'pointer' }}
+            aria-label={`Subir el PDF de ${record.title}`}>
+            <Upload size={14} /> Subir PDF
+            <input type="file" accept="application/pdf,.pdf" disabled={busy} style={{ display: 'none' }}
+              onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) onUploadPdf(record, f); }} />
+          </label>
         )}
         <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => onEdit(record)}
           aria-label={`Editar metadatos de ${record.title}`}><Pencil size={14} /> Editar</button>
@@ -288,10 +298,28 @@ export default function LibraryRecordsPanel() {
   const curate = async (record, status, mustCite) => {
     setBusyId(record.id);
     try {
-      replace(await agentsApi.curateLibraryRecord(record.id, status, mustCite));
-      toast.success(status === 'accepted' ? (mustCite ? 'Marcada como imprescindible' : 'Añadida a la biblioteca') : 'Descartada');
+      const saved = await agentsApi.curateLibraryRecord(record.id, status, mustCite);
+      replace(saved);
+      if (status !== 'accepted') toast.success('Descartada');
+      else if (mustCite) toast.success('Marcada como imprescindible');
+      else if (saved.fulltext === 'full_text') toast.success('Añadida a la biblioteca con el texto completo');
+      else if (saved.text_status === 'abstract_only') toast.success('Añadida a la biblioteca: solo resumen. Puedes subir el PDF.');
+      else toast.success('Añadida a la biblioteca');
     } catch (err) {
       toast.error(errorDe(err, 'No se pudo actualizar la ficha'));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const uploadPdf = async (record, file) => {
+    setBusyId(record.id);
+    try {
+      const res = await agentsApi.uploadLibraryDocument(file, undefined, undefined, undefined, record.id);
+      replace(res.library_document);
+      toast.success('PDF indexado: la ficha tiene el texto completo');
+    } catch (err) {
+      toast.error(errorDe(err, 'No se pudo subir el PDF'));
     } finally {
       setBusyId(null);
     }
@@ -333,7 +361,7 @@ export default function LibraryRecordsPanel() {
         >
           <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
             {visibles.map((r) => (
-              <RecordRow key={r.id} record={r} busy={busyId === r.id} onCurate={curate} onEdit={setEditing} />
+              <RecordRow key={r.id} record={r} busy={busyId === r.id} onCurate={curate} onEdit={setEditing} onUploadPdf={uploadPdf} />
             ))}
           </ul>
         </AsyncState>
