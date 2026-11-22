@@ -71,6 +71,7 @@ Spec Kit).
 | [SPEC-039](SPEC-039-manuscript-export-and-paper-template.md) | Exportación del manuscrito y plantilla «Paper científico» | Ready | E27 |
 | [SPEC-040](SPEC-040-research-second-brain.md) | Second brain de investigación (fichas de afirmación y notas enlazadas) | Ready | E28 |
 | [SPEC-041](SPEC-041-ui-theme-and-language.md) | Tema claro/oscuro e idioma de la interfaz (español / inglés) | Ready | E29 |
+| [SPEC-042](SPEC-042-ollama-model-advisor.md) | Recomendación de modelos Ollama por agente según VRAM y RAM disponibles | Draft | E30 |
 
 > Con SPEC-015…020 **todas las épicas del backlog (E1–E9) están respaldadas por
 > una spec**: las tareas sembradas por el bootstrap
