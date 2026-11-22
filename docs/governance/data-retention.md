@@ -58,6 +58,10 @@ Por qué esas ventanas:
   que el usuario escribió, así que va a la par. Guarda **resúmenes recortados**
   (4.000 caracteres) y no los prompts completos: la traza explica una ejecución,
   no es un segundo almacén del artículo.
+  Desde SPEC-034/T22.7 cada paso lleva también `searches`: un **resumen** de las
+  búsquedas bibliográficas que hizo (cadena, bases, estado y recuentos, con el
+  `search_id` del registro completo). Sigue la ventana de 90 días de la traza; el
+  registro completo vive en `search_logs` y se rige por su propia ventana.
 - **`publication_gate_reports`, 90 días y solo si el artículo no está publicado**
   (SPEC-032/AC16). El informe es la evidencia de por qué un texto se aprobó o se
   bloqueó, así que **no caduca mientras exista un artículo `published`** que lo
@@ -73,7 +77,10 @@ Por qué esas ventanas:
   el registro es parte de su método y se conserva mientras exista; las búsquedas sin
   artículo o de borradores caducan. Guarda la **cadena de búsqueda** que el autor
   escribió —que es lo que se envía a las bases— y nunca el texto del manuscrito ni
-  claves de API.
+  claves de API ni las cabeceras ni el correo de contacto configurado: de los errores
+  de una base solo se guarda una etiqueta cerrada (`error_kind`), no el mensaje. El
+  registro sale en la exportación JSONL de la traza (`type=search`) y en la lectura
+  de la traza, sin el identificador de quien buscó.
 - **`library_documents` no caduca**: es contenido del producto (la biblioteca de
   investigación del proyecto: DOI, autores, año, revista, estado de curación y de
   verificación). Se elimina por decisión de su autor o en cascada con el proyecto, y

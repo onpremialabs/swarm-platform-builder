@@ -73,6 +73,10 @@ class AgentRunStepModel(Base):
     #: recuperó de verdad, no lo que citó el texto final.
     rag_sources = Column(JSON, default=list, nullable=False)
 
+    #: Búsquedas de literatura del paso (SPEC-034 / T22.7): resumen + `search_id` que
+    #: apunta al registro completo en `search_logs`. Solo cadena y recuentos.
+    searches = Column(JSON, default=list, nullable=False)
+
     tokens_in = Column(Integer, default=0, nullable=False)
     tokens_out = Column(Integer, default=0, nullable=False)
     latency_ms = Column(Float, default=0.0, nullable=False)
@@ -115,6 +119,7 @@ class AgentRunStepResponse(BaseModel):
     input_digest: str | None = None
     output_text: str | None = None
     rag_sources: list = []
+    searches: list = []
     tokens_in: int = 0
     tokens_out: int = 0
     latency_ms: float = 0.0
@@ -179,4 +184,7 @@ class ArticleExplainResponse(BaseModel):
     available: bool = False
     steps: list[AgentRunStepResponse] = []
     sources: list[ExplainSource] = []
+    #: Registro de búsqueda de literatura del artículo (SPEC-034 / T22.7 / AC6): todas
+    #: sus búsquedas, no solo las de la ejecución mostrada.
+    searches: list[dict] = []
     totals: ExplainTotals = ExplainTotals()

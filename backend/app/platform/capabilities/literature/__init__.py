@@ -13,3 +13,6 @@ from app.platform.capabilities.literature.transport import LiteratureConfig, Sou
 from app.platform.capabilities.literature.verification import (  # noqa: F401
     DiscardedCandidate, VerificationResult, VerifiedCandidate, verify_candidates,
 )
+from app.platform.capabilities.literature.run import (  # noqa: F401
+    LiteratureSearchOutcome, run_literature_search,
+)

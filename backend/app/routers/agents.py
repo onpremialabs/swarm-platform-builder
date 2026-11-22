@@ -30,7 +30,7 @@ from app.models import (
     ArticleModel, ArticleStatus, AgentRunModel, AgentRunRequest,
     AgentRunListResponse, AgentRunDetailResponse,
     AgentProfileModel, AgentProfileResponse,
-    AgentRunStepModel, AgentRunStepResponse, ArticleExplainResponse,
+    AgentRunStepModel, AgentRunStepResponse, ArticleExplainResponse, SearchLogModel,
 )
 from app.core.database import get_session
 from app.platform.bus import get_bus
@@ -57,6 +57,7 @@ from app.platform.project_access import (
 from app.platform.project_context import ProjectContext, bucket_of
 from app.platform.projects.profiles import agents_dir as project_agents_dir
 from app.platform import explainability
+from app.platform.library import SEARCH_RECORD_FIELDS, SEARCH_RECORD_VERSION, search_record
 
 router = APIRouter(prefix="/api/v1/agents", tags=["agents"])
 
@@ -967,11 +968,13 @@ async def get_article_agent_runs(
 #: exportado hoy tiene que seguir siendo legible cuando la tabla gane columnas.
 #: Es una lista explícita y no «todas las columnas» para que añadir una al modelo
 #: no cambie el formato sin que nadie lo decida.
-EXPORT_SCHEMA_VERSION = 1
+#: v2 (T22.7): los pasos llevan `searches` (entran en el hash desde la canon v2) y tras
+#: ellos van las líneas `type=search` con el registro de búsqueda de literatura.
+EXPORT_SCHEMA_VERSION = 2
 EXPORT_SCHEMA = (
     "id", "run_id", "article_id", "project_id", "correlation_id",
     "agent_name", "step_index", "iteration", "status", "error_message",
-    "model", "params", "input_digest", "output_text", "rag_sources",
+    "model", "params", "input_digest", "output_text", "rag_sources", "searches",
     "tokens_in", "tokens_out", "latency_ms", "decision", "rationale",
     "created_at", "content_hash", "prev_hash", "hash_version",
 )
@@ -1006,6 +1009,21 @@ async def _articulo_y_pasos(article_id, token_data, project, session):
         .order_by(AgentRunStepModel.created_at, AgentRunStepModel.step_index, AgentRunStepModel.id)
     )).scalars().all())
     return article, pasos
+
+
+async def _registro_busquedas(article, session) -> list[dict]:
+    """Registro de búsqueda de literatura del artículo, en el formato estable de la exportación.
+
+    Se filtra por artículo **y** por el proyecto del artículo: un `search_logs` de otro
+    proyecto nunca sale por aquí aunque compartiera `article_id`.
+    """
+    filas = await session.scalars(
+        select(SearchLogModel)
+        .where(SearchLogModel.article_id == article.id)
+        .where(SearchLogModel.project_id == article.project_id)
+        .order_by(SearchLogModel.searched_at, SearchLogModel.id)
+    ) if article.project_id is not None else []
+    return [search_record(f) for f in filas]
 
 
 def _history_metadata(group, number, total):
@@ -1047,6 +1065,7 @@ async def article_trace_history_detail(
             "execution": _history_metadata(group, i, len(groups)),
             "steps": [AgentRunStepResponse.model_validate(step) for step in group],
             "sources": explainability.aggregate_sources(group),
+            "searches": await _registro_busquedas(article, session),
             "integrity": explainability.verify_chain(group),
             "integrity_scope": "Verifica los pasos conservados. No acredita la calidad del artículo ni protege frente a la reescritura completa de datos y hashes.",
         }
@@ -1137,9 +1156,10 @@ async def export_article_trace(
     if scope not in ("last", "all"):
         raise HTTPException(status_code=400, detail="scope debe ser 'last' o 'all'")
 
-    _, pasos = await _articulo_y_pasos(article_id, token_data, project, session)
+    article, pasos = await _articulo_y_pasos(article_id, token_data, project, session)
     ejecuciones = explainability.group_executions(pasos)
     visibles = ejecuciones[-1] if (scope == "last" and ejecuciones) else pasos
+    busquedas = await _registro_busquedas(article, session)
 
     def lineas():
         yield json.dumps({
@@ -1151,6 +1171,16 @@ async def export_article_trace(
             "scope": scope,
             "executions": len(ejecuciones),
             "steps": len(visibles),
+            "searches": len(busquedas),
+            "search_schema": SEARCH_RECORD_FIELDS,
+            "search_schema_version": SEARCH_RECORD_VERSION,
+            "search_note": (
+                "Registro de búsqueda de literatura (SPEC-034): cada línea type=search "
+                "trae bases, cadena, filtros, fecha UTC, recuentos y estado, lo bastante "
+                "para repetir la consulta. Va entero aunque scope sea 'last': es el "
+                "método del artículo, no de una ejecución. No incluye texto del "
+                "manuscrito, claves ni cabeceras."
+            ),
             "note": (
                 "input_digest es un resumen, no el prompt completo. La "
                 "exportación respeta la retención de la traza."
@@ -1165,6 +1195,11 @@ async def export_article_trace(
             if fila.get("created_at") is not None:
                 fila["created_at"] = fila["created_at"].isoformat()
             yield json.dumps(fila, ensure_ascii=False, default=str) + "\n"
+
+        # Tras los pasos, una línea por búsqueda: `type` primero y luego los campos de
+        # `SEARCH_RECORD_FIELDS`, en ese orden (formato versionado en la cabecera).
+        for busqueda in busquedas:
+            yield json.dumps({"type": "search", **busqueda}, ensure_ascii=False) + "\n"
 
     return StreamingResponse(
         lineas(),
@@ -1212,8 +1247,29 @@ async def explain_article_run(
         available=bool(visibles),
         steps=[AgentRunStepResponse.model_validate(paso) for paso in visibles],
         sources=explainability.aggregate_sources(visibles),
+        searches=await _registro_busquedas(article, session),
         totals=explainability.totals_of(visibles),
     )
+
+
+@router.get("/{article_id}/searches")
+async def list_article_searches(
+    article_id: UUID,
+    token_data=Depends(get_current_user),
+    project: ProjectContext = Depends(get_project_context),
+    session: AsyncSession = Depends(get_session),
+):
+    """Registro de búsqueda de literatura del artículo (SPEC-034 / T22.7 / AC6).
+
+    Exige el proyecto activo (`get_project_context`) y que el artículo sea suyo y de
+    quien pregunta (o admin), igual que la traza. Solo lectura.
+    """
+    article, _ = await _articulo_y_pasos(article_id, token_data, project, session)
+    return {
+        "article_id": str(article_id),
+        "schema_version": SEARCH_RECORD_VERSION,
+        "searches": await _registro_busquedas(article, session),
+    }
 
 
 @router.post("/{article_id}/stream-ticket")
