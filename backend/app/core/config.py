@@ -70,6 +70,23 @@ class Settings(BaseModel):
     #: Correo de contacto que se envía a Crossref/OpenAlex en el `User-Agent` (su «polite
     #: pool»). Va en configuración, no en el repositorio; vacío = sin identificar.
     PUBLICATION_GATE_CONTACT_EMAIL: str = ""
+    # Descubrimiento de literatura (SPEC-034 / T22.1). Las claves van solo por entorno.
+    #: Correo de contacto genérico de la plataforma para el «polite pool» de OpenAlex,
+    #: Crossref y NCBI. Nunca el de la persona usuaria; vacío = sin identificar.
+    LITERATURE_CONTACT_EMAIL: str = ""
+    #: Clave de Semantic Scholar. Sin ella la base se omite (con aviso explícito).
+    SEMANTIC_SCHOLAR_API_KEY: str = ""
+    #: Clave opcional de NCBI E-utilities (sube el límite de 3 a 10 peticiones/s).
+    NCBI_API_KEY: str = ""
+    LITERATURE_TIMEOUT_S: float = 10.0
+    #: Reintentos tras el primer intento (timeout, 429, 5xx, JSON inválido).
+    LITERATURE_RETRIES: int = 2
+    #: Espera base; se duplica en cada reintento (1 s, 2 s, 4 s…).
+    LITERATURE_BACKOFF_S: float = 1.0
+    #: Tope de una espera, incluida la que pide `Retry-After`.
+    LITERATURE_MAX_BACKOFF_S: float = 30.0
+    #: Resultados pedidos por base y consulta.
+    LITERATURE_MAX_RESULTS: int = 10
     # Permite que el propietario apruebe su propio artículo, para entornos de un
     # solo usuario. **Imposible de encender con DEBUG=false** (`_DEV_ONLY_FLAGS`).
     PUBLICATION_ALLOW_SELF_APPROVAL: bool = False
@@ -239,6 +256,7 @@ def _build_settings() -> Settings:
     engine = yaml_config.get("engine", {})
     egress = yaml_config.get("egress", {})
     publication = yaml_config.get("publication", {})
+    literature = yaml_config.get("literature", {})
 
     merged: dict[str, Any] = {
         "APP_NAME": app.get("name", "Alejandria Magazine"),
@@ -319,6 +337,15 @@ def _build_settings() -> Settings:
         "PUBLICATION_GATE_ENFORCE": publication.get("gate_enforce", True),
         "PUBLICATION_GATE_CONTACT_EMAIL": publication.get("gate_contact_email", ""),
         "PUBLICATION_ALLOW_SELF_APPROVAL": publication.get("allow_self_approval", False),
+        # Descubrimiento de literatura (SPEC-034). Las claves de API solo por entorno.
+        "LITERATURE_CONTACT_EMAIL": literature.get("contact_email", ""),
+        "SEMANTIC_SCHOLAR_API_KEY": "",
+        "NCBI_API_KEY": "",
+        "LITERATURE_TIMEOUT_S": float(literature.get("timeout_s", 10.0)),
+        "LITERATURE_RETRIES": int(literature.get("retries", 2)),
+        "LITERATURE_BACKOFF_S": float(literature.get("backoff_s", 1.0)),
+        "LITERATURE_MAX_BACKOFF_S": float(literature.get("max_backoff_s", 30.0)),
+        "LITERATURE_MAX_RESULTS": int(literature.get("max_results", 10)),
         # RAG global defaults
         "RAG_CHUNK_SIZE": yaml_config.get("rag", {}).get("chunk_size", 800),
         "RAG_CHUNK_OVERLAP": yaml_config.get("rag", {}).get("chunk_overlap", 80),
@@ -335,6 +362,8 @@ def _build_settings() -> Settings:
             merged[key] = _to_bool(env_value)
         elif isinstance(merged[key], int):
             merged[key] = int(env_value)
+        elif isinstance(merged[key], float):
+            merged[key] = float(env_value)
         else:
             merged[key] = env_value
 

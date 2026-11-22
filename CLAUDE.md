@@ -126,7 +126,7 @@ Docker (`docker compose up --build`, backend en `:8080`).
   Anthropic devuelve 400 por encima de 1.0—, así que recorta también para quien
   llame a `call_llm` directamente.
 - **Capacidades (T8.3)**: `backend/app/platform/capabilities/registry.py` declara
-  las capacidades del motor (`rag`, `rag_results`, `llm`, `llm_stream`, `search`,
+  las capacidades del motor (`rag`, `rag_results`, `llm`, `llm_stream`, `search`, `literature`,
   `format`, `publish`) y `binding.py` las resuelve para un agente. Con
   `AGENT_ENGINE=capabilities` el motor inyecta a cada agente las que declara y el
   agente las usa vía `provider(state, "<nombre>", <import de siempre>)`; con
@@ -164,7 +164,10 @@ Docker (`docker compose up --build`, backend en `:8080`).
   en `tools.py` o un `verify=False` en `backend/app/`. La compuerta de publicación (SPEC-032) consulta Crossref/OpenAlex (y DataCite para los DOI de arXiv) por
   esta misma puerta (`quien="publication_gate"`); con `EGRESS_ALLOWED_DOMAINS` definida,
   esos dos hosts se añaden **solo para ella**, no para la herramienta del modelo.
-  **Ollama, Qdrant y los
+  El descubrimiento de literatura
+  (capacidad `literature`, SPEC-034: OpenAlex, Crossref, Semantic Scholar, arXiv, PubMed) sale igual
+  por `safe_get(quien="literature_discovery")`, con sus hosts añadidos a la allowlist solo para él;
+  las bases las elige `research.sources` en `template.yaml`. **Ollama, Qdrant y los
   proveedores de LLM quedan fuera a propósito**: son `localhost` o red privada
   adrede y su URL sale de la configuración, no de una entrada de usuario.
 - **Config con precedencia**: env vars > `config.yaml` (raíz o `backend/`) >

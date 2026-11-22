@@ -30,6 +30,9 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
 
+from app.platform.capabilities.literature.research import (
+    ResearchConfig, ResearchConfigError, parse_research,
+)
 from app.platform.capabilities.registry import get as get_capability
 from app.platform.engine.agents import AgentSpec, register_agent
 from app.platform.engine.graph import GraphSpec
@@ -68,6 +71,8 @@ class ProjectPackage:
     flow_rules: FlowRules = NO_RULES
     #: compuerta de publicación (`gate:`, SPEC-032); `None` si el proyecto no declara una.
     gate: Optional[GateConfig] = None
+    #: descubrimiento de literatura (`research:`, SPEC-034); por defecto OpenAlex y Crossref.
+    research: ResearchConfig = ResearchConfig()
 
     def profile_path(self, agent: str) -> Optional[Path]:
         return self.profiles.get(agent)
@@ -232,6 +237,13 @@ def _compuerta(datos: Dict[str, Any], nombres: set) -> Optional[GateConfig]:
     return config
 
 
+def _investigacion(datos: Dict[str, Any]) -> ResearchConfig:
+    try:
+        return parse_research(datos.get("research"))
+    except ResearchConfigError as exc:
+        raise TemplateError(str(exc)) from exc
+
+
 def load_from(raiz: Path) -> ProjectPackage:
     """Lee y valida el proyecto que hay en `raiz`."""
     plantilla = raiz / PLANTILLA
@@ -259,6 +271,7 @@ def load_from(raiz: Path) -> ProjectPackage:
         profiles=perfiles,
         flow_rules=_reglas_de_flujo(datos, {a.name for a in agentes}),
         gate=_compuerta(datos, {a.name for a in agentes}),
+        research=_investigacion(datos),
     )
 
 

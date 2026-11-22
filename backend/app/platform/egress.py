@@ -117,6 +117,24 @@ def _resolver(host: str, port: int) -> List[str]:
 HOSTS_COMPUERTA = ("api.crossref.org", "api.openalex.org", "api.datacite.org")
 QUIEN_COMPUERTA = "publication_gate"
 
+#: Bases bibliográficas del descubrimiento de literatura (SPEC-034/AC1). Mismo patrón:
+#: con `EGRESS_ALLOWED_DOMAINS` definida se añaden **solo** para esta capacidad, no para
+#: la herramienta `fetch_url` del modelo ni para la compuerta.
+HOSTS_LITERATURA = (
+    "api.openalex.org",
+    "api.crossref.org",
+    "api.semanticscholar.org",
+    "export.arxiv.org",
+    "eutils.ncbi.nlm.nih.gov",
+)
+QUIEN_LITERATURA = "literature_discovery"
+
+#: `quien` → hosts que se suman a la allowlist **solo** para ese solicitante.
+_HOSTS_POR_QUIEN = {
+    QUIEN_COMPUERTA: HOSTS_COMPUERTA,
+    QUIEN_LITERATURA: HOSTS_LITERATURA,
+}
+
 
 def is_egress_allowed(url: str, *, quien: str = "egress") -> Decision:
     """¿Se puede salir a esta URL? Devuelve la decisión con su motivo; no lanza.
@@ -147,8 +165,8 @@ def is_egress_allowed(url: str, *, quien: str = "egress") -> Decision:
             return Decision(False, f"'{host}' está en la denylist de egress ({dominio})")
 
     permitidos_dominios = _lista(getattr(settings, "EGRESS_ALLOWED_DOMAINS", ""))
-    if permitidos_dominios and quien == QUIEN_COMPUERTA:
-        permitidos_dominios = permitidos_dominios + list(HOSTS_COMPUERTA)
+    if permitidos_dominios:
+        permitidos_dominios = permitidos_dominios + list(_HOSTS_POR_QUIEN.get(quien, ()))
     if permitidos_dominios and not any(_coincide_dominio(host, d) for d in permitidos_dominios):
         return Decision(False, f"'{host}' no está en la allowlist de egress")
 

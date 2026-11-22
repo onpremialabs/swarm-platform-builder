@@ -95,6 +95,14 @@ graph:
         any_of: [formateador, revisor]
         severity: warning
 
+# ── Descubrimiento de literatura (SPEC-034) ─────────────────────────────────
+# Bases que consulta la capacidad `literature`, por `safe_get`. Una base desconocida
+# falla al cargar la plantilla. Disponibles: openalex, crossref, semantic_scholar,
+# arxiv, pubmed. Semantic Scholar solo responde con SEMANTIC_SCHOLAR_API_KEY en el
+# entorno: sin ella se omite con aviso. Activa arxiv/pubmed según la disciplina.
+research:
+  sources: [openalex, crossref]
+
 # ── Compuerta de publicación (SPEC-032, ADR-0011) ───────────────────────────
 # Comprobaciones deterministas, sin LLM, sobre el texto final tras el Formateador.
 # Falla cerrada: lo que no se puede comprobar (`not_verified`) bloquea. Los criterios

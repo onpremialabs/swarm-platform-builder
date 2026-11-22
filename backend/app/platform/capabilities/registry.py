@@ -33,6 +33,7 @@ class CapabilityKind(str, Enum):
     FORMAT = "format"
     PUBLISH = "publish"
     LLM = "llm"
+    LITERATURE = "literature"
 
 
 class CapabilityNotAvailable(LookupError):
@@ -161,6 +162,17 @@ def _register_builtins() -> None:
             "que la redacción se vea escribirse en la interfaz."
         ),
         entrypoint="app.platform.llm:call_llm_stream",
+    ))
+    register(Capability(
+        kind=CapabilityKind.LITERATURE,
+        name="literature",
+        description=(
+            "Descubrimiento de literatura: consulta OpenAlex, Crossref, Semantic Scholar, "
+            "arXiv y PubMed (las de `research.sources`) por safe_get con "
+            'quien="literature_discovery" y devuelve candidatos normalizados **sin verificar** '
+            "(SPEC-034)."
+        ),
+        entrypoint="app.platform.capabilities.literature:search_literature",
     ))
 
 

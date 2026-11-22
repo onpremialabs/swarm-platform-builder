@@ -112,6 +112,13 @@ Decisiones ya tomadas en el código, no aspiraciones:
   no los gana. El `User-Agent` lleva un correo de contacto de configuración
   (`PUBLICATION_GATE_CONTACT_EMAIL`), no del repositorio. Revisar las condiciones de uso
   de ambos servicios antes de enviar títulos de trabajos no publicados (FW §20.7).
+- **A las bases bibliográficas del descubrimiento (OpenAlex, Crossref, Semantic Scholar, arXiv,
+  PubMed) solo sale la cadena de búsqueda** (SPEC-034/T22.1): la consulta se limita a 300
+  caracteres y se rechaza si parece un texto, así que ni el manuscrito ni datos de la persona
+  usuaria viajan a terceros. Salen por `safe_get(quien="literature_discovery")`; con
+  `EGRESS_ALLOWED_DOMAINS` definida, sus hosts se añaden solo para esa capacidad. El `User-Agent`
+  es genérico y el correo de contacto, si lo hay, es `LITERATURE_CONTACT_EMAIL` (nunca el de la
+  persona usuaria). El registro persistente de la búsqueda es T22.7.
 - **Las claves de API no se versionan ni se exponen**: `ANTHROPIC_API_KEY` se
   inyecta por entorno y la interfaz solo informa de si está presente.
 
