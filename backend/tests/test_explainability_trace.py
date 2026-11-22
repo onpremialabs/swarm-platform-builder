@@ -397,7 +397,7 @@ async def test_la_capacidad_de_rag_alimenta_la_traza(tmp_path, monkeypatch):
         await rag.semantic_search_results(
             query="algo", qdrant_url="http://nada", collection="p_x__rag_docs",
             agent_name=["investigador"], ollama_base_url="http://nada",
-            embedding_model="m", limit=5,
+            embedding_model="m", limit=5, score_threshold=0.0,
         )
 
     assert len(acumulador.rag_sources) == 1

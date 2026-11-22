@@ -64,7 +64,7 @@ rag:
   chunk_size: 800
   chunk_overlap: 80
   top_k: 6
-  score_threshold: 0.5
+  score_threshold: 0.3
 agents:
   investigador:
     model: null
