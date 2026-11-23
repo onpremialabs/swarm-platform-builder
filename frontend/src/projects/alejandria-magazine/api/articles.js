@@ -18,6 +18,11 @@ export const articlesApi = {
   // Aporta a mano el DOI de una referencia (índice del informe, desde 1) y reevalúa.
   setSourceDoi: (id, index, doi) =>
     api.put(`/api/v1/articles/${id}/gate-report/sources/${index}`, { doi }).then(r => r.data),
+  // Mapa de citas vigente (SPEC-035): estado, extracto y documento/página de cada cita.
+  citations: (id) => api.get(`/api/v1/articles/${id}/citations`).then(r => r.data),
+  // Confirmación manual del autor: registra quién y cuándo, sin cambiar el veredicto automático.
+  confirmCitation: (id, linkId) =>
+    api.post(`/api/v1/articles/${id}/citations/${linkId}/confirm`).then(r => r.data),
   // Autor humano responsable (FW V13): sin él no se puede aprobar.
   setResponsibleAuthor: (id, userId) =>
     api.put(`/api/v1/articles/${id}/responsible-author`, { user_id: userId }).then(r => r.data),

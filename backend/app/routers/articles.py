@@ -14,7 +14,9 @@ from app.models import (
 )
 from app.core.database import get_session
 from app.platform.audit import AuditAction, record_audit
-from app.routers.auth import get_current_user
+from app.routers.auth import get_current_user, require_redactor
+from app.platform.project_access import get_project_context
+from app.platform.project_context import ProjectContext
 from pydantic import BaseModel
 
 
@@ -509,6 +511,69 @@ async def reevaluate_gate_report(
     await session.commit()
     await session.refresh(row)
     return _gate_payload(row, article)
+
+
+async def _article_in_project(
+    session: AsyncSession, article_id: UUID, token_data: dict, project: ProjectContext
+) -> ArticleModel:
+    """Como `_load_for_gate`, y además el artículo debe ser del proyecto activo.
+
+    Un artículo de otro proyecto responde 404 (no confirma que exista).
+    """
+    article = await _load_for_gate(session, article_id, token_data)
+    if article.project_id != project.project_id:
+        raise HTTPException(status_code=404, detail="Article not found")
+    return article
+
+
+@router.get("/{article_id}/citations")
+async def get_article_citations(
+    article_id: UUID,
+    project: ProjectContext = Depends(get_project_context),
+    token_data=Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Mapa de citas vigente del artículo (SPEC-035/AC6): estado, extracto, documento/página.
+
+    Es el de la huella del cuerpo actual; si el texto cambió desde que se guardó, o
+    nadie lo ha guardado aún, la lista viene vacía.
+    """
+    from app.models.citation_link import CitationLinkResponse
+    from app.platform.citations import current_citation_map
+
+    article = await _article_in_project(session, article_id, token_data, project)
+    links = await current_citation_map(session, article)
+    return {"citations": [CitationLinkResponse.model_validate(l).model_dump(mode="json") for l in links]}
+
+
+@router.post("/{article_id}/citations/{link_id}/confirm")
+async def confirm_article_citation(
+    article_id: UUID,
+    link_id: UUID,
+    project: ProjectContext = Depends(get_project_context),
+    token_data=Depends(require_redactor),
+    session: AsyncSession = Depends(get_session),
+):
+    """El autor (o un administrador) confirma a mano una cita: registra quién y cuándo.
+
+    No cambia el `status` automático. Solo sobre una cita del mapa vigente.
+    """
+    from app.models.citation_link import CitationLinkResponse
+    from app.platform.citations import confirm_citation, current_citation_map
+
+    article = await _article_in_project(session, article_id, token_data, project)
+    user_id = UUID(token_data["user_id"])
+    if token_data.get("role") != UserRole.ADMIN and article.author_id != user_id:
+        raise HTTPException(status_code=403, detail="Solo el autor puede confirmar una cita")
+    if article.status == ArticleStatus.PUBLISHED:
+        raise HTTPException(status_code=409, detail="Un artículo publicado no se modifica")
+    vigentes = {l.id for l in await current_citation_map(session, article)}
+    if link_id not in vigentes:
+        raise HTTPException(status_code=404, detail="No existe esa cita en el texto actual")
+    link = await confirm_citation(session, link_id, user_id)
+    await session.commit()
+    await session.refresh(link)
+    return CitationLinkResponse.model_validate(link).model_dump(mode="json")
 
 
 class SourceDoiDTO(BaseModel):
