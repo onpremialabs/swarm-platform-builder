@@ -43,6 +43,12 @@ def _summary(c: CriterionResult, sources: Sequence[dict], sections: Sequence[str
         return out
     if c.criterion == "placeholders":
         return {"code": "placeholders", "found": len(c.evidence)}
+    if c.criterion == "citation_support":
+        return {
+            "code": "citation_support", "found": len(c.evidence),
+            "reasons": [e.get("reason") or e.get("problem") for e in c.evidence],
+            "needs_human_review": sum(1 for e in c.evidence if e.get("needs_human_review")),
+        }
     if c.criterion == "imrad_structure":
         out = {"code": "imrad_structure", "sections": list(sections)}
         if not ok:

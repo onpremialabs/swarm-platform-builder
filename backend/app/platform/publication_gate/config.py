@@ -6,6 +6,7 @@ una compuerta mal escrita se entera al arrancar, no al publicar.
 from dataclasses import dataclass, field
 from typing import Any, Mapping
 
+from app.platform.publication_gate.citation_support import DEFAULT_MIN_OVERLAP
 from app.platform.publication_gate.dates import DateRules
 from app.platform.publication_gate.placeholders import (
     DEFAULT_PLACEHOLDERS,
@@ -36,6 +37,8 @@ class GateConfig:
     pending: tuple = ()
     #: criterio → agente al que se devuelve el manuscrito si ese criterio bloquea.
     responsible: Mapping[str, str] = field(default_factory=dict)
+    #: umbral de solape afirmacion/fragmento (SPEC-035); `None` = criterio no declarado.
+    citation_support_min_overlap: float | None = None
 
 
 _NUMEROS = {
@@ -141,6 +144,19 @@ def parse_gate(raw: Any) -> GateConfig:
         "'gate.responsible' debe ser un mapa criterio → agente",
     )
 
+    soporte = raw.get("citation_support")
+    umbral = None
+    if soporte is not None:
+        _exigir(isinstance(soporte, dict), "'gate.citation_support' debe ser un mapa")
+        for clave in soporte:
+            _exigir(clave == "min_overlap", f"'gate.citation_support.{clave}' no es un ajuste conocido")
+        umbral = soporte.get("min_overlap", DEFAULT_MIN_OVERLAP)
+        _exigir(
+            isinstance(umbral, (int, float)) and not isinstance(umbral, bool) and 0.0 <= umbral <= 1.0,
+            f"'gate.citation_support.min_overlap' debe ser un número entre 0 y 1, no {umbral!r}",
+        )
+        umbral = float(umbral)
+
     return GateConfig(
         placeholders=tuple(marcadores),
         dates=DateRules(labels=tuple(x.strip() for x in etiquetas), tolerance_days=tolerancia),
@@ -149,4 +165,5 @@ def parse_gate(raw: Any) -> GateConfig:
         titles=titulos,
         pending=tuple(pendientes),
         responsible=dict(responsable),
+        citation_support_min_overlap=umbral,
     )
