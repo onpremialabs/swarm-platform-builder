@@ -41,6 +41,15 @@ def _summary(c: CriterionResult, sources: Sequence[dict], sections: Sequence[str
         if ok:
             out["items"] = [_item(s) for s in buenas[:MAX_ITEMS]]
         return out
+    if c.criterion == "retractions":
+        avisos = [e for e in c.evidence if e.get("kind")]
+        return {
+            "code": "retractions",
+            "retracted": sum(1 for e in avisos if e["kind"] == "retracted"),
+            "concern": sum(1 for e in avisos if e["kind"] == "concern"),
+            "unchecked": sum(1 for e in c.evidence if e.get("status") == "not_verified"),
+            "warnings": sum(1 for e in avisos if e.get("severity") == "warn"),
+        }
     if c.criterion == "placeholders":
         return {"code": "placeholders", "found": len(c.evidence)}
     if c.criterion == "citation_support":

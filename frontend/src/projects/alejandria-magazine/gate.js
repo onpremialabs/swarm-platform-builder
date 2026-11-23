@@ -9,6 +9,7 @@ import { agentMeta } from './catalog';
 export const CRITERION_LABELS = {
   reference_existence: 'Las referencias existen y coinciden',
   reference_structure: 'Las referencias están completas',
+  retractions: 'Sin referencias retractadas',
   placeholders: 'Sin marcadores de posición',
   imrad_structure: 'Estructura IMRaD',
 };
@@ -96,6 +97,13 @@ export function summaryLines(criterion) {
       return [`${s.ok} de ${s.total} referencias resueltas en Crossref/OpenAlex.`];
     case 'reference_structure':
       return [`${s.ok} de ${s.total} referencias con todos sus datos.`];
+    case 'retractions': {
+      const out = [];
+      if (s.retracted) out.push(`${s.retracted} referencia(s) retractada(s) o retirada(s).`);
+      if (s.concern) out.push(`${s.concern} con expresión de preocupación.`);
+      if (s.unchecked) out.push(`${s.unchecked} sin poder comprobar en Crossref.`);
+      return out.length ? out : ['Ninguna referencia retractada ni con expresión de preocupación.'];
+    }
     case 'placeholders':
       return s.found ? [`${s.found} marcadores de posición en el texto.`] : ['Ningún marcador de posición en el texto.'];
     case 'imrad_structure':

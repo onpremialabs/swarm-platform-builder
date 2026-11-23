@@ -127,6 +127,7 @@ Decisiones ya tomadas en el código, no aspiraciones:
   no los gana. El `User-Agent` lleva un correo de contacto de configuración
   (`PUBLICATION_GATE_CONTACT_EMAIL`), no del repositorio. Revisar las condiciones de uso
   de ambos servicios antes de enviar títulos de trabajos no publicados (FW §20.7).
+- **Retractaciones (SPEC-035/T23.5)**: la compuerta consulta Crossref (`/works/<DOI>`, campo `updated-by`) solo con el DOI de cada referencia, por `safe_get(quien="publication_gate")` —mismos hosts ya abiertos a la compuerta—. No hay tabla nueva ni caché persistente: los avisos (tipo, DOI del aviso, fecha) viajan en la evidencia del informe de compuerta (`publication_gate_reports.criteria`), con su retención. Si Crossref falla se guarda un código fijo (`crossref_unavailable`), nunca el texto de la excepción, que puede llevar la URL consultada.
 - **A las bases bibliográficas del descubrimiento (OpenAlex, Crossref, Semantic Scholar, arXiv,
   PubMed) solo sale la cadena de búsqueda** (SPEC-034/T22.1): la consulta se limita a 300
   caracteres y se rechaza si parece un texto, así que ni el manuscrito ni datos de la persona

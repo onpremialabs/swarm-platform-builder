@@ -143,6 +143,12 @@ gate:
     backoff_s: 1.0
     max_total_s: 120           # por evaluación
     cache_ttl_days: 30         # solo se cachean los positivos
+  # Retractaciones y expresiones de preocupación según Crossref (SPEC-035 AC5).
+  # `block` bloquea; `warn` deja el aviso en el informe sin bloquear. Si Crossref no
+  # responde, la referencia queda `not_verified` y bloquea (falla cerrada, ADR-0011).
+  retractions:
+    retracted: block
+    concern: warn
   structure:
     sections: [introduction, methods, results, discussion, references]
     titles:
@@ -173,5 +179,6 @@ gate:
   responsible:
     reference_existence: investigador
     reference_structure: investigador
+    retractions: investigador
     placeholders: redactor
     imrad_structure: redactor
