@@ -2,7 +2,27 @@
   "_comentario": "Excepciones PERMANENTES del control de literales (check_i18n.py). Cada una lleva su motivo; no es para silenciar deuda (eso es la linea base). textos: texto -> motivo. ficheros: ruta relativa a frontend/src -> motivo.",
   "textos": {
     "AlejandrIA": "marca: no se traduce",
-    "AlejandrIA Magazine": "marca: no se traduce"
+    "AlejandrIA Magazine": "marca: no se traduce",
+    ", current:": "falso positivo del detector: fragmento de código JS entre '>' y '<' (ternario, objeto), no texto visible",
+    ", failed:": "falso positivo del detector: fragmento de código JS entre '>' y '<' (ternario, objeto), no texto visible",
+    ", pending:": "falso positivo del detector: fragmento de código JS entre '>' y '<' (ternario, objeto), no texto visible",
+    ", running:": "falso positivo del detector: fragmento de código JS entre '>' y '<' (ternario, objeto), no texto visible",
+    ", completed:": "falso positivo del detector: fragmento de código JS entre '>' y '<' (ternario, objeto), no texto visible",
+    ", abstained:": "falso positivo del detector: fragmento de código JS entre '>' y '<' (ternario, objeto), no texto visible",
+    ", not_run:": "falso positivo del detector: fragmento de código JS entre '>' y '<' (ternario, objeto), no texto visible",
+    ": data.integrity.status === 'rota' ?": "falso positivo del detector: fragmento de código JS entre '>' y '<' (ternario, objeto), no texto visible",
+    ") : gateNotice.kind === 'abstained' ? (": "falso positivo del detector: fragmento de código JS entre '>' y '<' (ternario, objeto), no texto visible",
+    ") : executionRows.length === 0 ? (": "falso positivo del detector: fragmento de código JS entre '>' y '<' (ternario, objeto), no texto visible",
+    ") : ex.status === 'running' ? (": "falso positivo del detector: fragmento de código JS entre '>' y '<' (ternario, objeto), no texto visible",
+    ") : error ? (": "falso positivo del detector: fragmento de código JS entre '>' y '<' (ternario, objeto), no texto visible",
+    ": sinCadena ?": "falso positivo del detector: fragmento de código JS entre '>' y '<' (ternario, objeto), no texto visible",
+    "INFO": "nivel de log: código técnico, no se traduce",
+    "ERROR": "nivel de log: código técnico, no se traduce",
+    "Alej": "marca AlejandrIA partida en el JSX (Alej<span>andrIA</span>): no se traduce",
+    "andrIA": "marca AlejandrIA partida en el JSX: no se traduce",
+    "Magazine": "marca: parte del nombre AlejandrIA Magazine, no se traduce",
+    "agent_runs": "nombre de tabla de la base de datos: código, no se traduce",
+    "![pie](asset:…)": "sintaxis Markdown de ejemplo: código, no se traduce"
   },
   "ficheros": {}
 }

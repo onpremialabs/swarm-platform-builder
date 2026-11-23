@@ -5,32 +5,34 @@ import { FileText, Clock, CheckCircle, AlertCircle, Search, Pencil, Trash2, User
 import { useArticleStore } from '../store/articleStore';
 import { useAuthStore } from '../../../platform/store/authStore';
 import toast from 'react-hot-toast';
+import { useT } from '../i18n/useT';
 
-const TABS = ['Todos', 'Drafts', 'Pendientes', 'Revisión humana', 'Aprobados', 'Publicados'];
+const TABS = ['all', 'draft', 'pending', 'human_review', 'approved', 'published'];
 
 const STATUS_MAP = {
-  draft: { label: 'Draft', cls: 'badge-draft', icon: <Clock size={10} /> },
-  in_review: { label: 'Pendiente', cls: 'badge-pending', icon: <AlertCircle size={10} /> },
-  approved: { label: 'Aprobado', cls: 'badge-approved', icon: <CheckCircle size={10} /> },
-  published: { label: 'Publicado', cls: 'badge-published', icon: <CheckCircle size={10} /> },
-  rejected: { label: 'Rechazado', cls: 'badge-error', icon: <AlertCircle size={10} /> },
-  requires_human_review: { label: 'Revisión humana', cls: 'badge-pending', icon: <AlertCircle size={10} /> },
+  draft: { label: 'articles.status.draft', cls: 'badge-draft', icon: <Clock size={10} /> },
+  in_review: { label: 'articles.status.in_review', cls: 'badge-pending', icon: <AlertCircle size={10} /> },
+  approved: { label: 'articles.status.approved', cls: 'badge-approved', icon: <CheckCircle size={10} /> },
+  published: { label: 'articles.status.published', cls: 'badge-published', icon: <CheckCircle size={10} /> },
+  rejected: { label: 'articles.status.rejected', cls: 'badge-error', icon: <AlertCircle size={10} /> },
+  requires_human_review: { label: 'articles.status.requires_human_review', cls: 'badge-pending', icon: <AlertCircle size={10} /> },
 };
 
 const TAB_FILTER = {
-  'Todos': null,
-  'Drafts': 'draft',
-  'Pendientes': 'in_review',
-  'Revisión humana': 'requires_human_review',
-  'Aprobados': 'approved',
-  'Publicados': 'published',
+  all: null,
+  draft: 'draft',
+  pending: 'in_review',
+  human_review: 'requires_human_review',
+  approved: 'approved',
+  published: 'published',
 };
 
 export default function ArticlesPage() {
+  const { t } = useT();
   const navigate = useNavigate();
   const { articles, fetchArticles, updateArticle, deleteArticle, isLoading, error } = useArticleStore();
   const { user } = useAuthStore();
-  const [tab, setTab] = useState('Todos');
+  const [tab, setTab] = useState('all');
   const [search, setSearch] = useState('');
   const [editingId, setEditingId] = useState(null);
   const [editTitle, setEditTitle] = useState('');
@@ -55,19 +57,19 @@ export default function ArticlesPage() {
     if (!editTitle.trim()) return;
     try {
       await updateArticle(id, { title: editTitle.trim() });
-      toast.success('Título actualizado');
-    } catch { toast.error('Error al actualizar'); }
+      toast.success(t('articles.titleUpdated'));
+    } catch { toast.error(t('articles.updateError')); }
     setEditingId(null);
   };
 
   const handleDelete = async (e, id, title) => {
     e.stopPropagation();
-    if (!globalThis.confirm(`¿Eliminar "${title}"? Esta acción no se puede deshacer.`)) return;
+    if (!globalThis.confirm(t('articles.deleteConfirm', { title }))) return;
     setDeletingId(id);
     try {
       await deleteArticle(id);
-      toast.success('Artículo eliminado');
-    } catch { toast.error('Error al eliminar'); }
+      toast.success(t('articles.deleted'));
+    } catch { toast.error(t('articles.deleteError')); }
     finally { setDeletingId(null); }
   };
 
@@ -75,22 +77,22 @@ export default function ArticlesPage() {
     <div className="page-body">
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-6)' }}>
         <div>
-          <h2 style={{ marginBottom: 4 }}>Artículos</h2>
-          <p style={{ fontSize: 'var(--font-size-sm)' }}>{articles.length} artículos en total</p>
+          <h2 style={{ marginBottom: 4 }}>{t('articles.title')}</h2>
+          <p style={{ fontSize: 'var(--font-size-sm)' }}>{t('articles.total', { count: articles.length })}</p>
         </div>
       </div>
 
       {/* Filters */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)', marginBottom: 'var(--space-5)', flexWrap: 'wrap' }}>
         <div className="tabs">
-          {TABS.map(t => (
-            <button key={t} className={`tab ${tab === t ? 'active' : ''}`} onClick={() => setTab(t)}>{t}</button>
+          {TABS.map(id => (
+            <button key={id} className={`tab ${tab === id ? 'active' : ''}`} onClick={() => setTab(id)}>{t(`articles.tabs.${id}`)}</button>
           ))}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, maxWidth: 300 }}>
           <Search size={15} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
           <input className="input" style={{ padding: '6px 10px' }}
-            placeholder="Buscar artículos..."
+            placeholder={t('articles.search')}
             value={search} onChange={e => setSearch(e.target.value)} />
         </div>
       </div>
@@ -100,14 +102,14 @@ export default function ArticlesPage() {
         error={error}
         isEmpty={filtered.length === 0}
         onRetry={() => fetchArticles()}
-        loadingLabel="Cargando artículos…"
+        loadingLabel={t('articles.loading')}
         empty={(
           <EmptyState
             icon={<FileText size={28} />}
-            title={articles.length === 0 ? 'Sin artículos' : 'Ningún artículo coincide'}
+            title={articles.length === 0 ? t('articles.emptyTitle') : t('articles.noMatchTitle')}
             description={articles.length === 0
-              ? 'Ejecuta un pipeline desde el Flow Designer para generar tu primer artículo.'
-              : 'Prueba con otro filtro o cambia el término de búsqueda.'}
+              ? t('articles.emptyDescription')
+              : t('articles.noMatchDescription')}
           />
         )}
       >
@@ -143,16 +145,16 @@ export default function ArticlesPage() {
                         className="btn btn-primary btn-sm"
                         style={{ padding: '3px 10px', fontSize: 'var(--font-size-xs)' }}
                         onClick={e => confirmEdit(e, article.id)}
-                        aria-label="Confirmar edición"
+                        aria-label={t('articles.confirmEdit')}
                       >
-                        Guardar
+                        {t('articles.save')}
                       </button>
                     ) : (
                       <button
                         className="btn btn-ghost btn-sm btn-icon"
                         onClick={e => startEdit(e, article)}
-                        aria-label="Editar título"
-                        title="Editar título"
+                        aria-label={t('articles.editTitle')}
+                        title={t('articles.editTitle')}
                       >
                         <Pencil size={13} style={{ color: 'var(--text-muted)' }} />
                       </button>
@@ -161,13 +163,13 @@ export default function ArticlesPage() {
                       className="btn btn-ghost btn-sm btn-icon"
                       onClick={e => handleDelete(e, article.id, article.title)}
                       disabled={isDeleting}
-                      aria-label="Eliminar artículo"
-                      title="Eliminar artículo"
+                      aria-label={t('articles.delete')}
+                      title={t('articles.delete')}
                     >
                       <Trash2 size={13} style={{ color: 'var(--error)' }} />
                     </button>
                     <span className={`badge ${st.cls}`}>
-                      {st.icon} {st.label}
+                      {st.icon} {t(st.label)}
                     </span>
                   </div>
                 </div>

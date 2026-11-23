@@ -8,12 +8,14 @@ import { ChevronLeft, ChevronRight, BookOpen, Loader, Bell, LogOut, Shield } fro
 import { useAuthStore } from '../../../platform/store/authStore';
 import api from '../../../platform/api/client';
 import toast from 'react-hot-toast';
+import { tr, useT } from '../i18n/useT';
 
 /**
  * Reader page for authenticated lector users.
  * Shows published articles as a full-screen slideshow with notification bell.
  */
 export default function LectorPage() {
+  const { t } = useT();
   const { user, logout } = useAuthStore();
   const navigate = useNavigate();
 
@@ -57,7 +59,7 @@ export default function LectorPage() {
   const cargarArticulos = useCallback(() => {
     setLoading(true);
     setError(null);
-    const fallo = (err) => setError(mensajeDeCarga(err, 'No se pudieron cargar los artículos'));
+    const fallo = (err) => setError(mensajeDeCarga(err, tr('lector.loadError')));
     if (user?.role === 'publico') {
       api.get('/api/v1/magazine')
         .then(r => setArticles(r.data ?? []))
@@ -88,7 +90,7 @@ export default function LectorPage() {
 
   const handleLogout = () => {
     logout();
-    toast.success('Sesión cerrada');
+    toast.success(t('lector.loggedOut'));
     navigate('/auth');
   };
 
@@ -129,7 +131,7 @@ export default function LectorPage() {
                 className="btn btn-ghost btn-icon"
                 style={{ position: 'relative' }}
                 onClick={() => setShowNotifs(v => !v)}
-                aria-label={`Notificaciones${unread ? ` (${unread} sin leer)` : ''}`}
+                aria-label={unread ? t('lector.notificationsUnreadAria', { count: unread }) : t('lector.notifications')}
               >
                 <Bell size={18} />
                 {unread > 0 && (
@@ -150,12 +152,12 @@ export default function LectorPage() {
                   boxShadow: '0 8px 24px rgba(0,0,0,0.4)', zIndex: 200, overflow: 'hidden',
                 }}>
                   <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border-default)', fontWeight: 600, fontSize: 'var(--font-size-sm)' }}>
-                    Notificaciones {unread > 0 && <span style={{ color: 'var(--error)' }}>({unread} nuevas)</span>}
+                    {t('lector.notifications')} {unread > 0 && <span style={{ color: 'var(--error)' }}>({t('lector.newCount', { count: unread })})</span>}
                   </div>
                   <div style={{ maxHeight: 320, overflowY: 'auto' }}>
                     {notifications.length === 0 ? (
                       <div style={{ padding: '24px 16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 'var(--font-size-sm)' }}>
-                        Sin notificaciones
+                        {t('lector.noNotifications')}
                       </div>
                     ) : notifications.map(n => (
                       <div key={n.id} style={{
@@ -186,7 +188,7 @@ export default function LectorPage() {
           </div>
 
           {/* Logout */}
-          <button className="btn btn-ghost btn-icon" onClick={handleLogout} title="Cerrar sesión" aria-label="Cerrar sesión">
+          <button className="btn btn-ghost btn-icon" onClick={handleLogout} title={t('lector.logout')} aria-label={t('lector.logout')}>
             <LogOut size={17} />
           </button>
         </div>
@@ -195,7 +197,7 @@ export default function LectorPage() {
       {/* Slideshow */}
       <div style={{ flex: 1, display: 'flex', alignItems: 'stretch', position: 'relative', overflow: 'hidden' }}>
         {articles.length > 1 && (
-          <button onClick={prev} aria-label="Artículo anterior" style={{
+          <button onClick={prev} aria-label={t('magazine.previous')} style={{
             position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)',
             zIndex: 10, background: 'var(--bg-elevated)', border: '1px solid var(--border-default)',
             borderRadius: '50%', width: 40, height: 40, display: 'flex', alignItems: 'center',
@@ -211,12 +213,12 @@ export default function LectorPage() {
             error={error}
             isEmpty={articles.length === 0}
             onRetry={cargarArticulos}
-            loadingLabel="Cargando artículos…"
+            loadingLabel={t('articles.loading')}
             empty={(
               <EmptyState
                 icon={<BookOpen size={28} />}
-                title="No hay artículos publicados aún"
-                description="Aquí aparecerán los artículos en cuanto se publiquen."
+                title={t('magazine.emptyTitle')}
+                description={t('lector.emptyDescription')}
               />
             )}
           >
@@ -232,7 +234,7 @@ export default function LectorPage() {
                   {article.title}
                 </h1>
                 <div style={{ fontSize: 'var(--font-size-sm)', color: 'var(--text-muted)' }}>
-                  Publicado el {new Date(article.published_at || article.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' })}
+                  {t('magazine.publishedOn', { date: new Date(article.published_at || article.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' }) })}
                   {article.author_name && <span style={{ marginLeft: 12 }}>· {article.author_name}</span>}
                 </div>
               </div>
@@ -245,7 +247,7 @@ export default function LectorPage() {
         </div>
 
         {articles.length > 1 && (
-          <button onClick={next} aria-label="Artículo siguiente" style={{
+          <button onClick={next} aria-label={t('magazine.next')} style={{
             position: 'absolute', right: 16, top: '50%', transform: 'translateY(-50%)',
             zIndex: 10, background: 'var(--bg-elevated)', border: '1px solid var(--border-default)',
             borderRadius: '50%', width: 40, height: 40, display: 'flex', alignItems: 'center',
@@ -260,7 +262,7 @@ export default function LectorPage() {
       {articles.length > 1 && (
         <div style={{ display: 'flex', justifyContent: 'center', gap: 8, padding: '16px 0', background: 'var(--bg-surface)', borderTop: '1px solid var(--border-subtle)' }}>
           {articles.map((_, i) => (
-            <button key={i} onClick={() => setCurrent(i)} aria-label={`Ir al artículo ${i + 1}`} style={{
+            <button key={i} onClick={() => setCurrent(i)} aria-label={t('magazine.goTo', { n: i + 1 })} style={{
               width: i === current ? 20 : 8, height: 8, borderRadius: 4,
               background: i === current ? 'var(--brand-primary)' : 'var(--border-default)',
               border: 'none', cursor: 'pointer', padding: 0,

@@ -17,6 +17,16 @@ def _leer(ruta: Path) -> str:
     return ruta.read_text(encoding="utf-8")
 
 
+def _catalogo_es() -> str:
+    """Valores del catálogo español del proyecto (T29.8): los textos ya no están en el JSX."""
+    return _leer(SRC / "i18n" / "es.json")
+
+
+def _con_textos(texto: str) -> str:
+    """El JSX más los textos de su catálogo: lo que la pantalla acaba mostrando."""
+    return texto + "\n" + _catalogo_es()
+
+
 def _sin_comentarios_js(texto: str) -> str:
     return re.sub(r"(?m)^\s*//.*$", "", texto)
 
@@ -32,14 +42,15 @@ def test_el_estado_nuevo_se_muestra_en_el_detalle_y_en_el_listado():
     for estado in ArticleStatus:
         assert re.search(rf"\b{estado.value}\s*:", detalle), f"el detalle no mapea {estado.value}"
         assert re.search(rf"\b{estado.value}\s*:", listado), f"el listado no mapea {estado.value}"
-    assert "'Revisión humana': 'requires_human_review'" in listado  # y se puede filtrar
+    assert "human_review: 'requires_human_review'" in listado  # y se puede filtrar
+    assert "Revisión humana" in _catalogo_es()
 
 
 def test_requires_human_review_explica_que_hacer_y_muestra_los_comentarios():
     detalle = _leer(SRC / "pages" / "ArticleDetailPage.jsx")
     assert "article.status === 'requires_human_review'" in detalle
     assert "article.rejection_comment" in detalle
-    assert "vuelve a ejecutar el pipeline" in detalle
+    assert "vuelve a ejecutar el pipeline" in _con_textos(detalle)
 
 
 # ── Códigos de error de la API ──────────────────────────────────────────────
@@ -68,11 +79,12 @@ def test_cada_codigo_de_409_tiene_un_mensaje_accionable():
 
 
 def test_las_acciones_traducen_el_error_en_lugar_de_mostrar_un_generico():
-    detalle = _sin_comentarios_js(_leer(SRC / "pages" / "ArticleDetailPage.jsx"))
+    detalle = _con_textos(_sin_comentarios_js(_leer(SRC / "pages" / "ArticleDetailPage.jsx")))
     for accion in ("aprobar", "publicar", "rechazar", "reevaluar la compuerta"):
         assert accion in detalle.lower()
     assert detalle.count("describeApiError(") >= 5
     assert "toast.error('Error al aprobar')" not in detalle
+    assert "toast.error(t('detail.approveError'))" not in detalle  # tampoco sin pasar por describeApiError
 
 
 # ── Informe de la compuerta ─────────────────────────────────────────────────
@@ -90,7 +102,7 @@ def test_el_panel_cubre_los_cuatro_estados_de_criterio_y_los_nombres_de_cada_uno
 
 
 def test_el_panel_dice_cuando_no_hay_informe_y_cuando_esta_caducado():
-    panel = _leer(SRC / "components" / "GateReportPanel.jsx")
+    panel = _con_textos(_leer(SRC / "components" / "GateReportPanel.jsx"))
     assert "Sin informe" in panel
     assert "data.current" in panel and "reevalúa antes de aprobar" in panel
     assert "responsible_agent" in panel and "pending" in panel
@@ -99,7 +111,8 @@ def test_el_panel_dice_cuando_no_hay_informe_y_cuando_esta_caducado():
 def test_el_detalle_usa_el_panel_y_declara_al_autor_responsable():
     detalle = _leer(SRC / "pages" / "ArticleDetailPage.jsx")
     assert "<GateReportPanel" in detalle
-    assert "Declararme autor responsable" in detalle
+    assert "Declararme autor responsable" in _con_textos(detalle)
+    assert "handleDeclareResponsible" in detalle
     api = _leer(SRC / "api" / "articles.js")
     assert "/gate-report" in api and "/responsible-author" in api
 

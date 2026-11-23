@@ -4,6 +4,7 @@ import {
   ACTION_LABELS, agentLabel, BLOCKING, CRITERION_LABELS, CRITERION_STATUS, evidenceLines,
   nextStep, PENDING_REASONS, summaryLines,
 } from '../gate';
+import { useT } from '../i18n/useT';
 
 /**
  * Informe de la compuerta de publicación (SPEC-032/AC6). Cada criterio se despliega:
@@ -17,6 +18,7 @@ import {
 export default function GateReportPanel({
   data, loading, error, onRetry, onReevaluate, busy, onAction, onProvideDoi,
 }) {
+  const { t } = useT();
   const report = data?.report;
   const criteria = report?.criteria?.criteria || [];
   const pending = report?.criteria?.pending || [];
@@ -35,7 +37,7 @@ export default function GateReportPanel({
       await onProvideDoi(index, dois[index] || '');
       setDois((d) => ({ ...d, [index]: '' }));
     } catch (err) {
-      setDoiError(err?.response?.data?.detail || 'No se pudo aportar el DOI');
+      setDoiError(err?.response?.data?.detail || t('gate.doiFailed'));
     }
   };
 
@@ -52,30 +54,30 @@ export default function GateReportPanel({
   };
 
   return (
-    <div className="card" aria-label="Informe de la compuerta de publicación">
+    <div className="card" aria-label={t('gate.reportAria')}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 'var(--space-3)' }}>
         <ShieldCheck size={14} />
-        <strong style={{ fontSize: 'var(--font-size-sm)', flex: 1 }}>Compuerta de publicación</strong>
+        <strong style={{ fontSize: 'var(--font-size-sm)', flex: 1 }}>{t('gate.title')}</strong>
         {onReevaluate && (
           <button className="btn btn-ghost btn-sm" onClick={onReevaluate} disabled={busy}
-            aria-label="Reevaluar la compuerta sobre el texto actual">
-            <RefreshCw size={12} /> Reevaluar
+            aria-label={t('gate.reevaluateAria')}>
+            <RefreshCw size={12} /> {t('gate.reevaluate')}
           </button>
         )}
       </div>
 
-      {loading && <div style={{ color: 'var(--text-muted)' }}>Cargando informe…</div>}
+      {loading && <div style={{ color: 'var(--text-muted)' }}>{t('gate.loading')}</div>}
 
       {!loading && error && (
         <div role="alert" style={{ fontSize: 'var(--font-size-xs)', color: 'var(--error)' }}>
           {error}{' '}
-          {onRetry && <button className="btn btn-ghost btn-sm" onClick={onRetry}>Reintentar</button>}
+          {onRetry && <button className="btn btn-ghost btn-sm" onClick={onRetry}>{t('common.retry')}</button>}
         </div>
       )}
 
       {!loading && !error && !report && (
         <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>
-          Sin informe. Se genera al terminar el pipeline o al reevaluar.
+          {t('gate.noReport')}
         </div>
       )}
 
@@ -84,13 +86,13 @@ export default function GateReportPanel({
           fontSize: 'var(--font-size-xs)', marginBottom: 'var(--space-3)', padding: 'var(--space-2)',
           border: '1px solid var(--border)', borderRadius: 'var(--radius-md)',
         }}>
-          <strong>Siguiente paso:</strong> {next.text}
+          <strong>{t('gate.nextStep')}</strong> {next.text}
           {next.action && next.action.action !== 'provide_doi'
             && (next.action.action === 'reevaluate' ? onReevaluate : onAction) && (
             <div style={{ marginTop: 6 }}>
               <button className="btn btn-primary btn-sm" disabled={busy}
                 onClick={() => act(next.action, next.action.criterion)}>
-                {next.action.action === 'reevaluate' ? 'Reevaluar' : ACTION_LABELS[next.action.action]?.(next.action.agent)}
+                {next.action.action === 'reevaluate' ? t('gate.reevaluate') : ACTION_LABELS[next.action.action]?.(next.action.agent)}
                 {' '}<ArrowRight size={12} />
               </button>
             </div>
@@ -102,15 +104,15 @@ export default function GateReportPanel({
         <>
           <div style={{ marginBottom: 'var(--space-3)' }}>
             <span className={`badge ${report.criteria.passed ? 'badge-approved' : 'badge-error'}`}>
-              {report.criteria.passed ? 'Sin bloqueantes' : 'Con bloqueantes'}
+              {report.criteria.passed ? t('gate.noBlockers') : t('gate.withBlockers')}
             </span>
             {!data.current && (
               <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--warning)', marginTop: 6 }}>
-                El texto cambió desde esta evaluación: reevalúa antes de aprobar.
+                {t('gate.textChanged')}
               </div>
             )}
             <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', marginTop: 4 }}>
-              Evaluado el {new Date(report.created_at).toLocaleString('es-ES')}
+              {t('gate.evaluatedOn', { when: new Date(report.created_at).toLocaleString('es-ES') })}
             </div>
           </div>
 
@@ -134,30 +136,30 @@ export default function GateReportPanel({
                     </summary>
                     <div style={{ fontSize: 'var(--font-size-xs)', marginTop: 4, color: 'var(--text-secondary)' }}>
                       {lines.slice(0, 5).map((l, i) => <div key={i}>{l}</div>)}
-                      {lines.length > 5 && <div>… y {lines.length - 5} más</div>}
+                      {lines.length > 5 && <div>{t('gate.andMore', { count: lines.length - 5 })}</div>}
                       {items.length > 0 && (
                         <ul style={{ paddingLeft: 18, margin: '4px 0 0' }}>
                           {items.map((it, i) => (
-                            <li key={i}>«{it.title || 'sin título'}»{it.doi ? ` · ${it.doi}` : ''}</li>
+                            <li key={i}>«{it.title || t('gate.untitled')}»{it.doi ? ` · ${it.doi}` : ''}</li>
                           ))}
                         </ul>
                       )}
                       {blocks && c.responsible_agent && (
                         <div style={{ marginTop: 2 }}>
-                          Corresponde a: <strong>{agentLabel(c.responsible_agent)}</strong>
+                          {t('gate.responsible')} <strong>{agentLabel(c.responsible_agent)}</strong>
                         </div>
                       )}
                       {onProvideDoi && doiTargets.length > 0 && (
                         <div style={{ marginTop: 6 }}>
-                          <div>¿Conoces el DOI? Se comprobará igual contra Crossref/OpenAlex.</div>
+                          <div>{t('gate.doiPrompt')}</div>
                           {doiTargets.map((index) => (
                             <div key={index} style={{ display: 'flex', gap: 6, marginTop: 4 }}>
-                              <input className="input" style={{ flex: 1 }} placeholder={`DOI de la referencia ${index}`}
-                                aria-label={`DOI de la referencia ${index}`}
+                              <input className="input" style={{ flex: 1 }} placeholder={t('gate.doiOfRef', { index })}
+                                aria-label={t('gate.doiOfRef', { index })}
                                 value={dois[index] || ''} onChange={(e) => setDois((d) => ({ ...d, [index]: e.target.value }))} />
                               <button className="btn btn-secondary btn-sm" disabled={busy || !(dois[index] || '').trim()}
                                 onClick={() => sendDoi(index)}>
-                                Aportar
+                                {t('gate.provide')}
                               </button>
                             </div>
                           ))}
@@ -179,7 +181,7 @@ export default function GateReportPanel({
           {pending.length > 0 && (
             <details style={{ marginTop: 'var(--space-3)' }}>
               <summary style={{ cursor: 'pointer', fontSize: 'var(--font-size-xs)' }}>
-                {pending.length} criterios aún sin comprobar (no bloquean)
+                {t('gate.pending', { count: pending.length })}
               </summary>
               <ul style={{ fontSize: 'var(--font-size-xs)', paddingLeft: 18, margin: '6px 0 0' }}>
                 {pending.map((p) => (

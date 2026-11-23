@@ -9,24 +9,26 @@ import { agentsApi } from '../../../platform/api/agents';
 import { agentMeta } from '../../../platform/agentCatalog';
 import { useProjectStore } from '../../../platform/store/projectStore';
 import ArticleCitations from '../components/ArticleCitations';
+import { useT } from '../i18n/useT';
 import './article-trace-history.css';
 
-const tabs = [['summary','Resumen',Activity],['steps','Trazas por agente',Layers],['logs','Logs',List],['metrics','Métricas',BarChart3],['sources','Fuentes',Database],['integrity','Integridad',ShieldCheck]];
+const tabs = [['summary','history.tabs.summary',Activity],['steps','history.tabs.steps',Layers],['logs','history.tabs.logs',List],['metrics','history.tabs.metrics',BarChart3],['sources','history.tabs.sources',Database],['integrity','history.tabs.integrity',ShieldCheck]];
 const num = n => Number(n || 0).toLocaleString('es-CL');
 const duration = ms => { const s = Math.round(Number(ms || 0)/1000); return ms > 0 && ms < 1000 ? `${Math.round(ms)} ms` : s < 60 ? `${s} s` : `${Math.floor(s/60)} min ${s%60} s`; };
 const date = value => value ? new Date(/Z$|[+-]\d\d:\d\d$/.test(value) ? value : `${value}Z`).toLocaleString('es-CL') : '—';
 const name = agent => agentMeta(agent)?.label || agent;
-const labels = { completed:'Completada',failed:'Fallida',running:'En curso',cancelled:'Cancelada',abstained:'Detenida por abstención',error:'Error' };
+const STATUS_KEYS = ['completed', 'failed', 'running', 'cancelled', 'abstained', 'error'];
 const statusIcons = {
   completed: CheckCircle, failed: XCircle, running: Clock, cancelled: XCircle, abstained: CircleAlert, error: CircleAlert,
 };
 
 function Status({ value }) {
+  const { t } = useT();
   const Icon = statusIcons[value] || Info;
   return (
     <span className={`ath-badge ath-${value}`}>
       <Icon size={14} strokeWidth={1.5} aria-hidden="true" />
-      {labels[value] || value}
+      {STATUS_KEYS.includes(value) ? t(`history.status.${value}`) : value}
     </span>
   );
 }
@@ -39,6 +41,8 @@ function Card({title,children}) { return <section className="ath-card"><h2>{titl
 function Json({value}) { return <pre className="ath-json">{JSON.stringify(value,null,2)}</pre>; }
 
 export default function ArticleTraceHistoryPage() {
+  const { t } = useT();
+  const statusLabel = value => (STATUS_KEYS.includes(value) ? t(`history.status.${value}`) : value);
   const {id} = useParams();
   const projectId = useProjectStore(s => s.activeProject?.id);
   const [params,setParams] = useSearchParams();
@@ -58,7 +62,7 @@ export default function ArticleTraceHistoryPage() {
     const control = new AbortController();
     setHistory(null); setDetail(null); setError('');
     agentsApi.getTraceHistory(id,control.signal).then(result => { if (!control.signal.aborted) setHistory({...result,projectId}); })
-      .catch(e => { if (!control.signal.aborted) setError(e.response?.status === 403 ? 'No tienes permiso para consultar estas trazas.' : 'No se pudo cargar el historial.'); });
+      .catch(e => { if (!control.signal.aborted) setError(e.response?.status === 403 ? 'history.errorForbidden' : 'history.errorLoad'); });
     return () => control.abort();
   },[id,projectId,refresh]);
   const currentHistory = history?.article_id === id && history?.projectId === projectId ? history : null;
@@ -71,7 +75,7 @@ export default function ArticleTraceHistoryPage() {
     }
     const control = new AbortController(); setBusy(true); setError('');
     agentsApi.getTraceHistoryDetail(id,executionId,control.signal).then(result => { if (!control.signal.aborted) setDetail(result); })
-      .catch(() => { if (!control.signal.aborted) setError('No se pudo cargar esta ejecución. Selecciona otra o vuelve a intentarlo.'); })
+      .catch(() => { if (!control.signal.aborted) setError('history.errorExecution'); })
       .finally(() => { if (!control.signal.aborted) setBusy(false); });
     return () => control.abort();
   },[id,projectId,executionId,currentHistory]);
@@ -90,49 +94,49 @@ export default function ArticleTraceHistoryPage() {
     const url=URL.createObjectURL(blob); const link=document.createElement('a'); link.href=url; link.download=`traza-${id}-${run.id}.jsonl`; link.click(); setTimeout(()=>URL.revokeObjectURL(url),1000);
   }
   return <div className="page-body ath-page">
-    <Link className="ath-back" to="/dashboard/traceability"><ArrowLeft size={15}/>Volver a trazabilidad</Link>
-    <header className="ath-header"><div><p className="ath-eyebrow">HISTORIAL DE GENERACIÓN</p><h1>{currentHistory?.title || 'Historial de trazas'}</h1><p>Consulta los pasos, decisiones y fuentes guardados de cada ejecución.</p></div><button className="btn btn-secondary btn-sm" disabled={busy} onClick={()=>setRefresh(n=>n+1)}><RefreshCw size={14}/>Actualizar</button></header>
+    <Link className="ath-back" to="/dashboard/traceability"><ArrowLeft size={15}/>{t('history.backToTraceability')}</Link>
+    <header className="ath-header"><div><p className="ath-eyebrow">{t('history.eyebrow')}</p><h1>{currentHistory?.title || t('history.defaultTitle')}</h1><p>{t('history.subtitle')}</p></div><button className="btn btn-secondary btn-sm" disabled={busy} onClick={()=>setRefresh(n=>n+1)}><RefreshCw size={14}/>{t('history.refresh')}</button></header>
     {error && (
       <div role="alert" className="ath-alert">
         <CircleAlert size={16} aria-hidden="true" />
-        <span>{error}</span>
-        <button className="btn btn-secondary btn-sm" onClick={() => setRefresh(n => n + 1)}>Reintentar</button>
+        <span>{t(error)}</span>
+        <button className="btn btn-secondary btn-sm" onClick={() => setRefresh(n => n + 1)}>{t('common.retry')}</button>
       </div>
     )}
-    {!currentHistory && !error && <p role="status">Cargando historial…</p>}
-    {currentHistory && <><div className="ath-toolbar"><label>Ejecución <select className="input" aria-label="Seleccionar ejecución" value={executionId||''} onChange={e=>setParams({execution:e.target.value})}>{currentHistory.executions.map(e=><option key={e.id} value={e.id}>Ejecución {e.run_number} · {date(e.started_at)} · {labels[e.status]||e.status}</option>)}</select></label><button className="btn btn-secondary btn-sm" disabled={!data} onClick={exportTrace}><Download size={14}/>Exportar JSONL</button></div>
-    {!currentHistory.executions.length && <Card title="Sin trazas guardadas"><p>No hay pasos conservados para este artículo. No es posible reconstruir su ejecución con la información disponible.</p></Card>}
-    {busy && <p role="status">Cargando ejecución…</p>}
-    {run && <><div className="ath-run-heading"><Status value={run.status}/>{run.recovered_failures>0 && <span>{num(run.recovered_failures)} fallos recuperados</span>}<span>Inicio: {date(run.started_at)}</span><span>Último paso guardado: {date(run.last_step_at)}</span></div>
-      <nav className="ath-tabs" aria-label="Secciones del historial">{tabs.map(([key,label,Icon])=><button key={key} aria-pressed={tab===key} onClick={()=>setTab(key)}><Icon size={16} strokeWidth={1.5} aria-hidden="true" />{label}</button>)}</nav>
-      {tab==='summary' && <><div className="ath-stats">{[['Intentos registrados',run.steps],['Tokens totales',num(run.tokens_in+run.tokens_out)],['Tiempo de agentes',duration(run.latency_ms)],['Intentos con error',run.failed_steps]].map(([label,value])=><div className="ath-stat" key={label}><span>{label}</span><strong>{value}</strong></div>)}</div><div className="ath-columns"><Card title="Recorrido de la ejecución"><div className="ath-timeline">{steps.map(s=><button key={s.id} onClick={()=>{setSelected(s.id);setTab('steps');}}><AgentIcon agent={s.agent_name}/><span><strong>{name(s.agent_name)}</strong><small>Vuelta {s.iteration+1} · {date(s.created_at)}</small></span><span>{duration(s.latency_ms)}</span><Status value={s.status}/></button>)}</div></Card><Card title="Resultado y decisiones"><p><Status value={run.status}/></p><p>{run.recovered_failures ? 'Hubo errores que se resolvieron mediante reintentos. Los intentos originales se conservan.' : 'El resultado se calcula a partir del último intento guardado de cada paso.'}</p>{steps.filter(s=>s.decision).map(s=><div className="ath-decision" key={s.id}><strong>{name(s.agent_name)} · vuelta {s.iteration+1}</strong>{s.decision.score != null && <p>Score del revisor: <strong>{s.decision.score}/100</strong></p>}{s.decision.coherent != null && <p>Coherencia: <strong>{s.decision.coherent ? 'Sí' : 'No'}</strong></p>}{s.decision.hitl_outcome && <p>Decisión humana: {s.decision.hitl_outcome}</p>}{s.rationale && <details><summary>Ver justificación</summary><p>{s.rationale}</p></details>}<details><summary>Metadatos de la decisión</summary><Json value={s.decision}/></details></div>)}<p className="ath-muted">El estado técnico no equivale a aprobación científica ni editorial. Los tiempos suman intentos; no representan el tiempo de reloj del pipeline.</p></Card></div></>}
-      {tab==='steps' && <div className="ath-columns"><Card title="Trazas por agente"><div className="ath-timeline">{steps.map(s=><button key={s.id} aria-pressed={selected===s.id} onClick={()=>setSelected(s.id)}><AgentIcon agent={s.agent_name}/><span><strong>{name(s.agent_name)}</strong><small>{s.model||'Modelo no registrado'} · {num(s.tokens_in+s.tokens_out)} tokens</small></span><Status value={s.status}/></button>)}</div></Card><Card title={trace ? `Detalle · ${name(trace.agent_name)}` : 'Detalle del intento'}>{trace ? <><p><Status value={trace.status}/> · {duration(trace.latency_ms)}</p><p className="ath-muted">
-        ID: <code>{trace.id}</code><br />
-        Correlación: {trace.correlation_id ? <code>{trace.correlation_id}</code> : 'No registrada'}
+    {!currentHistory && !error && <p role="status">{t('history.loading')}</p>}
+    {currentHistory && <><div className="ath-toolbar"><label>{t('history.execution')} <select className="input" aria-label={t('history.selectExecution')} value={executionId||''} onChange={e=>setParams({execution:e.target.value})}>{currentHistory.executions.map(e=><option key={e.id} value={e.id}>{t('history.executionOption', { n: e.run_number, date: date(e.started_at), status: statusLabel(e.status) })}</option>)}</select></label><button className="btn btn-secondary btn-sm" disabled={!data} onClick={exportTrace}><Download size={14}/>{t('history.exportJsonl')}</button></div>
+    {!currentHistory.executions.length && <Card title={t('history.noTracesTitle')}><p>{t('history.noTraces')}</p></Card>}
+    {busy && <p role="status">{t('history.loadingExecution')}</p>}
+    {run && <><div className="ath-run-heading"><Status value={run.status}/>{run.recovered_failures>0 && <span>{t('history.recoveredFailures', { count: run.recovered_failures, n: num(run.recovered_failures) })}</span>}<span>{t('history.start', { date: date(run.started_at) })}</span><span>{t('history.lastStep', { date: date(run.last_step_at) })}</span></div>
+      <nav className="ath-tabs" aria-label={t('history.sectionsAria')}>{tabs.map(([key,label,Icon])=><button key={key} aria-pressed={tab===key} onClick={()=>setTab(key)}><Icon size={16} strokeWidth={1.5} aria-hidden="true" />{t(label)}</button>)}</nav>
+      {tab==='summary' && <><div className="ath-stats">{[['history.stats.attempts',run.steps],['history.stats.tokens',num(run.tokens_in+run.tokens_out)],['history.stats.agentTime',duration(run.latency_ms)],['history.stats.errors',run.failed_steps]].map(([label,value])=><div className="ath-stat" key={label}><span>{t(label)}</span><strong>{value}</strong></div>)}</div><div className="ath-columns"><Card title={t('history.journey')}><div className="ath-timeline">{steps.map(s=><button key={s.id} onClick={()=>{setSelected(s.id);setTab('steps');}}><AgentIcon agent={s.agent_name}/><span><strong>{name(s.agent_name)}</strong><small>{t('history.turn', { n: s.iteration+1, date: date(s.created_at) })}</small></span><span>{duration(s.latency_ms)}</span><Status value={s.status}/></button>)}</div></Card><Card title={t('history.resultTitle')}><p><Status value={run.status}/></p><p>{run.recovered_failures ? t('history.resultRecovered') : t('history.resultLast')}</p>{steps.filter(s=>s.decision).map(s=><div className="ath-decision" key={s.id}><strong>{t('history.decisionHeading', { agent: name(s.agent_name), n: s.iteration+1 })}</strong>{s.decision.score != null && <p>{t('history.reviewerScore')} <strong>{s.decision.score}/100</strong></p>}{s.decision.coherent != null && <p>{t('history.coherence')} <strong>{s.decision.coherent ? t('common.yes') : t('common.no')}</strong></p>}{s.decision.hitl_outcome && <p>{t('history.humanDecision', { outcome: s.decision.hitl_outcome })}</p>}{s.rationale && <details><summary>{t('history.viewRationale')}</summary><p>{s.rationale}</p></details>}<details><summary>{t('history.decisionMetadata')}</summary><Json value={s.decision}/></details></div>)}<p className="ath-muted">{t('history.technicalNote')}</p></Card></div></>}
+      {tab==='steps' && <div className="ath-columns"><Card title={t('history.tabs.steps')}><div className="ath-timeline">{steps.map(s=><button key={s.id} aria-pressed={selected===s.id} onClick={()=>setSelected(s.id)}><AgentIcon agent={s.agent_name}/><span><strong>{name(s.agent_name)}</strong><small>{s.model||t('history.modelUnknown')} · {t('history.tokensCount', { n: num(s.tokens_in+s.tokens_out) })}</small></span><Status value={s.status}/></button>)}</div></Card><Card title={trace ? t('history.detailOf', { agent: name(trace.agent_name) }) : t('history.attemptDetail')}>{trace ? <><p><Status value={trace.status}/> · {duration(trace.latency_ms)}</p><p className="ath-muted">
+        {t('history.idLabel')} <code>{trace.id}</code><br />
+        {t('history.correlation')} {trace.correlation_id ? <code>{trace.correlation_id}</code> : t('history.notRecorded')}
       </p>{trace.error_message && <div className="ath-alert">
         <CircleAlert size={16} aria-hidden="true" />
         <span>{trace.error_message}</span>
-      </div>}<details><summary>Entrada y parámetros</summary><Json value={{input:trace.input_digest,model:trace.model,params:trace.params}}/></details>{trace.output_text && <details open><summary>Salida guardada</summary><div className="ath-output"><ReactMarkdown>{trace.output_text}</ReactMarkdown></div></details>}<details><summary>Registro JSON completo</summary><Json value={trace}/></details></> : <p>Selecciona un intento para consultar su entrada, salida, modelo y metadatos.</p>}</Card></div>}
+      </div>}<details><summary>{t('history.inputParams')}</summary><Json value={{input:trace.input_digest,model:trace.model,params:trace.params}}/></details>{trace.output_text && <details open><summary>{t('history.savedOutput')}</summary><div className="ath-output"><ReactMarkdown>{trace.output_text}</ReactMarkdown></div></details>}<details><summary>{t('history.fullJson')}</summary><Json value={trace}/></details></> : <p>{t('history.selectAttempt')}</p>}</Card></div>}
       {tab === 'logs' && (
-        <Card title="Registros de los intentos">
-          <p className="ath-muted">Cronología derivada de los pasos persistidos. Los eventos SSE y fragmentos de generación en vivo no están disponibles en este historial.</p>
+        <Card title={t('history.logsTitle')}>
+          <p className="ath-muted">{t('history.logsNote')}</p>
           <div className="ath-filters">
             <label className="input-group">
-              <span className="input-label">Buscar registros</span>
-              <input className="input" type="search" placeholder="Buscar por mensaje o ID…" value={search}
+              <span className="input-label">{t('history.searchLogs')}</span>
+              <input className="input" type="search" placeholder={t('history.searchPlaceholder')} value={search}
                 onChange={e => { setSearch(e.target.value); setPage(0); }} />
             </label>
             <label className="input-group">
-              <span className="input-label">Agente</span>
+              <span className="input-label">{t('history.agent')}</span>
               <select className="input" value={agent} onChange={e => { setAgent(e.target.value); setPage(0); }}>
-                <option value="">Todos los agentes</option>
+                <option value="">{t('history.allAgents')}</option>
                 {agents.map(a => <option key={a.name} value={a.name}>{name(a.name)}</option>)}
               </select>
             </label>
             <label className="input-group">
-              <span className="input-label">Nivel</span>
+              <span className="input-label">{t('history.level')}</span>
               <select className="input" value={level} onChange={e => { setLevel(e.target.value); setPage(0); }}>
-                <option value="">Todos los niveles</option>
+                <option value="">{t('history.allLevels')}</option>
                 <option>INFO</option>
                 <option>ERROR</option>
               </select>
@@ -142,11 +146,11 @@ export default function ArticleTraceHistoryPage() {
             <div className="ath-table-scroll">
               <table>
                 <thead><tr>
-                  <th scope="col">Hora de registro</th>
-                  <th scope="col">Nivel</th>
-                  <th scope="col">Agente</th>
-                  <th scope="col">Mensaje</th>
-                  <th scope="col">Detalle</th>
+                  <th scope="col">{t('history.col.time')}</th>
+                  <th scope="col">{t('history.col.level')}</th>
+                  <th scope="col">{t('history.col.agent')}</th>
+                  <th scope="col">{t('history.col.message')}</th>
+                  <th scope="col">{t('history.col.detail')}</th>
                 </tr></thead>
                 <tbody>
                   {events.slice(page * 20, page * 20 + 20).map(s => {
@@ -156,32 +160,32 @@ export default function ArticleTraceHistoryPage() {
                         <td>{date(s.created_at)}</td>
                         <td><span className={`ath-badge ath-${severity.toLowerCase()}`}>{severity}</span></td>
                         <td>{name(s.agent_name)}</td>
-                        <td>{s.error_message || labels[s.status] || s.status}</td>
+                        <td>{s.error_message || statusLabel(s.status)}</td>
                         <td><button className="btn btn-ghost btn-sm"
-                          onClick={() => { setSelected(s.id); setTab('steps'); }}>Ver intento</button></td>
+                          onClick={() => { setSelected(s.id); setTab('steps'); }}>{t('history.viewAttempt')}</button></td>
                       </tr>
                     );
                   })}
                 </tbody>
               </table>
             </div>
-          ) : <p>Sin registros que coincidan.</p>}
+          ) : <p>{t('history.noLogs')}</p>}
           <div className="ath-toolbar">
-            <span>{events.length} registros · página {page + 1}</span>
+            <span>{t('history.logsPage', { count: events.length, page: page + 1 })}</span>
             <div>
-              <button className="btn btn-ghost btn-sm" disabled={!page} onClick={() => setPage(p => p - 1)}>Anterior</button>
+              <button className="btn btn-ghost btn-sm" disabled={!page} onClick={() => setPage(p => p - 1)}>{t('common.previous')}</button>
               <button className="btn btn-ghost btn-sm" disabled={(page + 1) * 20 >= events.length}
-                onClick={() => setPage(p => p + 1)}>Siguiente</button>
+                onClick={() => setPage(p => p + 1)}>{t('common.next')}</button>
             </div>
           </div>
         </Card>
       )}
       {tab === 'metrics' && (
         <div className="ath-columns">
-          {[['Tokens por agente', 'tokens'], ['Tiempo por agente', 'time']].map(([title, key]) => {
+          {[['history.tokensByAgent', 'tokens'], ['history.timeByAgent', 'time']].map(([title, key]) => {
             const maximum = Math.max(1, ...agents.map(agent => agent[key]));
             return (
-              <Card title={title} key={key}>
+              <Card title={t(title)} key={key}>
                 {agents.map(agent => (
                   <div className="ath-bar-row" key={agent.name}>
                     <span>{name(agent.name)}</span>
@@ -189,29 +193,29 @@ export default function ArticleTraceHistoryPage() {
                       <span style={{ width: `${100 * agent[key] / maximum}%` }} />
                     </div>
                     <strong>{key === 'time' ? duration(agent.time) : num(agent.tokens)}</strong>
-                    <small>{agent.steps} intentos · {agent.errors} errores</small>
+                    <small>{t('history.attemptsErrors', { attempts: agent.steps, errors: agent.errors })}</small>
                   </div>
                 ))}
               </Card>
             );
           })}
-          <Card title="Entrada y salida">
-            <p>Tokens de entrada: <strong>{num(run.tokens_in)}</strong></p>
-            <p>Tokens de salida: <strong>{num(run.tokens_out)}</strong></p>
-            <p>Todos los intentos guardados se incluyen, también los fallidos.</p>
+          <Card title={t('history.inOut')}>
+            <p>{t('history.tokensIn')} <strong>{num(run.tokens_in)}</strong></p>
+            <p>{t('history.tokensOut')} <strong>{num(run.tokens_out)}</strong></p>
+            <p>{t('history.allAttempts')}</p>
           </Card>
         </div>
       )}
       {tab==='sources' && <ArticleCitations articleId={id} projectId={projectId} />}
-      {tab==='sources' && <Card title={`Fuentes recuperadas (${sources.length})`}><p className="ath-muted">Recuperación RAG registrada; no demuestra que el artículo final cite estas fuentes. No se guardó el texto completo de los fragmentos en estas trazas.</p>{sources.length ? sources.map(s=><article className="ath-source" key={s.doc_id}><h3><FileText size={16}/>{s.title||s.doc_id}</h3><p>{s.authors||'Autoría no registrada'} · Colección: {s.collection||'—'}</p><p>Similitud registrada: {Number(s.score||0).toFixed(2)} · Recuperada por: {(s.used_by||[]).map(name).join(', ')}</p><details><summary>{s.chunk_ids?.length||0} fragmentos registrados · Ver identificadores</summary><Json value={{doc_id:s.doc_id,chunk_ids:s.chunk_ids}}/></details></article>) : <p>No hay fuentes recuperadas registradas para esta ejecución.</p>}</Card>}
-      {tab==='sources' && <Card title={`Búsquedas bibliográficas (${searches.length})`}><p className="ath-muted">Registro reproducible de cada búsqueda: bases consultadas, cadena, filtros y fecha (UTC). Solo se guarda la cadena de búsqueda y recuentos, no el texto del manuscrito. Incluye todas las búsquedas del artículo y se exporta en el JSONL.</p>{searches.length ? searches.map(b=><article className="ath-source" key={b.id}><h3><Database size={16}/>{b.query}</h3><p>Fecha: {date(b.searched_at)} · Estado: {b.status} · Bases: {(b.sources||[]).join(', ')||'—'}</p><p>Resultados: {b.result_count} · Verificados: {b.verified_count}{Object.keys(b.discarded||{}).length ? ` · Descartados: ${Object.entries(b.discarded).map(([k,v])=>`${k} ${v}`).join(', ')}` : ''}</p><details><summary>Filtros y detalle por base</summary><Json value={{filters:b.filters,per_source:b.per_source}}/></details></article>) : <p>No hay búsquedas bibliográficas registradas para este artículo.</p>}</Card>}
-      {tab==='integrity' && <Card title="Integridad de los pasos"><p>{data.integrity.status === 'intacta'
-        ? <span className="ath-badge ath-completed"><ShieldCheck size={14} aria-hidden="true" />Cadena verificada</span>
+      {tab==='sources' && <Card title={t('history.sourcesTitle', { count: sources.length })}><p className="ath-muted">{t('history.sourcesNote')}</p>{sources.length ? sources.map(s=><article className="ath-source" key={s.doc_id}><h3><FileText size={16}/>{s.title||s.doc_id}</h3><p>{s.authors||t('history.authorsUnknown')} · {t('history.collection', { name: s.collection||'—' })}</p><p>{t('history.similarity', { score: Number(s.score||0).toFixed(2), by: (s.used_by||[]).map(name).join(', ') })}</p><details><summary>{t('history.chunks', { count: s.chunk_ids?.length||0 })}</summary><Json value={{doc_id:s.doc_id,chunk_ids:s.chunk_ids}}/></details></article>) : <p>{t('history.noSources')}</p>}</Card>}
+      {tab==='sources' && <Card title={t('history.searchesTitle', { count: searches.length })}><p className="ath-muted">{t('history.searchesNote')}</p>{searches.length ? searches.map(b=><article className="ath-source" key={b.id}><h3><Database size={16}/>{b.query}</h3><p>{t('history.searchMeta', { date: date(b.searched_at), status: b.status, bases: (b.sources||[]).join(', ')||'—' })}</p><p>{t('history.searchCounts', { results: b.result_count, verified: b.verified_count })}{Object.keys(b.discarded||{}).length > 0 && <>{' · '}{t('history.discarded', { list: Object.entries(b.discarded).map(([k,v])=>k + ' ' + v).join(', ') })}</>}</p><details><summary>{t('history.filtersDetail')}</summary><Json value={{filters:b.filters,per_source:b.per_source}}/></details></article>) : <p>{t('history.noSearches')}</p>}</Card>}
+      {tab==='integrity' && <Card title={t('history.integrityTitle')}><p>{data.integrity.status === 'intacta'
+        ? <span className="ath-badge ath-completed"><ShieldCheck size={14} aria-hidden="true" />{t('history.integrity.intact')}</span>
         : data.integrity.status === 'rota'
-          ? <span className="ath-badge ath-error"><CircleAlert size={14} aria-hidden="true" />Se detectaron inconsistencias</span>
-          : <span className="ath-badge"><Info size={14} aria-hidden="true" />Sin hashes para verificar</span>}
-      </p><p>{data.integrity.verified} pasos verificados · {data.integrity.unchained} sin hash</p><p className="ath-muted">{data.integrity_scope}</p>{data.integrity.issues.length>0 && <Json value={data.integrity.issues}/>}</Card>}
-      <p className="ath-footnote">Vista de consulta de datos guardados. No inicia, reanuda ni detiene pipelines. Identificador de ejecución: <code>{run.id}</code>.</p>
+          ? <span className="ath-badge ath-error"><CircleAlert size={14} aria-hidden="true" />{t('history.integrity.broken')}</span>
+          : <span className="ath-badge"><Info size={14} aria-hidden="true" />{t('history.integrity.none')}</span>}
+      </p><p>{t('history.integrityCounts', { verified: data.integrity.verified, unchained: data.integrity.unchained })}</p><p className="ath-muted">{data.integrity_scope}</p>{data.integrity.issues.length>0 && <Json value={data.integrity.issues}/>}</Card>}
+      <p className="ath-footnote">{t('history.footnote')} <code>{run.id}</code>.</p>
     </> }</>}
   </div>;
 }

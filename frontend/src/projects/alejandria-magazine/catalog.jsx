@@ -21,6 +21,8 @@
 import React from 'react';
 import { Search, PenLine, Eye, FileText, Send, BarChart2 } from 'lucide-react';
 import { useArticleStore } from './store/articleStore';
+import { tr, useT } from './i18n/useT';
+import Rich from './i18n/Rich';
 
 /**
  * Panel que el editor de agentes muestra al abrir el investigador.
@@ -29,60 +31,63 @@ import { useArticleStore } from './store/articleStore';
  * contenido de **este** proyecto. Vivía dentro de `AgentEditorModal`, un
  * componente del builder, detrás de un `agentSlug === 'investigador'`.
  */
-const PanelInvestigador = () => (
+const PanelInvestigador = () => {
+  const { t } = useT();
+  return (
     <div style={{
       background: 'rgba(6,182,212,0.08)', border: '1px solid rgba(6,182,212,0.25)',
       borderRadius: 'var(--radius-md)', padding: 'var(--space-4)',
       fontSize: 'var(--font-size-xs)', color: 'var(--text-secondary)', lineHeight: 1.7,
     }}>
-      <strong style={{ color: 'var(--agent-research)', display: 'block', marginBottom: 6 }}>Pipeline del Investigador</strong>
-      El agente ejecuta las siguientes etapas en orden:
+      <strong style={{ color: 'var(--agent-research)', display: 'block', marginBottom: 6 }}>{t('investigatorPanel.title')}</strong>
+      {t('investigatorPanel.intro')}
       <ol style={{ margin: '8px 0 0 16px', display: 'flex', flexDirection: 'column', gap: 4 }}>
-        <li><strong>RAG local</strong> — búsqueda vectorial (cosine similarity) en Qdrant con las keywords del artículo como query. Controlado por <em>Top-K RAG</em> y <em>coleción</em> del tab RAG.</li>
-        <li><strong>Biblioteca verificada</strong> — cruza cada documento recuperado con la biblioteca del proyecto. Solo los documentos <em>aceptados y con DOI verificado</em> pueden citarse (entran en las Referencias); los demás sirven como contexto y nunca se citan. No consulta APIs externas ni raspa páginas web.</li>
-        <li><strong>Abstención</strong> — si hay menos fuentes verificadas que el mínimo del proyecto (por defecto 3, no editable desde el artículo), el agente se detiene, no escribe desde el conocimiento del modelo y te dice qué falta.</li>
-        <li><strong>Síntesis con el LLM</strong> — resume el material citable y genera el campo <code>research_data</code> que recibe el Redactor, con el modelo configurado en <em>Configuración → Agentes → Investigador</em>.</li>
+        <li><Rich text={t('investigatorPanel.rag')} /></li>
+        <li><Rich text={t('investigatorPanel.library')} /></li>
+        <li><Rich text={t('investigatorPanel.abstention')} /></li>
+        <li><Rich text={t('investigatorPanel.synthesis')} /></li>
       </ol>
-      <div style={{ marginTop: 8 }}>Gestiona los documentos propios del investigador en el tab <strong>RAG</strong>.</div>
+      <div style={{ marginTop: 8 }}><Rich text={t('investigatorPanel.manage')} /></div>
     </div>
-);
+  );
+};
 
 export const AGENT_CATALOG = {
   investigador: {
     icon: Search,
     emoji: '🔍',
     color: 'var(--agent-research)',
-    label: 'Investigador',
-    desc: 'Busca contexto en RAG y APIs científicas',
+    get label() { return tr('agents.investigador.label'); },
+    get desc() { return tr('agents.investigador.desc'); },
     help: <PanelInvestigador />,
   },
   redactor: {
     icon: PenLine,
     emoji: '✍️',
     color: 'var(--agent-write)',
-    label: 'Redactor',
-    desc: 'Genera el borrador con el LLM configurado',
+    get label() { return tr('agents.redactor.label'); },
+    get desc() { return tr('agents.redactor.desc'); },
   },
   revisor: {
     icon: Eye,
     emoji: '👁️',
     color: 'var(--agent-review)',
-    label: 'Revisor',
-    desc: 'Evalúa calidad (score 0-100)',
+    get label() { return tr('agents.revisor.label'); },
+    get desc() { return tr('agents.revisor.desc'); },
   },
   formateador: {
     icon: FileText,
     emoji: '📐',
     color: 'var(--agent-format)',
-    label: 'Formateador',
-    desc: 'Aplica formato APA/IEEE/Vancouver',
+    get label() { return tr('agents.formateador.label'); },
+    get desc() { return tr('agents.formateador.desc'); },
   },
   publicador: {
     icon: Send,
     emoji: '🚀',
     color: 'var(--agent-publish)',
-    label: 'Publicador',
-    desc: 'Publica el artículo en la base de datos',
+    get label() { return tr('agents.publicador.label'); },
+    get desc() { return tr('agents.publicador.desc'); },
   },
 };
 
@@ -109,13 +114,13 @@ export const PROJECT_NAV_ITEMS = [
   {
     to: '/dashboard/articles',
     icon: <FileText size={17} />,
-    label: 'Artículos',
+    get label() { return tr('nav.articles'); },
     roles: ['admin', 'redactor', 'lector'],
   },
   {
     to: '/dashboard/traceability',
     icon: <BarChart2 size={17} />,
-    label: 'Trazabilidad',
+    get label() { return tr('nav.traceability'); },
     roles: ['admin', 'redactor'],
   },
 ];
@@ -127,7 +132,7 @@ export const PROJECT_NAV_ITEMS = [
  * importando el store de artículos desde el builder.
  */
 export const RUN_TARGET = {
-  label: 'artículo',
+  get label() { return tr('runTarget.label'); },
   create: (title) => useArticleStore.getState().createArticle(title),
   rename: (id, title) => useArticleStore.getState().updateArticle(id, { title }),
 };
