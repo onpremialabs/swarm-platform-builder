@@ -26,6 +26,13 @@ class AgentState(TypedDict):
     # Fuentes que el Formateador dejó fuera por incompletas, con los campos que faltan (SPEC-032/AC2)
     reference_issues: List[Dict[str, Any]]
     published_url: str
+    # Citas por fragmento (SPEC-035/T23.1; contrato en platform/citations.py): mapa
+    # `F# → {fragment_id, doc_id, page, extract, hash}`, las citas leídas del borrador, los
+    # marcadores que no están en el mapa y el SHA-256 del borrador del que se leyeron.
+    citation_map: Dict[str, Dict[str, Any]]
+    citations: List[Dict[str, Any]]
+    citations_unresolved: List[str]
+    citations_text_hash: str
     # El Investigador se abstuvo por falta de fuentes verificadas (SPEC-034/AC7): el motor
     # detiene el flujo tras ese nodo. `abstention` lleva el motivo y el mensaje al autor.
     abstained: bool

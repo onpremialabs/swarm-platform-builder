@@ -5,7 +5,8 @@ from typing import Dict, Any
 from app.core.config import settings
 from app.platform.capabilities.binding import provider
 from app.platform.project_context import collection_for_state
-from app.platform.capabilities.rag import semantic_search_context, LIBRARY_AGENT
+from app.platform.capabilities.rag import semantic_search_results, LIBRARY_AGENT
+from app.platform import citations as citas
 from app.platform.llm import (
     call_llm, call_llm_stream, resolve_agent_model, resolve_agent_temperature,
 )
@@ -36,7 +37,7 @@ _DEFAULT_TEMPLATE_EN = (
     "\nTitle: {title}\n"
     "Keywords: {keywords}\n"
     "{context_section}"
-    "### Research Context (incorporate this data; cite ONLY the sources listed as citable, anything else is context and must not be cited):\n"
+    "### Research Context (incorporate this data; cite ONLY with the [F#] marker of the citable fragments; anything else is context and must not be cited):\n"
     "{research_data}\n"
     "{feedback_section}\n"
     "Write a structured scientific manuscript containing:\n"
@@ -141,14 +142,16 @@ async def run_redactor(state: Dict[str, Any]) -> Dict[str, Any]:
         # La selección del autor solo puede restringir, nunca ampliar más allá de `sources`.
         source_doc_ids = [d for d in source_doc_ids if d in set(rag_doc_ids)]
 
+    citation_map: Dict[str, Any] = dict(state.get("citation_map") or {})
+    bloque_fragmentos = ""
     if not source_doc_ids:
         log("ℹ️ Sin fuentes citables con documento en la base: el Redactor no consulta el RAG por su cuenta.")
     else:
         log(f"🔎 Ampliando desde las {len(source_doc_ids)} fuente(s) citable(s) (colección: {rag_collection}, límite: 10)...")
         try:
             rag_query = f"{title} {' '.join(keywords[:6])}"
-            buscar = provider(state, "rag", semantic_search_context)
-            extra_rag = await asyncio.wait_for(
+            buscar = provider(state, "rag_results", semantic_search_results)
+            fragmentos = await asyncio.wait_for(
                 buscar(
                     query=rag_query,
                     qdrant_url=settings.QDRANT_URL,
@@ -163,14 +166,15 @@ async def run_redactor(state: Dict[str, Any]) -> Dict[str, Any]:
                 ),
                 timeout=25.0,
             )
-            if extra_rag:
-                extra_words = len(extra_rag.split())
-                research_data = (
-                    research_data
-                    + "\n\n---\n\n### Fragmentos adicionales de las fuentes citables:\n"
-                    + extra_rag
-                )
-                log(f"✅ RAG: {extra_words} palabras adicionales de las fuentes citables.")
+            # Defensa en profundidad: nada fuera de `sources` llega a ser citable.
+            permitidos = set(source_doc_ids)
+            fragmentos = [f for f in (fragmentos or []) if str(f.get("doc_id")) in permitidos]
+            # T23.1: cada fragmento lleva un marcador [F#] estable (platform/citations.py).
+            citation_map = citas.assign_cite_ids(fragmentos, state.get("citation_map"))
+            bloque_fragmentos = citas.render_fragments(fragmentos, citation_map, language)
+            if bloque_fragmentos:
+                research_data = research_data + "\n\n---\n\n" + bloque_fragmentos
+                log(f"✅ RAG: {len(fragmentos)} fragmento(s) citable(s) con marcador.")
             else:
                 log("ℹ️ RAG no devolvió fragmentos adicionales de las fuentes citables.")
         except asyncio.TimeoutError:
@@ -265,6 +269,10 @@ async def run_redactor(state: Dict[str, Any]) -> Dict[str, Any]:
             word_count_footer=word_count_footer,
         )
     elif feedback:
+        # MODO Edición y Corrección: el prompt no lleva `research_data`, así que los
+        # fragmentos citables se añaden aquí para que pueda seguir citando con [F#].
+        if bloque_fragmentos:
+            context_section = context_section + bloque_fragmentos + "\n\n"
         # MODO Edición y Corrección
         base = _CORRECTION_TEMPLATE_ES if language == "es" else _CORRECTION_TEMPLATE_EN
         prompt = base.format(
@@ -361,7 +369,19 @@ async def run_redactor(state: Dict[str, Any]) -> Dict[str, Any]:
                 logger.warning("Word-count expansion attempt failed: %s", expand_err)
                 log(f"⚠️ No se pudo expandir: {expand_err}", "warning")
 
-        return {"draft_text": draft_text}
+        # T23.1: lee las citas [F#] del borrador contra el mapa. No persiste (T23.2) ni
+        # juzga (T23.3): deja en el estado el contrato que esos pasos consumen.
+        leidas = citas.extract_citations(draft_text, citation_map)
+        if leidas["unresolved"]:
+            log(f"⚠️ Marcadores de cita sin fragmento: {', '.join(leidas['unresolved'])}", "warning")
+        log(f"🔗 {len(leidas['citations'])} cita(s) vinculada(s) a fragmentos.")
+        return {
+            "draft_text": draft_text,
+            "citation_map": citation_map,
+            "citations": leidas["citations"],
+            "citations_unresolved": leidas["unresolved"],
+            "citations_text_hash": leidas["text_hash"],
+        }
     except RuntimeError:
         raise
     except Exception as e:

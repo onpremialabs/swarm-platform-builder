@@ -940,6 +940,7 @@ async def _fetch_agent_results(
                         # índice del fragmento dentro del documento cumple la
                         # misma función para la traza.
                         "chunk_id": chunk.get("chunk_index"),
+                        "chunk_index": chunk.get("chunk_index"),
                         "agent_name": data.get("agent_name", ""),
                         "doc_title": data.get("doc_title", ""),
                         "doc_authors": data.get("doc_authors", ""),
@@ -979,6 +980,7 @@ async def _fetch_agent_results(
                         "filename": pl.get("filename", ""),
                         "doc_id": pl.get("doc_id", ""),
                         "chunk_id": p.get("id"),
+                        "chunk_index": pl.get("chunk_index"),
                         "agent_name": pl.get("agent_name", ""),
                         "doc_title": pl.get("doc_title", ""),
                         "doc_authors": pl.get("doc_authors", ""),
@@ -1087,6 +1089,7 @@ async def semantic_search_results(
                         # la traza de explicabilidad necesita para decir **qué**
                         # fragmento se recuperó y no solo de qué documento.
                         "chunk_id": r.get("id"),
+                        "chunk_index": pl.get("chunk_index"),
                         "agent_name": pl.get("agent_name", ""),
                         "doc_title": pl.get("doc_title", ""),
                         "doc_authors": pl.get("doc_authors", ""),
