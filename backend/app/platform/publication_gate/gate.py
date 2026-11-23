@@ -6,7 +6,7 @@ Orden (FW §20, los criterios sin LLM primero): 1) resolver y enriquecer las
 referencias, 2) validar su estructura, 3) marcadores, 4) estructura IMRaD,
 5) retractaciones (si el proyecto las declara), 6) criterios `not_implemented`.
 """
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 import logging
 from typing import Any
@@ -55,6 +55,7 @@ class GateReport:
                     "criterion": c.criterion,
                     "status": c.status.value,
                     "evidence": c.evidence,
+                    "advisory": c.advisory,
                     # A quién se devuelve si bloquea (AC14); la Fase 2 lo automatizará.
                     "responsible_agent": self.responsible.get(c.criterion),
                     **self.explanations.get(c.criterion, {"summary": {"code": c.criterion}, "actions": []}),
@@ -73,6 +74,7 @@ async def evaluate_gate(
     created_at: datetime | None = None,
     now: datetime | None = None,
     citations: list | None = None,
+    citation_support_enforce: bool | None = None,
     **resolver_kwargs: Any,
 ) -> GateReport:
     """`created_at` es el dato de creación del artículo (lo pasa el servicio; la
@@ -90,7 +92,14 @@ async def evaluate_gate(
     ]
     if config.citation_support_min_overlap is not None:
         # `citations=None` (no se pudo leer el mapa) -> not_verified, no se omite.
-        criteria.append(check_citation_support(text, citations, config.citation_support_min_overlap))
+        soporte = check_citation_support(text, citations, config.citation_support_min_overlap)
+        if citation_support_enforce is None:
+            from app.core.config import settings
+            citation_support_enforce = settings.CITATION_SUPPORT_ENFORCE
+        if not citation_support_enforce:
+            # Modo aviso: el informe dice `not_verified` y por qué, pero no bloquea.
+            soporte = replace(soporte, advisory=True)
+        criteria.append(soporte)
     if config.retractions is not None:
         # Sobre las fuentes ya resueltas (con DOI); sale por la misma puerta de egress.
         criteria.append(await check_retractions(

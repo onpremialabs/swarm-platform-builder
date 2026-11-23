@@ -21,7 +21,10 @@ class CriterionResult:
     status: CriterionStatus
     # Una entrada por hallazgo: patrón, posición, campo que falta, motivo…
     evidence: list[dict] = field(default_factory=list)
+    # Modo aviso (p. ej. `CITATION_SUPPORT_ENFORCE=false`): el resultado se conserva y se
+    # muestra tal cual (`not_verified` sigue siéndolo), pero no bloquea la publicación.
+    advisory: bool = False
 
     @property
     def blocking(self) -> bool:
-        return self.status in BLOCKING_STATUSES
+        return self.status in BLOCKING_STATUSES and not self.advisory

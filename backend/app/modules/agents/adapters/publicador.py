@@ -104,6 +104,31 @@ async def run_publicador(state: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+async def _save_citation_map(session, article, state: Dict[str, Any], log) -> bool:
+    """Guarda el mapa cita→fragmento versionado con la huella del TEXTO FINAL (T23.8, AC9).
+
+    Se hace aquí y no en el Redactor porque el Formateador puede reescribir el texto y el
+    mapa es por huella: el que lee la compuerta es `article.body`, el que acaba de fijarse
+    arriba. Las citas son las que el Redactor extrajo (`state["citations"]`). Un texto sin
+    citas no guarda filas y la compuerta lo dirá (`no_citations`). Devuelve `False` si no
+    se pudo guardar: la compuerta lo trata como mapa no disponible (`not_verified`), visible.
+    """
+    from app.platform.citations import save_citation_map, to_citation_inputs
+
+    try:
+        async with session.begin_nested():  # un fallo no ensucia la transacción del artículo
+            filas = await save_citation_map(
+                session, article.id, article.body,
+                to_citation_inputs(state.get("citations") or []), run_id=state.get("_run_id"),
+            )
+        log(f"🔗 Mapa de citas guardado sobre el texto final: {len(filas)} cita(s).")
+        return True
+    except Exception as exc:
+        logger.error("No se pudo guardar el mapa de citas del artículo %s: %s", article.id, exc)
+        log(f"⚠️ No se pudo guardar el mapa de citas ({exc}); el criterio de citas queda sin verificar.", "warning")
+        return False
+
+
 async def _apply_gate(session, article, state: Dict[str, Any], log) -> tuple:
     """Evalúa la compuerta sobre el texto final y fija el estado del artículo.
 
@@ -146,9 +171,12 @@ async def _apply_gate(session, article, state: Dict[str, Any], log) -> tuple:
             "approval_score": state.get("approval_score"),
             "coherent": state.get("coherent"),
         }
+    mapa_perdido = False
+    if config.citation_support_min_overlap is not None:
+        mapa_perdido = not await _save_citation_map(session, article, state, log)
     row, report = await evaluate_and_store(
         session, article, config, state.get("sources") or [],
-        run_id=state.get("_run_id"), review=review,
+        run_id=state.get("_run_id"), review=review, citation_map_unavailable=mapa_perdido,
     )
     blockers = [
         {
@@ -159,6 +187,9 @@ async def _apply_gate(session, article, state: Dict[str, Any], log) -> tuple:
         }
         for c in report.blockers
     ]
+    for c in report.criteria:
+        if c.advisory and c.status.value in ("failed", "not_verified"):
+            log(f"⚠️ Aviso (no bloquea, CITATION_SUPPORT_ENFORCE=false): {c.criterion} → {c.status.value}.", "warning")
     if not blockers:
         article.status = ArticleStatus.IN_REVIEW
         log(f"✅ Compuerta superada — {len(report.pending)} criterio(s) pendiente(s) de fases posteriores. "

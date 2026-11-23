@@ -107,6 +107,7 @@ retention:
 # Compuerta de publicación (SPEC-032, ADR-0011).
 publication:
   gate_enforce: false         # despliegue gradual (DEC-4): registra y avisa, sin bloquear. Pasar a true según docs/governance/publication-gate-rollout.md
+  citation_support_enforce: false  # SPEC-035/T23.8: false = modo aviso (no bloquea); true = bloquea
   gate_contact_email: ""      # se envía a Crossref/OpenAlex en el User-Agent
 
 # Coordinación entre workers (SPEC-018/T4.3): pub/sub de eventos SSE, decisiones

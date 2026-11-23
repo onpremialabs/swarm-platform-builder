@@ -35,3 +35,10 @@ Dónde se declara: `publication.gate_enforce` en `config.yaml` (raíz y `backend
 
 Si al activar la compuerta bloquea trabajo correcto por una caída externa o un criterio demasiado estricto, vuelve a `gate_enforce: false` (misma PR de dos
 líneas). No hay migración ni datos que deshacer: los informes ya guardados siguen valiendo.
+
+## Soporte de citas (`citation_support`, SPEC-035 / T23.8)
+
+Se despliega aparte y **en modo aviso**: `CITATION_SUPPORT_ENFORCE` (por defecto `false`; `publication.citation_support_enforce` en `config.yaml`) hace que el criterio
+aparezca en el informe con su estado real (`not_verified` y el motivo: `no_citations`, `map_unavailable`, `no_fragment`, `low_overlap`...) y la marca `advisory`, pero sin bloquear.
+Con `true` bloquea como el resto de criterios. El Publicador guarda el mapa cita→fragmento sobre el texto final antes de evaluar. Pasar a `true` es una decisión posterior,
+con datos de falsos positivos (`low_overlap` es una heurística de solape, no un juicio). Solo actúa si la plantilla declara `gate.citation_support`.

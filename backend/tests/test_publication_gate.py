@@ -185,7 +185,11 @@ def test_manuscrito_valido_pasa_y_lista_lo_pendiente():
     assert r.passed and r.blockers == []
     assert [c.criterion for c in r.criteria] == [
         "reference_existence", "reference_structure", "placeholders", "imrad_structure",
-        "retractions"]
+        "citation_support", "retractions"]
+    # T23.8: declarado en la plantilla pero en modo aviso (CITATION_SUPPORT_ENFORCE apagado):
+    # el texto no tiene citas, el criterio lo dice (not_verified) y no bloquea.
+    soporte = next(c for c in r.criteria if c.criterion == "citation_support")
+    assert soporte.status.value == "not_verified" and soporte.advisory and not soporte.blocking
     assert {p["id"] for p in r.pending} >= {"V01", "V12"}  # AC5: pendientes visibles
     assert r.as_dict()["passed"] is True
 
