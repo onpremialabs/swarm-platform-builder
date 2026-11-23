@@ -1,0 +1,8 @@
+{
+  "_comentario": "Excepciones PERMANENTES del control de literales (check_i18n.py). Cada una lleva su motivo; no es para silenciar deuda (eso es la linea base). textos: texto -> motivo. ficheros: ruta relativa a frontend/src -> motivo.",
+  "textos": {
+    "AlejandrIA": "marca: no se traduce",
+    "AlejandrIA Magazine": "marca: no se traduce"
+  },
+  "ficheros": {}
+}

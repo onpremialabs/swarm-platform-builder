@@ -57,6 +57,13 @@ npm run dev            # Vite :5173
 npm run build          # build app principal — DEBE pasar antes de PR
 npm run build:public   # build de la revista pública (vite.public.config.js)
 ```
+**Controles de i18n (T29.13)**: `scripts/check_i18n.py` (lo corre
+`tests/test_i18n_checks.py`) exige paridad es/en de los catálogos —claves, variables
+`{x}`, sin claves sin usar— y bloquea literales nuevos en `.jsx`. La deuda previa
+vive en `scripts/i18n_literals_baseline.json` y solo puede bajar: tras extraer
+cadenas, `python scripts/check_i18n.py --update`. Excepciones permanentes con motivo
+en `scripts/i18n_literals_exceptions.json`.
+
 Hay **dos** builds Vite: la app principal (`index.html`) y la revista pública
 (`index.public.html` / `vite.public.config.js`). Si tocas el frontend público,
 verifica ambos.
