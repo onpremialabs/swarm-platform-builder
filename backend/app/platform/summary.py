@@ -37,7 +37,7 @@ from app.models.agent_profile import AgentProfileModel
 from app.models.agent_run import AgentRunModel
 from app.models.agent_run_step import AgentRunStepModel
 from app.models.article import ArticleModel
-from app.platform.explainability import group_executions
+from app.platform.explainability import ESTADOS_SIN_FALLO, STATUS_ABSTAINED, group_executions
 
 # Presupuestos declarados (AC3 — no incrustados en la consulta).
 MAX_REVIEW_LOOPS: int = 3
@@ -137,10 +137,7 @@ async def project_summary(session: AsyncSession, project_id: UUID) -> dict:
     )
 
     # -- anomalías (AC3) — cuatro condiciones enumeradas -------------------------
-    _completed = {"completed"}
-    anom_failed = sum(
-        1 for r in steps if r.status not in _completed and r.status != "running"
-    )
+    anom_failed = sum(1 for r in steps if r.status not in ESTADOS_SIN_FALLO)
     anom_loop_exhausted = sum(1 for r in steps if (r.iteration or 0) >= MAX_REVIEW_LOOPS)
     anom_latency = sum(1 for r in steps if (r.latency_ms or 0.0) > LATENCY_BUDGET_MS)
     anom_rag_empty = sum(
@@ -162,7 +159,7 @@ async def project_summary(session: AsyncSession, project_id: UUID) -> dict:
         ag["tokens_in"] += r.tokens_in or 0
         ag["tokens_out"] += r.tokens_out or 0
         ag["latency_ms"] += r.latency_ms or 0.0
-        if r.status not in _completed and r.status != "running":
+        if r.status not in ESTADOS_SIN_FALLO:
             ag["errors"] += 1
     for ag in por_agente.values():
         ag["tokens_total"] = ag["tokens_in"] + ag["tokens_out"]
@@ -293,14 +290,24 @@ def _execution_outcome(steps) -> dict:
     latest = {}
     for step in steps:
         latest[(step.agent_name, step.step_index, step.iteration)] = step
-    failures = [step for step in steps if step.status not in {"completed", "running"}]
-    unresolved = any(step.status not in {"completed", "running"} for step in latest.values())
+    failures = [step for step in steps if step.status not in ESTADOS_SIN_FALLO]
+    unresolved = any(step.status not in ESTADOS_SIN_FALLO for step in latest.values())
     running = any(step.status == "running" for step in latest.values())
+    # SPEC-034/AC13: una ejecución que se detuvo por abstención no es «completada»: no hay
+    # resultado. Manda el último paso, que es donde se cortó el flujo.
+    abstained = bool(steps) and steps[-1].status == STATUS_ABSTAINED
     recovered = sum(
         latest[(step.agent_name, step.step_index, step.iteration)].status == "completed"
         for step in failures
     )
-    status = "running" if running else ("failed" if unresolved else "completed")
+    if running:
+        status = "running"
+    elif unresolved:
+        status = "failed"
+    elif abstained:
+        status = STATUS_ABSTAINED
+    else:
+        status = "completed"
     return {"status": status, "failed": status == "failed",
             "failed_steps": len(failures), "recovered_failures": recovered}
 
@@ -356,7 +363,7 @@ async def project_executions(session: AsyncSession, project_id: UUID) -> list[di
                 ag["tokens_in"] += p.tokens_in or 0
                 ag["tokens_out"] += p.tokens_out or 0
                 ag["latency_ms"] += p.latency_ms or 0.0
-                if p.status not in {"completed", "running"}:
+                if p.status not in ESTADOS_SIN_FALLO:
                     ag["errors"] += 1
             for ag in por_agente.values():
                 ag["tokens_total"] = ag["tokens_in"] + ag["tokens_out"]
@@ -439,7 +446,7 @@ async def project_articles_summary(session: AsyncSession, project_id: UUID) -> l
         art["tokens_out"] += r.tokens_out or 0
         art["latency_ms"] += r.latency_ms or 0.0
         art["agents_run"].add(r.agent_name)
-        fallo = r.status not in {"completed", "running"}
+        fallo = r.status not in ESTADOS_SIN_FALLO
         if fallo:
             art["failed"] = True
         art["last_run"] = r.created_at

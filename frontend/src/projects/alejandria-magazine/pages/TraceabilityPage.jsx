@@ -31,7 +31,7 @@ function formatDurationLive(ms) {
   return `${Math.floor(s / 60)} min ${s % 60} s`;
 }
 
-const STATUS_LABEL = { waiting: 'Pendiente', running: 'En ejecución', completed: 'Completado', failed: 'Error' };
+const STATUS_LABEL = { waiting: 'Pendiente', running: 'En ejecución', completed: 'Completado', abstained: 'Se abstuvo', failed: 'Error' };
 
 /** Color del agente según el catálogo del proyecto; el de marca si no está. */
 const agentColor = (name) => agentMeta(name)?.color || 'var(--brand)';
@@ -779,7 +779,7 @@ function LiveTraceabilityPage() {
                         </td>
                         <td>
                           <span className={`badge ${a.status === 'completed' ? 'badge-approved' : a.status === 'failed' || a.status === 'error' ? 'badge-error' : a.status === 'running' ? 'badge-running' : 'badge-pending'}`}>
-                            {a.status === 'completed' ? 'Completado' : a.status === 'failed' ? 'Error' : a.status === 'running' ? 'En ejecución' : 'Pendiente'}
+                            {a.status === 'completed' ? 'Completado' : a.status === 'abstained' ? 'Se abstuvo' : a.status === 'failed' ? 'Error' : a.status === 'running' ? 'En ejecución' : 'Pendiente'}
                           </span>
                         </td>
                       </tr>

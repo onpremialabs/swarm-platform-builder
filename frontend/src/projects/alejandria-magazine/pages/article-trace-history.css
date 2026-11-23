@@ -94,6 +94,7 @@
 
 .ath-completed { color: var(--success); background: var(--success-bg); }
 .ath-failed, .ath-error { color: var(--error); background: var(--error-bg); }
+.ath-abstained { color: var(--warning); background: var(--warning-bg); }
 .ath-running, .ath-info { color: var(--info); background: var(--info-bg); }
 
 .ath-tabs {

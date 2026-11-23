@@ -384,11 +384,14 @@ def make_node_wrapper(agent_name: str, run_fn):
 
         try:
             res = await run_fn(enriched_state)
-            await log_run_end(run_id, res, "completed")
-            _estado_agente = "completed"
+            # SPEC-034/AC13: un agente que se abstiene no «completó»: el flujo se detiene aquí
+            # y la ejecución queda con su propio estado terminal, distinto de completed/failed.
+            _estado_paso = explainability.STATUS_ABSTAINED if res.get("abstained") else "completed"
+            await log_run_end(run_id, res, _estado_paso)
+            _estado_agente = _estado_paso
             await log_run_step(
                 **_paso_comun,
-                status="completed",
+                status=_estado_paso,
                 output_text=explainability.output_text(res),
                 rag_sources=_acumulador.rag_sources,
                 searches=_acumulador.searches,
@@ -735,8 +738,25 @@ class Orchestrator:
                 f"\n{'='*60}\nFIN — {ts_end} — Pipeline completado con éxito\n{'='*60}"
             )
             await _halt_for_human_review(article_id, final_state, flow_sequence)
-            publish_event(article_id, {"type": "done"})
-            logger.info(f"Completed LangGraph run for article {article_id}")
+            if final_state.get("abstained"):
+                # SPEC-034/AC13: el motor detuvo el flujo por abstención. No es «completado»:
+                # el cierre lo dice (`outcome`) y lleva k/N para que la pantalla no tenga que
+                # reconstruirlo. El artículo no se toca: sigue en borrador.
+                _log_buffers[article_id][-1] = (
+                    f"\n{'='*60}\nFIN — {ts_end} — Pipeline detenido por abstención del Investigador\n{'='*60}"
+                )
+                abstencion = final_state.get("abstention") or {}
+                publish_event(article_id, {
+                    "type": "done",
+                    "outcome": "abstained",
+                    "message": abstencion.get("message"),
+                    "verified_sources": abstencion.get("verified_sources"),
+                    "min_sources": abstencion.get("min_sources"),
+                })
+                logger.info("Run for article %s stopped by abstention", article_id)
+            else:
+                publish_event(article_id, {"type": "done"})
+                logger.info(f"Completed LangGraph run for article {article_id}")
             _flush_log_file(article_id, title)
             # Run finished cleanly — drop the checkpoint to free memory.
             try:

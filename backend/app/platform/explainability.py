@@ -293,6 +293,18 @@ def group_executions(pasos: List[Any]) -> List[List[Any]]:
     return ejecuciones
 
 
+#: Estado terminal de un paso, y de la ejecución que lo contiene, cuando el agente se abstuvo
+#: por falta de evidencia (SPEC-034/AC13). No es `completed` (no hubo resultado), ni `failed`
+#: (la abstención es la respuesta correcta) ni `cancelled` (nadie lo pidió). Es un valor del
+#: mismo `String(16)`, no un enum nativo, así que no hay migración; y como `status` ya está en
+#: `_CAMPOS_CANONICOS`, estrenar un valor no cambia el formato canónico ni exige subir
+#: `CANON_VERSION`.
+STATUS_ABSTAINED: str = "abstained"
+
+#: Estados que no cuentan como fallo en los agregados (errores, anomalías, «con error»).
+ESTADOS_SIN_FALLO = frozenset({"completed", "running", STATUS_ABSTAINED})
+
+
 # ── Cadena de integridad (SPEC-029 / T17.2 / AC4) ───────────────────────────
 
 #: Versión de la serialización canónica. Va **en la fila**, no solo aquí: si
@@ -516,5 +528,5 @@ def totals_of(pasos: List[Any]) -> Dict[str, Any]:
         "tokens_out": sum(paso.tokens_out or 0 for paso in pasos),
         "latency_ms": round(sum(paso.latency_ms or 0.0 for paso in pasos), 2),
         "loops": max((paso.iteration or 0 for paso in pasos), default=0),
-        "failed_steps": sum(1 for paso in pasos if paso.status != "completed"),
+        "failed_steps": sum(1 for paso in pasos if paso.status not in ESTADOS_SIN_FALLO),
     }

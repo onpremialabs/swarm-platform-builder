@@ -15,6 +15,10 @@ const STATUS_ICON = {
   running:   <Loader size={16} style={{ color: 'var(--status-info)', animation: 'spin 1s linear infinite' }} />,
   completed: <CheckCircle size={16} style={{ color: 'var(--status-success)' }} />,
   failed:    <XCircle size={16} style={{ color: 'var(--status-error)' }} />,
+  // SPEC-034/AC13: el Investigador se abstuvo; los agentes que no llegaron a correr no
+  // están «esperando»: no se van a ejecutar en esta pasada.
+  abstained: <AlertTriangle size={16} style={{ color: 'var(--status-warning)' }} />,
+  not_run:   <Square size={16} style={{ color: 'var(--text-muted)' }} />,
 };
 
 export default function ExecutionPage() {
@@ -37,6 +41,8 @@ export default function ExecutionPage() {
   const [pipelineFailed, setPipelineFailed] = useState(false);
   const [canResume, setCanResume] = useState(false);
   const [cancelled, setCancelled] = useState(false);
+  // SPEC-034/AC13: la ejecución se detuvo porque el Investigador se abstuvo. No es completada.
+  const [abstained, setAbstained] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [runCount, setRunCount] = useState(0);
   const [hasPublicador] = useState(flowSequence.includes('publicador'));
@@ -56,6 +62,8 @@ export default function ExecutionPage() {
     if (status === 'waiting') return 'Esperando...';
     if (status === 'running') return 'Ejecutando...';
     if (status === 'completed') return 'Completado';
+    if (status === 'abstained') return 'Se abstuvo';
+    if (status === 'not_run') return 'No ejecutado';
     return 'Error';
   };
 
@@ -69,6 +77,16 @@ export default function ExecutionPage() {
   };
 
   useEffect(() => { logsEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [logs]);
+
+  // Si la conexión se cierra tras el aviso de abstención sin llegar el `done`, los pasos que
+  // no corrieron tampoco deben quedarse «esperando».
+  useEffect(() => {
+    if (done && abstained) {
+      setSteps((current) => current.map((step) => (
+        step.status === 'waiting' ? { ...step, status: 'not_run' } : step
+      )));
+    }
+  }, [done, abstained]);
 
   // When pipeline finishes but preview is still empty (e.g. no publicador or SSE missed),
   // fetch the article body as a last-resort fallback.
@@ -146,9 +164,23 @@ export default function ExecutionPage() {
           // SPEC-034/AC7: sin fuentes verificadas suficientes el Investigador se abstiene y el
           // pipeline se detiene; el mensaje dice qué falta y cómo resolverlo.
           setGateNotice({ kind: 'abstained', message: data.message, verified: data.verified_sources, min: data.min_sources });
+          setAbstained(true);
+          markStepStatus(data.agent, 'abstained');
           addLog('⛔ El Investigador se abstuvo: faltan fuentes verificadas. El artículo sigue en borrador.', 'warn');
         } else if (data.type === 'log') {
           addLog(data.message, data.level || '');
+        } else if (data.type === 'done' && data.outcome === 'abstained') {
+          // SPEC-034/AC13: el motor detuvo el flujo; no se muestra «completado» ni se ofrece
+          // el artículo como si hubiera contenido. Los pasos sin ejecutar quedan «No ejecutado».
+          setDone(true);
+          setPipelineFailed(false);
+          setAbstained(true);
+          setGateNotice({ kind: 'abstained', message: data.message, verified: data.verified_sources, min: data.min_sources });
+          setSteps((current) => current.map((step) => (
+            step.status === 'waiting' ? { ...step, status: 'not_run' } : step
+          )));
+          addLog('Pipeline detenido por abstención del Investigador', 'warn');
+          evtSource.close();
         } else if (data.type === 'done') {
           setDone(true);
           setPipelineFailed(false);
@@ -248,6 +280,8 @@ export default function ExecutionPage() {
     setPipelineFailed(false);
     setCanResume(false);
     setCancelled(false);
+    setAbstained(false);
+    setGateNotice(null);
     setCancelling(false);
     resumeRef.current = false;
     pipelineStarted.current = false;
@@ -265,6 +299,8 @@ export default function ExecutionPage() {
     setPipelineFailed(false);
     setCanResume(false);
     setCancelled(false);
+    setAbstained(false);
+    setGateNotice(null);
     setCancelling(false);
     resumeRef.current = true;
     pipelineStarted.current = false;
@@ -329,6 +365,8 @@ export default function ExecutionPage() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               {done && cancelled
                 ? <Square size={16} style={{ color: 'var(--status-warning)' }} />
+                : done && abstained
+                ? <AlertTriangle size={16} style={{ color: 'var(--status-warning)' }} />
                 : done && !pipelineFailed
                 ? <CheckCircle size={16} style={{ color: 'var(--status-success)' }} />
                 : done && pipelineFailed
@@ -336,7 +374,7 @@ export default function ExecutionPage() {
                 : <Loader size={16} style={{ color: 'var(--brand-primary)', animation: 'spin 1s linear infinite' }} />
               }
               <span style={{ fontWeight: 600, fontSize: 'var(--font-size-sm)' }}>
-                {done && cancelled ? 'Pipeline cancelado' : done && pipelineFailed ? 'Pipeline fallido' : done ? 'Pipeline completado' : 'Ejecutando pipeline…'}
+                {done && cancelled ? 'Pipeline cancelado' : done && pipelineFailed ? 'Pipeline fallido' : done && abstained ? 'Pipeline detenido por abstención' : done ? 'Pipeline completado' : 'Ejecutando pipeline…'}
               </span>
             </div>
             {!done && (
@@ -358,7 +396,7 @@ export default function ExecutionPage() {
 
         {/* Resultado de la compuerta de publicación (SPEC-032): el artículo no se publica solo */}
         {gateNotice && (
-          <div role="status" style={{
+          <div role={gateNotice.kind === 'abstained' ? 'alert' : 'status'} style={{
             margin: '0 0 var(--space-3)', padding: 'var(--space-4)',
             background: 'var(--status-warning-bg)', border: '1px solid var(--status-warning)',
             borderRadius: 'var(--radius-md)', fontSize: 'var(--font-size-sm)',
@@ -378,6 +416,7 @@ export default function ExecutionPage() {
             ) : gateNotice.kind === 'abstained' ? (
               <>
                 <strong>El Investigador se abstuvo.</strong>
+                {' '}La ejecución se detuvo: no se generó contenido y el artículo sigue en borrador.
                 {typeof gateNotice.verified === 'number' && <> Fuentes verificadas: {gateNotice.verified}/{gateNotice.min}.</>}
                 <div style={{ marginTop: 6 }}>{gateNotice.message}</div>
               </>
@@ -459,7 +498,7 @@ export default function ExecutionPage() {
           })}
 
           {/* Post-completion actions */}
-          {done && !hasPublicador && (
+          {done && !hasPublicador && !abstained && (
             <div style={{ marginTop: 'var(--space-4)', padding: 'var(--space-4)', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)' }}>
               <div style={{ fontSize: 'var(--font-size-sm)', fontWeight: 600, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
                 <UserPlus size={14} /> Asignar revisor
@@ -502,7 +541,20 @@ export default function ExecutionPage() {
             </div>
           )}
 
-          {done && !cancelled && (
+          {done && abstained && !cancelled && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)', marginTop: 'var(--space-3)' }}>
+              <button className="btn btn-secondary w-full"
+                onClick={() => navigate(`/dashboard/articles/${articleId}`)}>
+                <FileText size={14} /> Ver borrador
+              </button>
+              <button className="btn btn-ghost w-full"
+                onClick={() => navigate('/dashboard/flow-designer')}>
+                <ArrowLeft size={14} /> Volver al diseñador
+              </button>
+            </div>
+          )}
+
+          {done && !cancelled && !abstained && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)', marginTop: 'var(--space-3)' }}>
               <button className="btn btn-secondary w-full"
                 onClick={() => navigate(`/dashboard/articles/${articleId}`)}>
@@ -542,7 +594,8 @@ export default function ExecutionPage() {
           <span style={{ fontWeight: 600, fontSize: 'var(--font-size-sm)' }}>Vista previa del artículo</span>
           {hasFailedSteps && <span className="badge badge-rejected">Error</span>}
           {!hasFailedSteps && isGeneratingPreview && <span className="badge badge-running animate-pulse">Generando…</span>}
-          {!hasFailedSteps && done && preview && <span className="badge badge-approved">Completo</span>}
+          {!hasFailedSteps && done && !abstained && preview && <span className="badge badge-approved">Completo</span>}
+          {done && abstained && <span className="badge badge-draft">Detenido</span>}
         </div>
         <div className="execution-preview-body">
           {preview ? (
