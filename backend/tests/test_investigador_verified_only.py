@@ -447,13 +447,14 @@ async def _correr_redactor(monkeypatch, state):
 
     async def rag(**kw):
         visto["rag"].append(kw)
-        return "fragmento extra de una fuente citable"
+        return [{"doc_id": d, "chunk_index": 0, "filename": "f.pdf",
+                 "text": "fragmento extra de una fuente citable"} for d in kw["doc_ids"]]
 
     async def stream(prompt, **_kw):
         visto["prompt"] = prompt
         yield "Borrador " * 20
 
-    monkeypatch.setattr(redactor, "semantic_search_context", rag)
+    monkeypatch.setattr(redactor, "semantic_search_results", rag)
     monkeypatch.setattr(redactor, "call_llm_stream", stream)
     base = {"title": "T", "keywords": ["k"], "agent_settings": {}, "feedback": [], "_log": None}
     base.update(state)

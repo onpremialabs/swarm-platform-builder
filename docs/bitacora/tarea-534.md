@@ -31,7 +31,7 @@ fragmento concreto. El texto se citaba «por fuente», no por pasaje.
 
 ### Verificación
 - `DEBUG=true SECRET_KEY=ci-secret-not-for-prod python -m pytest -q tests/test_redactor_citations.py tests/test_engine_capability_parity.py` → verde.
-- Suite completa: ver resultado en la PR.
+- Fix tras CI roja de la PR: `test_investigador_verified_only.py` (parchea ahora `semantic_search_results` y devuelve fragmentos; el cambio de capacidad es deliberado), `test_project_template.py` (`CAPACIDADES_ESPERADAS` del redactor = `rag_results`) y las frases «SOLO las fuentes listadas como citables» / «ONLY the sources listed as citable» se conservan en los prompts. Subconjunto de 19 ficheros relacionados: 362 passed, 1 failed (el corregido) -> tras el arreglo `test_investigador_verified_only.py` + `test_project_template.py`: 62 passed.
 
 ### Fuera de alcance / notas
 - Sin migración ni persistencia (T23.2); sin criterio de compuerta ni juez (T23.3/T23.4).

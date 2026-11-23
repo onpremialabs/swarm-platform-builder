@@ -37,7 +37,7 @@ _DEFAULT_TEMPLATE_EN = (
     "\nTitle: {title}\n"
     "Keywords: {keywords}\n"
     "{context_section}"
-    "### Research Context (incorporate this data; cite ONLY with the [F#] marker of the citable fragments; anything else is context and must not be cited):\n"
+    "### Research Context (incorporate this data; cite ONLY the sources listed as citable, with the [F#] marker of their fragment; anything else is context and must not be cited):\n"
     "{research_data}\n"
     "{feedback_section}\n"
     "Write a structured scientific manuscript containing:\n"
