@@ -16,9 +16,9 @@ const num = n => Number(n || 0).toLocaleString('es-CL');
 const duration = ms => { const s = Math.round(Number(ms || 0)/1000); return ms > 0 && ms < 1000 ? `${Math.round(ms)} ms` : s < 60 ? `${s} s` : `${Math.floor(s/60)} min ${s%60} s`; };
 const date = value => value ? new Date(/Z$|[+-]\d\d:\d\d$/.test(value) ? value : `${value}Z`).toLocaleString('es-CL') : '—';
 const name = agent => agentMeta(agent)?.label || agent;
-const labels = { completed:'Completada',failed:'Fallida',running:'En curso',cancelled:'Cancelada',error:'Error' };
+const labels = { completed:'Completada',failed:'Fallida',running:'En curso',cancelled:'Cancelada',abstained:'Detenida por abstención',error:'Error' };
 const statusIcons = {
-  completed: CheckCircle, failed: XCircle, running: Clock, cancelled: XCircle, error: CircleAlert,
+  completed: CheckCircle, failed: XCircle, running: Clock, cancelled: XCircle, abstained: CircleAlert, error: CircleAlert,
 };
 
 function Status({ value }) {

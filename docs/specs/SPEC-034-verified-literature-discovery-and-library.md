@@ -189,7 +189,11 @@
   `agent_run_steps` es un enum nativo (hay una migración `native_enum_labels`): de serlo,
   el valor nuevo va por una migración Alembic, nunca con SQL a mano; y si el estado forma
   parte del canon de la cadena de integridad, ver la regla de `CANON_VERSION` en
-  `data-retention.md`. La traza de explicabilidad ya registra la abstención
+  `data-retention.md`.
+  **Resuelto en T22.12:** el estado es `abstained` (`explainability.STATUS_ABSTAINED`); es un
+  `String(16)`, no un enum nativo (sin migración), y `status` ya estaba en el canon, así que un
+  valor nuevo no cambia el formato ni sube `CANON_VERSION`. El cierre es `done` con
+  `outcome: "abstained"`. La traza de explicabilidad ya registra la abstención
   (`explainability.py`) y no cambia.
 - **Seguridad:** claves de API solo por variable de entorno; User-Agent genérico
   de la plataforma (sin datos del usuario) y cabecera de contacto configurable.
