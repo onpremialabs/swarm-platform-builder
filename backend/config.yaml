@@ -101,6 +101,7 @@ retention:
   notifications_days: 90
   orphan_assets_days: 30
   gate_reports_days: 90
+  citation_links_days: 90
   search_logs_days: 365
 
 # Compuerta de publicación (SPEC-032, ADR-0011).

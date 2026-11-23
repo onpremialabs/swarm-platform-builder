@@ -44,6 +44,7 @@ from app.models.notification import NotificationModel
 from app.models.enums import ArticleStatus
 from app.models.publication_gate_report import PublicationGateReportModel
 from app.models.search_log import SearchLogModel
+from app.models.citation_link import CitationLinkModel
 
 logger = logging.getLogger(__name__)
 
@@ -176,6 +177,13 @@ async def purge(session: AsyncSession, *, apply: bool = False) -> PurgeResult:
         ("gate_reports", PublicationGateReportModel, PublicationGateReportModel.created_at,
          settings.RETENTION_GATE_REPORTS_DAYS,
          PublicationGateReportModel.article_id.notin_(
+             select(ArticleModel.id).where(ArticleModel.status == ArticleStatus.PUBLISHED)
+         )),
+        # Mapa cita→fragmento (SPEC-035/T23.2): evidencia de qué se citó en cada versión
+        # del texto; como los informes, no caduca mientras el artículo esté publicado.
+        ("citation_links", CitationLinkModel, CitationLinkModel.created_at,
+         settings.RETENTION_CITATION_LINKS_DAYS,
+         CitationLinkModel.article_id.notin_(
              select(ArticleModel.id).where(ArticleModel.status == ArticleStatus.PUBLISHED)
          )),
         # Registro de búsqueda bibliográfica (SPEC-034/AC6): es el apartado de métodos

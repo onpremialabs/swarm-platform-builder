@@ -37,6 +37,7 @@ explícita de su propietario, no por un proceso automático.
 | `agent_runs` | entrada y salida de cada ejecución del pipeline | Posible | **90 días** | `RETENTION_AGENT_RUNS_DAYS` |
 | `agent_run_steps` | traza de explicabilidad: paso a paso de cada ejecución | Posible | **90 días** | `RETENTION_AGENT_RUN_STEPS_DAYS` |
 | `publication_gate_reports` | informe de la compuerta de publicación: evidencia por criterio, huella del texto y fuentes resueltas (títulos y autores de las referencias) | Nombres de autor | **90 días**, solo de artículos no publicados | `RETENTION_GATE_REPORTS_DAYS` |
+| `citation_links` | mapa cita→fragmento por versión del texto (SPEC-035): frase citada, documento, página, extracto y huella, estado y confirmación manual (quién y cuándo) | Referencia (usuario que confirma) | **90 días**, solo de artículos no publicados | `RETENTION_CITATION_LINKS_DAYS` |
 | `search_logs` | registro de búsqueda bibliográfica (SPEC-034): cadena de búsqueda, bases, filtros, recuentos y fecha de corte | Posible (la cadena la escribe el autor) | **365 días**, salvo las de artículos publicados | `RETENTION_SEARCH_LOGS_DAYS` |
 | `flow_checkpoints` | estado intermedio para reanudar un pipeline | Posible | **30 días** | `RETENTION_CHECKPOINTS_DAYS` |
 | `notifications` (leídas) | avisos en la aplicación | Referencia | **90 días** | `RETENTION_NOTIFICATIONS_DAYS` |
@@ -69,6 +70,13 @@ Por qué esas ventanas:
   ejecuciones del pipeline (`agent_runs`), que es de donde sale la evidencia. Se
   borran además en cascada con el artículo. Contienen títulos y autores de las
   referencias, nunca el texto del manuscrito.
+- **`citation_links`, 90 días y solo si el artículo no está publicado**
+  (SPEC-035/T23.2). Es la evidencia de qué fragmento respalda cada cita de cada
+  versión del texto, así que no caduca mientras exista un artículo `published` que
+  la necesite; las versiones de borradores caducan a la par que los informes de la
+  compuerta y se borran en cascada con el artículo. Guarda la frase citada y el
+  extracto **recortados** (1.000 y 2.000 caracteres), nunca el manuscrito entero, y
+  la referencia de quien confirmó una cita, que pasa a nulo si esa persona se borra.
 - **`search_logs`, 365 días y no caduca si el artículo está publicado**
   (SPEC-034/AC6). Es el registro que permite declarar y reproducir la búsqueda en el
   apartado de métodos, y un artículo se escribe a lo largo de meses, así que una
@@ -155,6 +163,7 @@ retention:
   agent_runs_days: 90
   agent_run_steps_days: 90
   gate_reports_days: 90
+  citation_links_days: 90
   search_logs_days: 365
   checkpoints_days: 30
   notifications_days: 90
