@@ -50,7 +50,7 @@ GRAFO_ESPERADO = GraphSpec(
 
 CAPACIDADES_ESPERADAS = {
     "investigador": ("rag_results", "llm"),
-    "redactor": ("rag", "llm", "llm_stream"),
+    "redactor": ("rag_results", "llm", "llm_stream"),
     "revisor": ("llm",),
     "formateador": ("llm",),
     "publicador": ("format",),
