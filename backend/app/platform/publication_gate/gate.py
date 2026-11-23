@@ -13,6 +13,7 @@ from typing import Any
 
 from app.platform.metrics import observe_gate_criterion
 
+from app.platform.publication_gate.citation_support import check_citation_support
 from app.platform.publication_gate.config import GateConfig
 from app.platform.publication_gate.explain import explain
 from app.platform.publication_gate.placeholders import check_placeholders
@@ -70,6 +71,7 @@ async def evaluate_gate(
     *,
     created_at: datetime | None = None,
     now: datetime | None = None,
+    citations: list | None = None,
     **resolver_kwargs: Any,
 ) -> GateReport:
     """`created_at` es el dato de creación del artículo (lo pasa el servicio; la
@@ -85,6 +87,9 @@ async def evaluate_gate(
         ),
         check_structure(text, config.sections, config.titles),
     ]
+    if config.citation_support_min_overlap is not None:
+        # `citations=None` (no se pudo leer el mapa) -> not_verified, no se omite.
+        criteria.append(check_citation_support(text, citations, config.citation_support_min_overlap))
     pending = [{"id": p.id, "phase": p.phase} for p in config.pending]
     for c in criteria:
         observe_gate_criterion(c.criterion, c.status.value)
