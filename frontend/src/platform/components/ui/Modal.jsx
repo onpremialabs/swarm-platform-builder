@@ -18,6 +18,7 @@
 // de lo que el lector de pantalla considera el contenido del diálogo.
 import React, { useCallback, useEffect, useId, useRef } from 'react';
 import { X } from 'lucide-react';
+import { useTranslation } from '../../i18n';
 
 /** Selector de lo que el navegador considera enfocable con `Tab`. */
 const ENFOCABLES = [
@@ -68,6 +69,7 @@ export default function Modal({
   panelStyle,
   children,
 }) {
+  const { t } = useTranslation();
   const panelRef = useRef(null);
   // Identidad estable de esta instancia dentro de `pila`.
   const identidadRef = useRef(null);
@@ -194,7 +196,7 @@ export default function Modal({
                   type="button"
                   className="btn btn-ghost btn-sm btn-icon"
                   onClick={() => onClose?.()}
-                  aria-label="Cerrar"
+                  aria-label={t('modal.close')}
                 >
                   <X size={16} />
                 </button>

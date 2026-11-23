@@ -15,29 +15,30 @@ import { agentsApi } from '../../api/agents';
 import { mensajeDeCarga } from '../../api/errors';
 import { AsyncState, EmptyState } from '../ui/states';
 import Modal from '../ui/Modal';
+import { translate, useTranslation } from '../../i18n';
 
 const PESTANAS = [
-  { id: 'candidate', label: 'Candidatos' },
-  { id: 'accepted', label: 'Biblioteca' },
-  { id: 'discarded', label: 'Descartados' },
+  { id: 'candidate', labelKey: 'library.tabs.candidate' },
+  { id: 'accepted', labelKey: 'library.tabs.accepted' },
+  { id: 'discarded', labelKey: 'library.tabs.discarded' },
 ];
 
 const VACIOS = {
   candidate: {
-    title: 'Sin candidatos por revisar',
-    description: 'Los candidatos verificados que proponga la búsqueda bibliográfica aparecerán aquí para que los aceptes o descartes.',
+    titleKey: 'library.empty.candidate.title',
+    descriptionKey: 'library.empty.candidate.description',
   },
   accepted: {
-    title: 'La biblioteca no tiene fichas',
-    description: 'Acepta un candidato o importa referencias en BibTeX o una lista de DOI.',
+    titleKey: 'library.empty.accepted.title',
+    descriptionKey: 'library.empty.accepted.description',
   },
   discarded: {
-    title: 'Nada descartado',
-    description: 'Los candidatos que descartes se quedan aquí por si cambias de idea.',
+    titleKey: 'library.empty.discarded.title',
+    descriptionKey: 'library.empty.discarded.description',
   },
 };
 
-const METODO = { doi_resolved: 'DOI resuelto', author_supplied: 'DOI aportado por la autora' };
+const METODO = { doi_resolved: 'library.method.doi_resolved', author_supplied: 'library.method.author_supplied' };
 
 function errorDe(err, fallback) {
   const detail = err?.response?.data?.detail;
@@ -46,17 +47,19 @@ function errorDe(err, fallback) {
 
 /** Estado de verificación: texto siempre (no solo color) para que no dependa de verlo. */
 export function VerificationBadge({ record }) {
+  const { t } = useTranslation();
   if (!record.verified) {
-    return <span className="badge badge-pending" title="Sin DOI verificado: solo sirve como contexto, no entra en Referencias">Sin verificar</span>;
+    return <span className="badge badge-pending" title={t('library.unverifiedTitle')}>{t('library.unverified')}</span>;
   }
   return (
-    <span className="badge badge-approved" title={record.verified_at ? `Verificado ${record.verified_at}` : undefined}>
-      {METODO[record.verification_method] || 'Verificado'}
+    <span className="badge badge-approved" title={record.verified_at ? t('library.verifiedAt', { date: record.verified_at }) : undefined}>
+      {METODO[record.verification_method] ? t(METODO[record.verification_method]) : t('library.verified')}
     </span>
   );
 }
 
 function EditRecordModal({ record, onClose, onSaved }) {
+  const { t } = useTranslation();
   const uid = useId();
   const [form, setForm] = useState({
     title: record.title || '',
@@ -82,47 +85,47 @@ function EditRecordModal({ record, onClose, onSaved }) {
         journal: form.journal,
         doi: form.doi,
       });
-      toast.success('Ficha actualizada');
+      toast.success(t('library.edit.saved'));
       onSaved(saved);
     } catch (err) {
-      setError(errorDe(err, 'No se pudo guardar la ficha'));
+      setError(errorDe(err, t('library.edit.saveError')));
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <Modal onClose={onClose} title="Editar metadatos" panelStyle={{ maxWidth: 560 }}>
+    <Modal onClose={onClose} title={t('library.edit.title')} panelStyle={{ maxWidth: 560 }}>
       <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
         <div className="input-group">
-          <label className="input-label" htmlFor={`${uid}-title`}>Título</label>
+          <label className="input-label" htmlFor={`${uid}-title`}>{t('library.edit.titleField')}</label>
           <input id={`${uid}-title`} className="input" value={form.title} onChange={set('title')} required />
         </div>
         <div className="input-group">
-          <label className="input-label" htmlFor={`${uid}-authors`}>Autores (separados por punto y coma)</label>
+          <label className="input-label" htmlFor={`${uid}-authors`}>{t('library.edit.authors')}</label>
           <input id={`${uid}-authors`} className="input" value={form.authors} onChange={set('authors')} />
         </div>
         <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
           <div className="input-group" style={{ width: 110 }}>
-            <label className="input-label" htmlFor={`${uid}-year`}>Año</label>
+            <label className="input-label" htmlFor={`${uid}-year`}>{t('library.edit.year')}</label>
             <input id={`${uid}-year`} className="input" type="number" min="1000" max="2100" value={form.year} onChange={set('year')} />
           </div>
           <div className="input-group" style={{ flex: 1 }}>
-            <label className="input-label" htmlFor={`${uid}-journal`}>Revista</label>
+            <label className="input-label" htmlFor={`${uid}-journal`}>{t('library.edit.journal')}</label>
             <input id={`${uid}-journal`} className="input" value={form.journal} onChange={set('journal')} />
           </div>
         </div>
         <div className="input-group">
-          <label className="input-label" htmlFor={`${uid}-doi`}>DOI</label>
-          <input id={`${uid}-doi`} className="input" value={form.doi} onChange={set('doi')} placeholder="10.xxxx/xxxxx" aria-describedby={`${uid}-doi-help`} />
+          <label className="input-label" htmlFor={`${uid}-doi`}>{t('library.edit.doi')}</label>
+          <input id={`${uid}-doi`} className="input" value={form.doi} onChange={set('doi')} placeholder={t('library.edit.doiPlaceholder')} aria-describedby={`${uid}-doi-help`} />
           <span id={`${uid}-doi-help`} style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>
-            Un DOI nuevo queda verificado como aportado por ti, con tu usuario y la fecha. Vaciarlo retira la verificación.
+            {t('library.edit.doiHelp')}
           </span>
         </div>
         {error && <div role="alert" style={{ color: 'var(--error)', fontSize: 'var(--font-size-sm)' }}>{error}</div>}
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-2)' }}>
-          <button type="button" className="btn btn-ghost btn-sm" onClick={onClose}>Cancelar</button>
-          <button type="submit" className="btn btn-primary btn-sm" disabled={saving}>{saving ? 'Guardando…' : 'Guardar'}</button>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={onClose}>{t('library.cancel')}</button>
+          <button type="submit" className="btn btn-primary btn-sm" disabled={saving}>{saving ? t('library.saving') : t('library.save')}</button>
         </div>
       </form>
     </Modal>
@@ -130,6 +133,7 @@ function EditRecordModal({ record, onClose, onSaved }) {
 }
 
 function ImportModal({ onClose, onDone }) {
+  const { t } = useTranslation();
   const uid = useId();
   const [mode, setMode] = useState('bibtex');
   const [text, setText] = useState('');
@@ -146,35 +150,35 @@ function ImportModal({ onClose, onDone }) {
       setResults(res.results || []);
       onDone();
     } catch (err) {
-      setError(errorDe(err, 'No se pudo importar'));
+      setError(errorDe(err, t('library.import.error')));
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <Modal onClose={onClose} title="Importar referencias" panelStyle={{ maxWidth: 620 }}>
+    <Modal onClose={onClose} title={t('library.import.title')} panelStyle={{ maxWidth: 620 }}>
       {results ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-          <p role="status">{results.filter((r) => r.status === 'imported').length} de {results.length} importadas.</p>
+          <p role="status">{t('library.import.summary', { imported: results.filter((r) => r.status === 'imported').length, total: results.length })}</p>
           <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-2)', maxHeight: 280, overflow: 'auto' }}>
             {results.map((r) => (
               <li key={`${r.ref}-${r.document_id || r.status}`} style={{ fontSize: 'var(--font-size-sm)' }}>
                 <strong>{r.ref}</strong>
                 {' — '}
-                {r.status === 'imported' ? (r.verified ? 'importada y verificada' : 'importada sin verificar') : r.status === 'duplicate' ? 'ya existía' : 'no importada'}
+                {r.status === 'imported' ? (r.verified ? t('library.import.importedVerified') : t('library.import.importedUnverified')) : r.status === 'duplicate' ? t('library.import.duplicate') : t('library.import.notImported')}
                 {r.detail ? <span style={{ color: 'var(--text-muted)' }}> ({r.detail})</span> : null}
               </li>
             ))}
           </ul>
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-            <button type="button" className="btn btn-primary btn-sm" onClick={onClose}>Cerrar</button>
+            <button type="button" className="btn btn-primary btn-sm" onClick={onClose}>{t('library.close')}</button>
           </div>
         </div>
       ) : (
         <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-          <div role="group" aria-label="Formato de importación" style={{ display: 'flex', gap: 'var(--space-2)' }}>
-            {[['bibtex', 'BibTeX'], ['dois', 'Lista de DOI']].map(([id, label]) => (
+          <div role="group" aria-label={t('library.import.formatAria')} style={{ display: 'flex', gap: 'var(--space-2)' }}>
+            {[['bibtex', t('library.import.modeBibtex')], ['dois', t('library.import.modeDois')]].map(([id, label]) => (
               <button key={id} type="button" aria-pressed={mode === id}
                 className={`btn btn-sm ${mode === id ? 'btn-primary' : 'btn-ghost'}`}
                 onClick={() => { setMode(id); setError(''); }}>
@@ -184,19 +188,19 @@ function ImportModal({ onClose, onDone }) {
           </div>
           <div className="input-group">
             <label className="input-label" htmlFor={`${uid}-text`}>
-              {mode === 'bibtex' ? 'Contenido BibTeX' : 'DOI (uno por línea)'}
+              {mode === 'bibtex' ? t('library.import.contentBibtex') : t('library.import.contentDois')}
             </label>
             <textarea id={`${uid}-text`} className="input" rows={10} value={text} required
               onChange={(e) => setText(e.target.value)}
-              placeholder={mode === 'bibtex' ? '@article{clave,\n  title = {…},\n  doi = {10.xxxx/xxxxx}\n}' : '10.1000/xyz123\nhttps://doi.org/10.1000/abc456'} />
+              placeholder={mode === 'bibtex' ? t('library.import.placeholderBibtex') : t('library.import.placeholderDois')} />
           </div>
           <p style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', margin: 0 }}>
-            Cada DOI se comprueba contra Crossref/OpenAlex. Lo que no se pueda verificar se importa «sin verificar» y no podrá citarse hasta que aportes el DOI.
+            {t('library.import.help')}
           </p>
           {error && <div role="alert" style={{ color: 'var(--error)', fontSize: 'var(--font-size-sm)' }}>{error}</div>}
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-2)' }}>
-            <button type="button" className="btn btn-ghost btn-sm" onClick={onClose}>Cancelar</button>
-            <button type="submit" className="btn btn-primary btn-sm" disabled={busy || !text.trim()}>{busy ? 'Importando…' : 'Importar'}</button>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={onClose}>{t('library.cancel')}</button>
+            <button type="submit" className="btn btn-primary btn-sm" disabled={busy || !text.trim()}>{busy ? t('library.import.importing') : t('library.import.import')}</button>
           </div>
         </form>
       )}
@@ -208,10 +212,11 @@ const BASES = {
   openalex: 'OpenAlex', crossref: 'Crossref', semantic_scholar: 'Semantic Scholar',
   arxiv: 'arXiv', pubmed: 'PubMed',
 };
-const ESTADO_BASE = { ok: 'respondió', failed: 'falló', skipped: 'omitida' };
+const ESTADO_BASE = { ok: 'library.dbStatus.ok', failed: 'library.dbStatus.failed', skipped: 'library.dbStatus.skipped' };
 
 /** Búsqueda de literatura (T22.11 / AC12): la lanza la persona autora y solo crea candidatos verificados. */
 function SearchForm({ onFound }) {
+  const { t } = useTranslation();
   const uid = useId();
   const [config, setConfig] = useState(null);
   const [configError, setConfigError] = useState(null);
@@ -228,7 +233,7 @@ function SearchForm({ onFound }) {
       setConfig(cfg);
       setActive(cfg.sources || []);
     } catch (err) {
-      setConfigError(mensajeDeCarga(err, 'No se pudo comprobar si la búsqueda está disponible'));
+      setConfigError(mensajeDeCarga(err, translate('library.search.configError')));
     }
   }, []);
   useEffect(() => { loadConfig(); }, [loadConfig]);
@@ -236,16 +241,15 @@ function SearchForm({ onFound }) {
   if (configError) {
     return (
       <div role="alert" style={{ fontSize: 'var(--font-size-sm)', color: 'var(--error)' }}>
-        {configError} <button type="button" className="btn btn-ghost btn-sm" onClick={loadConfig}>Reintentar</button>
+        {configError} <button type="button" className="btn btn-ghost btn-sm" onClick={loadConfig}>{t('library.search.retry')}</button>
       </div>
     );
   }
-  if (!config) return <p role="status" style={{ margin: 0, fontSize: 'var(--font-size-sm)' }}>Comprobando la búsqueda bibliográfica…</p>;
+  if (!config) return <p role="status" style={{ margin: 0, fontSize: 'var(--font-size-sm)' }}>{t('library.search.checking')}</p>;
   if (!config.enabled) {
     return (
       <p role="status" style={{ margin: 0, fontSize: 'var(--font-size-sm)', color: 'var(--text-muted)' }}>
-        La búsqueda bibliográfica está desactivada ({config.message || 'descubrimiento desactivado'}). Puedes seguir
-        usando las referencias ya importadas.
+        {t('library.search.disabled', { reason: config.message || t('library.search.disabledDefault') })}
       </p>
     );
   }
@@ -261,7 +265,7 @@ function SearchForm({ onFound }) {
       setResult(res);
       if (res.new_candidates > 0) onFound();
     } catch (err) {
-      setError(errorDe(err, 'No se pudo completar la búsqueda'));
+      setError(errorDe(err, t('library.search.error')));
     } finally {
       setBusy(false);
     }
@@ -270,19 +274,18 @@ function SearchForm({ onFound }) {
   return (
     <form onSubmit={submit} aria-labelledby={`${uid}-title`}
       style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-      <strong id={`${uid}-title`} style={{ fontSize: 'var(--font-size-sm)' }}>Buscar referencias</strong>
+      <strong id={`${uid}-title`} style={{ fontSize: 'var(--font-size-sm)' }}>{t('library.search.title')}</strong>
       <div className="input-group">
-        <label className="input-label" htmlFor={`${uid}-q`}>Consulta</label>
+        <label className="input-label" htmlFor={`${uid}-q`}>{t('library.search.query')}</label>
         <input id={`${uid}-q`} className="input" value={query} maxLength={300} required
           aria-describedby={`${uid}-help`} onChange={(e) => setQuery(e.target.value)}
-          placeholder="p. ej. deep learning image recognition" />
+          placeholder={t('library.search.placeholder')} />
         <span id={`${uid}-help`} style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>
-          La consulta se envía a las bases marcadas. No pegues texto de tu manuscrito. Solo se guardan
-          como candidatos las referencias cuyo DOI se verifica.
+          {t('library.search.help')}
         </span>
       </div>
       <fieldset style={{ border: 0, padding: 0, margin: 0, display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
-        <legend style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>Bases</legend>
+        <legend style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>{t('library.search.databases')}</legend>
         {(config.sources || []).map((db) => (
           <label key={db} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 'var(--font-size-sm)' }}>
             <input type="checkbox" checked={active.includes(db)} onChange={() => toggle(db)} />
@@ -292,23 +295,23 @@ function SearchForm({ onFound }) {
       </fieldset>
       <div>
         <button type="submit" className="btn btn-primary btn-sm" disabled={busy || !query.trim() || active.length === 0}>
-          <Search size={14} /> {busy ? 'Buscando…' : 'Buscar'}
+          <Search size={14} /> {busy ? t('library.search.searching') : t('library.search.search')}
         </button>
       </div>
       <div aria-live="polite">
-        {busy && <p role="status" style={{ margin: 0 }}>Buscando y verificando referencias…</p>}
+        {busy && <p role="status" style={{ margin: 0 }}>{t('library.search.searchingVerifying')}</p>}
         {error && <div role="alert" style={{ color: 'var(--error)', fontSize: 'var(--font-size-sm)' }}>{error}</div>}
         {result && (
           <div style={{ fontSize: 'var(--font-size-sm)', display: 'flex', flexDirection: 'column', gap: 4 }}>
             <p style={{ margin: 0 }}>
-              {result.new_candidates === 0 ? 'No hay candidatos verificados nuevos.' : `${result.new_candidates} candidato(s) nuevo(s) verificado(s) en «Candidatos».`}
-              {result.already_in_library > 0 && ` ${result.already_in_library} ya estaban en la biblioteca.`}
+              {result.new_candidates === 0 ? t('library.search.noNew') : t('library.search.newCandidates', { count: result.new_candidates })}
+              {result.already_in_library > 0 && (' ' + t('library.search.alreadyIn', { count: result.already_in_library }))}
             </p>
             <ul style={{ margin: 0, paddingLeft: 'var(--space-4)' }}>
               {(result.sources || []).map((s) => (
                 <li key={s.db}>
-                  <strong>{BASES[s.db] || s.db}</strong>: {ESTADO_BASE[s.status] || s.status}
-                  {s.status === 'ok' ? ` — ${s.returned} devueltos, ${s.verified} verificados` : s.message ? ` — ${s.message}` : ''}
+                  <strong>{BASES[s.db] || s.db}</strong>: {ESTADO_BASE[s.status] ? t(ESTADO_BASE[s.status]) : s.status}
+                  {s.status === 'ok' ? t('library.search.sourceCounts', { returned: s.returned, verified: s.verified }) : s.message ? ` — ${s.message}` : ''}
                 </li>
               ))}
             </ul>
@@ -321,6 +324,7 @@ function SearchForm({ onFound }) {
 }
 
 function RecordRow({ record, busy, onCurate, onEdit, onUploadPdf }) {
+  const { t } = useTranslation();
   const meta = [record.year, record.journal].filter(Boolean).join(' · ');
   const estado = record.curation_status;
   return (
@@ -332,53 +336,54 @@ function RecordRow({ record, busy, onCurate, onEdit, onUploadPdf }) {
       <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
         <div style={{ fontWeight: 500 }}>
           {record.title}
-          {record.must_cite && <span className="badge badge-published" style={{ marginLeft: 8 }}>Imprescindible</span>}
+          {record.must_cite && <span className="badge badge-published" style={{ marginLeft: 8 }}>{t('library.record.mustCite')}</span>}
         </div>
         <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>
-          {(record.authors || []).slice(0, 4).join(', ')}{(record.authors || []).length > 4 ? ' et al.' : ''}
+          {(record.authors || []).slice(0, 4).join(', ')}{(record.authors || []).length > 4 ? (' ' + t('library.record.etAl')) : ''}
         </div>
         <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)', alignItems: 'center' }}>
           {meta && <span>{meta}</span>}
-          <span>DOI: {record.doi ? <code>{record.doi}</code> : <em>sin DOI</em>}</span>
-          <span>Base: {record.source_db}</span>
+          <span>{t('library.record.doiLabel')} {record.doi ? <code>{record.doi}</code> : <em>{t('library.record.noDoi')}</em>}</span>
+          <span>{t('library.record.baseLabel')} {record.source_db}</span>
           <VerificationBadge record={record} />
           {record.text_status === 'abstract_only' && (
-            <span className="badge badge-pending" title="Solo hay el resumen de la base: sube el PDF para tener el texto completo">solo resumen</span>
+            <span className="badge badge-pending" title={t('library.record.abstractOnlyTitle')}>{t('library.record.abstractOnly')}</span>
           )}
         </div>
       </div>
       <div style={{ display: 'flex', gap: 'var(--space-1)', flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
         {estado !== 'accepted' && (
           <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => onCurate(record, 'accepted', false)}
-            aria-label={`Aceptar ${record.title}`}><Check size={14} /> Aceptar</button>
+            aria-label={t('library.record.acceptAria', { title: record.title })}><Check size={14} /> {t('library.record.accept')}</button>
         )}
         {estado === 'accepted' && (
           <button className="btn btn-ghost btn-sm" disabled={busy} aria-pressed={record.must_cite}
             onClick={() => onCurate(record, 'accepted', !record.must_cite)}
-            aria-label={`${record.must_cite ? 'Quitar la marca imprescindible de' : 'Marcar como imprescindible'} ${record.title}`}>
-            <Star size={14} /> {record.must_cite ? 'Quitar marca' : 'Imprescindible'}
+            aria-label={t(record.must_cite ? 'library.record.unmarkAria' : 'library.record.markAria', { title: record.title })}>
+            <Star size={14} /> {record.must_cite ? t('library.record.unmark') : t('library.record.mark')}
           </button>
         )}
         {estado !== 'discarded' && (
           <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => onCurate(record, 'discarded', false)}
-            aria-label={`Descartar ${record.title}`}><X size={14} style={{ color: 'var(--error)' }} /> Descartar</button>
+            aria-label={t('library.record.discardAria', { title: record.title })}><X size={14} style={{ color: 'var(--error)' }} /> {t('library.record.discard')}</button>
         )}
         {estado === 'accepted' && record.text_status === 'abstract_only' && (
           <label className="btn btn-ghost btn-sm" style={{ cursor: busy ? 'not-allowed' : 'pointer' }}
-            aria-label={`Subir el PDF de ${record.title}`}>
-            <Upload size={14} /> Subir PDF
+            aria-label={t('library.record.uploadPdfAria', { title: record.title })}>
+            <Upload size={14} /> {t('library.record.uploadPdf')}
             <input type="file" accept="application/pdf,.pdf" disabled={busy} style={{ display: 'none' }}
               onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) onUploadPdf(record, f); }} />
           </label>
         )}
         <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => onEdit(record)}
-          aria-label={`Editar metadatos de ${record.title}`}><Pencil size={14} /> Editar</button>
+          aria-label={t('library.record.editAria', { title: record.title })}><Pencil size={14} /> {t('library.record.edit')}</button>
       </div>
     </li>
   );
 }
 
 export default function LibraryRecordsPanel() {
+  const { t } = useTranslation();
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -394,7 +399,7 @@ export default function LibraryRecordsPanel() {
       const data = await agentsApi.getLibraryRecords();
       setRecords(data.documents || []);
     } catch (err) {
-      setError(mensajeDeCarga(err, 'No se pudieron cargar las fichas bibliográficas'));
+      setError(mensajeDeCarga(err, translate('library.panel.loadError')));
       setRecords([]);
     } finally {
       setLoading(false);
@@ -416,13 +421,13 @@ export default function LibraryRecordsPanel() {
     try {
       const saved = await agentsApi.curateLibraryRecord(record.id, status, mustCite);
       replace(saved);
-      if (status !== 'accepted') toast.success('Descartada');
-      else if (mustCite) toast.success('Marcada como imprescindible');
-      else if (saved.fulltext === 'full_text') toast.success('Añadida a la biblioteca con el texto completo');
-      else if (saved.text_status === 'abstract_only') toast.success('Añadida a la biblioteca: solo resumen. Puedes subir el PDF.');
-      else toast.success('Añadida a la biblioteca');
+      if (status !== 'accepted') toast.success(t('library.panel.discarded'));
+      else if (mustCite) toast.success(t('library.panel.markedMustCite'));
+      else if (saved.fulltext === 'full_text') toast.success(t('library.panel.addedFullText'));
+      else if (saved.text_status === 'abstract_only') toast.success(t('library.panel.addedAbstract'));
+      else toast.success(t('library.panel.added'));
     } catch (err) {
-      toast.error(errorDe(err, 'No se pudo actualizar la ficha'));
+      toast.error(errorDe(err, t('library.panel.updateError')));
     } finally {
       setBusyId(null);
     }
@@ -433,9 +438,9 @@ export default function LibraryRecordsPanel() {
     try {
       const res = await agentsApi.uploadLibraryDocument(file, undefined, undefined, undefined, record.id);
       replace(res.library_document);
-      toast.success('PDF indexado: la ficha tiene el texto completo');
+      toast.success(t('library.panel.pdfIndexed'));
     } catch (err) {
-      toast.error(errorDe(err, 'No se pudo subir el PDF'));
+      toast.error(errorDe(err, t('library.panel.pdfError')));
     } finally {
       setBusyId(null);
     }
@@ -446,19 +451,19 @@ export default function LibraryRecordsPanel() {
       <div className="config-section-header" style={{ justifyContent: 'space-between', flexWrap: 'wrap', gap: 'var(--space-2)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <BookOpen size={15} />
-          <h3 id="library-records-title" style={{ margin: 0, fontSize: 'inherit', fontWeight: 600 }}>Referencias bibliográficas</h3>
+          <h3 id="library-records-title" style={{ margin: 0, fontSize: 'inherit', fontWeight: 600 }}>{t('library.panel.title')}</h3>
         </div>
         <button className="btn btn-primary btn-sm" onClick={() => setImporting(true)}>
-          <Upload size={14} /> Importar BibTeX / DOI
+          <Upload size={14} /> {t('library.panel.importButton')}
         </button>
       </div>
       <div className="config-section-body" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
         <SearchForm onFound={() => { setTab('candidate'); load(); }} />
-        <div role="group" aria-label="Estado de las referencias" style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
+        <div role="group" aria-label={t('library.panel.statusAria')} style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
           {PESTANAS.map((p) => (
             <button key={p.id} type="button" aria-pressed={tab === p.id}
               className={`btn btn-sm ${tab === p.id ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setTab(p.id)}>
-              {p.label} ({counts[p.id] || 0})
+              {t(p.labelKey)} ({counts[p.id] || 0})
             </button>
           ))}
         </div>
@@ -467,12 +472,12 @@ export default function LibraryRecordsPanel() {
           error={error}
           isEmpty={visibles.length === 0}
           onRetry={load}
-          loadingLabel="Cargando las referencias…"
+          loadingLabel={t('library.panel.loading')}
           empty={(
             <EmptyState
               icon={<BookOpen size={28} />}
-              title={VACIOS[tab].title}
-              description={VACIOS[tab].description}
+              title={t(VACIOS[tab].titleKey)}
+              description={t(VACIOS[tab].descriptionKey)}
             />
           )}
         >

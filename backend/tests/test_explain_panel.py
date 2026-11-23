@@ -176,7 +176,8 @@ def test_navegador_la_decision_del_revisor_se_lee_con_su_porque(banco):
 def test_navegador_los_dos_scores_no_se_leen_como_el_mismo_numero(banco):
     """El del revisor es una aprobación sobre 100; el de una fuente, una similitud
     coseno sobre 1. Pintados igual, un 0,91 y un 91 se confunden."""
-    pagina_texto = banco.text_content("#zona")
+    # `Intl` separa el número del % con un espacio duro (U+00A0): se lee igual.
+    pagina_texto = banco.text_content("#zona").replace(" ", " ")
     assert "82/100" in pagina_texto
     assert "91 %" in pagina_texto and "similitud" in pagina_texto
     assert "0.91" not in pagina_texto and "0,91" not in pagina_texto

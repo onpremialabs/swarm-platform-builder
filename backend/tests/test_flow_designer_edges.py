@@ -30,7 +30,13 @@ def test_el_lienzo_usa_la_arista_borrable_para_todas_las_aristas():
 def test_la_arista_tiene_area_de_clic_ancha_y_boton_accesible():
     assert "interactionWidth={interactionWidth ?? 28}" in ARISTA
     assert "deleteElements({ edges: [{ id }] })" in ARISTA  # solo la arista, no los nodos
-    assert "aria-label=" in ARISTA and "Eliminar" in ARISTA
+    # El texto vive en el catálogo (T29.7): la arista pide la clave y el catálogo dice «Eliminar».
+    import json
+    from pathlib import Path
+    catalogo = json.loads((Path(__file__).resolve().parents[2] / "frontend/src/platform/i18n/es.json").read_text(encoding="utf-8"))
+    assert "aria-label=" in ARISTA and "edge.delete" in ARISTA
+    assert catalogo["edge"]["delete"].startswith("Eliminar")
+    assert catalogo["edge"]["deleteNamed"].startswith("Eliminar")
 
 
 def test_el_guardado_persiste_las_aristas_que_quedan():

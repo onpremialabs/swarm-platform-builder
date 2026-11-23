@@ -6,12 +6,14 @@ import { Database, FileText, FolderOpen, Loader, RefreshCw, Trash2, Upload, X } 
 import { agentsApi } from '../api/agents';
 import toast from 'react-hot-toast';
 import LibraryRecordsPanel from '../components/library/LibraryRecordsPanel';
+import { translate, useTranslation } from '../i18n';
 
 /**
  * Global document library: shows all vectorised files stored in Qdrant (or local store)
  * grouped by collection. Users can upload new documents or delete existing ones.
  */
 export default function DocumentsPage() {
+  const { t } = useTranslation();
   const [collections, setCollections] = useState([]);
   const [backend, setBackend] = useState('');
   const [loading, setLoading] = useState(true);
@@ -29,11 +31,11 @@ export default function DocumentsPage() {
       const res = await agentsApi.backfillMetadata();
       toast.success(
         res.updated > 0
-          ? `Metadatos reprocesados en ${res.updated} documento(s)`
-          : 'No había documentos sin metadatos'
+          ? t('documents.backfillDone', { count: res.updated })
+          : t('documents.backfillNone')
       );
     } catch {
-      toast.error('No se pudieron reprocesar los metadatos');
+      toast.error(t('documents.backfillError'));
     } finally {
       setBackfilling(false);
     }
@@ -48,7 +50,7 @@ export default function DocumentsPage() {
       setBackend(data.storage_backend || '');
     } catch (err) {
       // El toast se va solo; el estado de error se queda y ofrece reintentar.
-      setError(mensajeDeCarga(err, 'No se pudo cargar la biblioteca vectorial'));
+      setError(mensajeDeCarga(err, translate('documents.loadError')));
       setCollections([]);
     } finally {
       setLoading(false);
@@ -62,9 +64,9 @@ export default function DocumentsPage() {
       setUploading(true);
       try {
         const res = await agentsApi.uploadLibraryDocument(file, uploadCollection || 'rag_docs');
-        toast.success(`${res.filename} indexado · ${res.chunks} chunks en "${res.collection}"`);
+        toast.success(t('documents.indexed', { filename: res.filename, chunks: res.chunks, collection: res.collection }));
       } catch (err) {
-        toast.error(err?.response?.data?.detail || `Error al subir ${file.name}`);
+        toast.error(err?.response?.data?.detail || t('documents.uploadError', { name: file.name }));
       } finally {
         setUploading(false);
       }
@@ -74,13 +76,13 @@ export default function DocumentsPage() {
   };
 
   const handleDelete = async (collection, docId, filename) => {
-    if (!globalThis.confirm(`¿Eliminar "${filename}" de la colección "${collection}"?`)) return;
+    if (!globalThis.confirm(t('documents.confirmDelete', { filename, collection }))) return;
     try {
       await agentsApi.deleteLibraryDocument(collection, docId);
-      toast.success('Documento eliminado');
+      toast.success(t('documents.deleted'));
       await loadLibrary();
     } catch {
-      toast.error('No se pudo eliminar el documento');
+      toast.error(t('documents.deleteError'));
     }
   };
 
@@ -91,27 +93,31 @@ export default function DocumentsPage() {
       {/* ── Header ── */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 'var(--space-4)', marginBottom: 'var(--space-6)', flexWrap: 'wrap' }}>
         <div>
-          <h2 style={{ marginBottom: 4 }}>Biblioteca vectorial</h2>
+          <h2 style={{ marginBottom: 4 }}>{t('documents.title')}</h2>
           <p style={{ fontSize: 'var(--font-size-sm)', color: 'var(--text-muted)' }}>
             {totalDocs > 0
-              ? `${totalDocs} docs en ${collections.length} colecciones · vectores en ${backend}`
-              : 'Documentos vectorizados disponibles para que cualquier agente los consuma como RAG.'}
+              ? t('documents.summary', {
+                docs: t('documents.docCount', { count: totalDocs }),
+                collections: t('documents.collectionCount', { count: collections.length }),
+                backend,
+              })
+              : t('documents.intro')}
           </p>
         </div>
         <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
-          <button className="btn btn-ghost btn-sm" onClick={loadLibrary} aria-label="Recargar">
+          <button className="btn btn-ghost btn-sm" onClick={loadLibrary} aria-label={t('documents.reload')}>
             <RefreshCw size={14} />
           </button>
           <button
             className="btn btn-ghost btn-sm"
             onClick={handleBackfill}
             disabled={backfilling}
-            title="Re-extraer título y autores de documentos ya cargados"
+            title={t('documents.backfillHint')}
           >
-            <RefreshCw size={14} /> {backfilling ? 'Reprocesando…' : 'Reprocesar metadatos'}
+            <RefreshCw size={14} /> {backfilling ? t('documents.backfilling') : t('documents.backfill')}
           </button>
           <button className="btn btn-primary btn-sm" onClick={() => setShowUpload((v) => !v)}>
-            <Upload size={14} /> Subir documento
+            <Upload size={14} /> {t('documents.upload')}
           </button>
         </div>
       </div>
@@ -120,15 +126,15 @@ export default function DocumentsPage() {
       {showUpload && (
         <div className="config-section" style={{ marginBottom: 'var(--space-5)' }}>
           <div className="config-section-header" style={{ justifyContent: 'space-between' }}>
-            <span>Subir a la biblioteca</span>
-            <button className="btn btn-ghost btn-sm btn-icon" onClick={() => setShowUpload(false)} aria-label="Cerrar">
+            <span>{t('documents.uploadToLibrary')}</span>
+            <button className="btn btn-ghost btn-sm btn-icon" onClick={() => setShowUpload(false)} aria-label={t('documents.close')}>
               <X size={14} />
             </button>
           </div>
           <div className="config-section-body" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
               <label htmlFor="upload-collection" style={{ fontSize: 'var(--font-size-sm)', color: 'var(--text-muted)', flexShrink: 0 }}>
-                Colección:
+                {t('documents.collectionLabel')}
               </label>
               <input
                 id="upload-collection"
@@ -142,7 +148,7 @@ export default function DocumentsPage() {
 
             <button
               type="button"
-              aria-label="Zona de arrastre para subir archivos"
+              aria-label={t('documents.dropzoneAria')}
               onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
               onDragLeave={() => setDragging(false)}
               onDrop={(e) => {
@@ -152,7 +158,7 @@ export default function DocumentsPage() {
                   ['.txt', '.md', '.pdf'].some((ext) => f.name.toLowerCase().endsWith(ext))
                 );
                 if (files.length) handleFiles(files);
-                else toast.error('Solo .txt, .md y .pdf son aceptados');
+                else toast.error(t('documents.onlyAccepted'));
               }}
               onClick={() => inputRef.current?.click()}
               style={{
@@ -166,13 +172,13 @@ export default function DocumentsPage() {
               {uploading ? (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
                   <Loader size={20} style={{ color: 'var(--brand-primary)' }} />
-                  <span style={{ fontSize: 'var(--font-size-sm)', color: 'var(--text-muted)' }}>Indexando…</span>
+                  <span style={{ fontSize: 'var(--font-size-sm)', color: 'var(--text-muted)' }}>{t('documents.indexing')}</span>
                 </div>
               ) : (
                 <>
                   <Upload size={22} style={{ color: 'var(--text-muted)', marginBottom: 8 }} />
-                  <div style={{ fontSize: 'var(--font-size-sm)', fontWeight: 500 }}>Arrastra archivos o haz clic</div>
-                  <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', marginTop: 4 }}>.txt · .md · .pdf — máx. 10 MB</div>
+                  <div style={{ fontSize: 'var(--font-size-sm)', fontWeight: 500 }}>{t('documents.dropOrClick')}</div>
+                  <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', marginTop: 4 }}>{t('documents.limits')}</div>
                 </>
               )}
               <input
@@ -181,7 +187,7 @@ export default function DocumentsPage() {
                 accept=".txt,.md,.pdf,.docx"
                 multiple
                 style={{ display: 'none' }}
-                aria-label="Seleccionar archivos para la biblioteca RAG"
+                aria-label={t('documents.selectFilesAria')}
                 onChange={(e) => { if (e.target.files?.length) handleFiles(Array.from(e.target.files)); }}
               />
             </button>
@@ -198,12 +204,12 @@ export default function DocumentsPage() {
         error={error}
         isEmpty={collections.length === 0}
         onRetry={loadLibrary}
-        loadingLabel="Cargando la biblioteca vectorial…"
+        loadingLabel={t('documents.loadingLibrary')}
         empty={(
           <EmptyState
             icon={<Database size={28} />}
-            title="Biblioteca vacía"
-            description="Sube documentos con el botón de arriba para vectorizarlos y ponerlos a disposición de los agentes."
+            title={t('documents.emptyTitle')}
+            description={t('documents.emptyDescription')}
           />
         )}
       >
@@ -217,13 +223,13 @@ export default function DocumentsPage() {
                   <span style={{ fontWeight: 600 }}>{col.name}</span>
                 </div>
                 <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', fontWeight: 500 }}>
-                  {col.documents.length === 1 ? '1 doc' : `${col.documents.length} docs`} · {col.total_chunks} chunks
+                  {t('documents.docCount', { count: col.documents.length })} · {t('documents.chunkCount', { count: col.total_chunks })}
                 </div>
               </div>
               <div className="config-section-body">
                 {col.documents.length === 0 ? (
                   <div style={{ fontSize: 'var(--font-size-sm)', color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                    Colección vacía.
+                    {t('documents.collectionEmpty')}
                   </div>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
@@ -243,9 +249,9 @@ export default function DocumentsPage() {
                               {doc.filename}
                             </div>
                             <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>
-                              {doc.chunks} chunks
+                              {t('documents.chunkCount', { count: doc.chunks })}
                               {doc.agent_name && doc.agent_name !== '__library__' && (
-                                <span style={{ marginLeft: 8, opacity: 0.6 }}>· subido por {doc.agent_name}</span>
+                                <span style={{ marginLeft: 8, opacity: 0.6 }}>{t('documents.uploadedBy', { name: doc.agent_name })}</span>
                               )}
                             </div>
                           </div>
@@ -253,7 +259,7 @@ export default function DocumentsPage() {
                         <button
                           className="btn btn-ghost btn-sm btn-icon"
                           onClick={() => handleDelete(col.name, doc.doc_id, doc.filename)}
-                          aria-label={`Eliminar ${doc.filename}`}
+                          aria-label={t('documents.deleteNamed', { name: doc.filename })}
                         >
                           <Trash2 size={14} style={{ color: 'var(--error)' }} />
                         </button>

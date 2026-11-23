@@ -2,7 +2,21 @@
   "_comentario": "Excepciones PERMANENTES del control de literales (check_i18n.py). Cada una lleva su motivo; no es para silenciar deuda (eso es la linea base). textos: texto -> motivo. ficheros: ruta relativa a frontend/src -> motivo.",
   "textos": {
     "AlejandrIA": "marca: no se traduce",
-    "AlejandrIA Magazine": "marca: no se traduce"
+    "AlejandrIA Magazine": "marca: no se traduce",
+    "RAG": "sigla técnica: igual en todos los idiomas",
+    "Alexandria": "marca (alt del logotipo): no se traduce",
+    "Alej": "marca AlejandrIA partida en dos nodos para colorear la segunda mitad: no se traduce",
+    "andrIA": "marca AlejandrIA partida en dos nodos para colorear la segunda mitad: no se traduce",
+    "rag_docs": "identificador técnico (nombre de la colección por defecto), no es texto de interfaz",
+    "×": "símbolo de cierre (×), no es texto",
+    ": tabItem.id === 'rag' ?": "falso positivo del detector: código JS entre etiquetas JSX (ternario)",
+    ") : runDocs.length === 0 ? (": "falso positivo del detector: código JS entre etiquetas JSX (ternario)",
+    ", custom:": "falso positivo del detector: claves de un objeto JS entre etiquetas JSX",
+    ", desarrollo:": "falso positivo del detector: claves de un objeto JS entre etiquetas JSX",
+    ", diseno:": "falso positivo del detector: claves de un objeto JS entre etiquetas JSX",
+    ", marketing:": "falso positivo del detector: claves de un objeto JS entre etiquetas JSX",
+    ", tiqueting:": "falso positivo del detector: claves de un objeto JS entre etiquetas JSX",
+    "@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }": "CSS dentro de <style>, no es texto de interfaz"
   },
   "ficheros": {}
 }

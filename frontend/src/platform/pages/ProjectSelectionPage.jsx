@@ -10,62 +10,64 @@ import {
 import { useProjectStore } from '../store/projectStore';
 import { useAuthStore } from '../store/authStore';
 import toast from 'react-hot-toast';
+import { useTranslation } from '../i18n';
 
 // ── Use-case catalogue ────────────────────────────────────────────────────────
 
 const USE_CASES = [
   {
     value: 'alejandria_magazine',
-    label: 'AlejandrIA Magazine',
-    description: 'Flujo editorial completo para revista científica.',
+    labelKey: 'projects.useCases.alejandria_magazine.label',
+    descriptionKey: 'projects.useCases.alejandria_magazine.description',
     icon: <Newspaper size={22} />,
     color: 'var(--brand-primary)',
     disabled: true, // this is the system project, handled separately
   },
   {
     value: 'desarrollo',
-    label: 'Desarrollo',
-    description: 'Agentes orientados a ciclos de desarrollo de software.',
+    labelKey: 'projects.useCases.desarrollo.label',
+    descriptionKey: 'projects.useCases.desarrollo.description',
     icon: <Code2 size={22} />,
     color: 'var(--agent-format)',
   },
   {
     value: 'marketing',
-    label: 'Marketing',
-    description: 'Generación de contenido y campañas de marketing.',
+    labelKey: 'projects.useCases.marketing.label',
+    descriptionKey: 'projects.useCases.marketing.description',
     icon: <Megaphone size={22} />,
     color: 'var(--agent-review)',
   },
   {
     value: 'tiqueting',
-    label: 'Tiqueting',
-    description: 'Gestión y resolución automática de tickets de soporte.',
+    labelKey: 'projects.useCases.tiqueting.label',
+    descriptionKey: 'projects.useCases.tiqueting.description',
     icon: <Ticket size={22} />,
     color: 'var(--agent-research)',
   },
   {
     value: 'diseno',
-    label: 'Diseño',
-    description: 'Flujos de revisión y producción de assets visuales.',
+    labelKey: 'projects.useCases.diseno.label',
+    descriptionKey: 'projects.useCases.diseno.description',
     icon: <Palette size={22} />,
     color: 'var(--agent-write)',
   },
   {
     value: 'custom',
-    label: 'Custom',
-    description: 'Crea tus propios agentes completamente desde cero.',
+    labelKey: 'projects.useCases.custom.label',
+    descriptionKey: 'projects.useCases.custom.description',
     icon: <Wand2 size={22} />,
     color: 'var(--neutral-60)',
   },
 ];
 
-const CASE_LABEL = Object.fromEntries(USE_CASES.map(u => [u.value, u.label]));
+const CASE_LABEL = Object.fromEntries(USE_CASES.map(u => [u.value, u.labelKey]));
 const CASE_ICON  = Object.fromEntries(USE_CASES.map(u => [u.value, u.icon]));
 const CASE_COLOR = Object.fromEntries(USE_CASES.map(u => [u.value, u.color]));
 
 // ── Modal ─────────────────────────────────────────────────────────────────────
 
 function NewProjectModal({ onClose, onCreated }) {
+  const { t } = useTranslation();
   const { createProject, isLoading } = useProjectStore();
   const [step, setStep] = useState('type'); // 'type' | 'details'
   const [selectedType, setSelectedType] = useState(null);
@@ -76,7 +78,7 @@ function NewProjectModal({ onClose, onCreated }) {
 
   const handleSelectType = (value) => {
     setSelectedType(value);
-    setName(CASE_LABEL[value] + ' Project');
+    setName(t('projects.defaultName', { type: t(CASE_LABEL[value]) }));
     setStep('details');
   };
 
@@ -85,7 +87,7 @@ function NewProjectModal({ onClose, onCreated }) {
     if (!name.trim()) return;
     const result = await createProject(name.trim(), description.trim(), selectedType);
     if (result.ok) {
-      toast.success('Proyecto creado');
+      toast.success(t('projects.created'));
       onCreated(result.project);
     } else {
       toast.error(result.error);
@@ -95,7 +97,7 @@ function NewProjectModal({ onClose, onCreated }) {
   return (
     <Modal
       onClose={onClose}
-      title={step === 'type' ? 'Elige el tipo de proyecto' : 'Detalles del proyecto'}
+      title={step === 'type' ? t('projects.chooseType') : t('projects.details')}
       panelStyle={{ maxWidth: 560 }}
     >
       <div className="modal-body">
@@ -116,8 +118,8 @@ function NewProjectModal({ onClose, onCreated }) {
                 onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-default)'; e.currentTarget.style.background = 'var(--bg-surface)'; }}
               >
                 <span style={{ color: uc.color }}>{uc.icon}</span>
-                <span style={{ color: 'var(--text-primary)', fontWeight: 600, fontSize: '0.9rem' }}>{uc.label}</span>
-                <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem', lineHeight: 1.4 }}>{uc.description}</span>
+                <span style={{ color: 'var(--text-primary)', fontWeight: 600, fontSize: '0.9rem' }}>{t(uc.labelKey)}</span>
+                <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem', lineHeight: 1.4 }}>{t(uc.descriptionKey)}</span>
               </button>
             ))}
           </div>
@@ -131,20 +133,20 @@ function NewProjectModal({ onClose, onCreated }) {
               background: 'var(--bg-surface)', border: '1px solid var(--border-default)',
               borderRadius: 'var(--radius-md)', padding: '0.6rem 1rem' }}>
               <span style={{ color: CASE_COLOR[selectedType] }}>{CASE_ICON[selectedType]}</span>
-              <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>{CASE_LABEL[selectedType]}</span>
+              <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>{t(CASE_LABEL[selectedType])}</span>
               <button
                 type="button"
                 onClick={() => setStep('type')}
                 style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer',
                   color: 'var(--text-muted)', fontSize: '0.78rem', textDecoration: 'underline' }}
               >
-                Cambiar
+                {t('projects.change')}
               </button>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               <label htmlFor="proj-name" style={{ color: 'var(--text-secondary)', fontSize: '0.83rem' }}>
-                Nombre del proyecto *
+                {t('projects.nameLabel')}
               </label>
               <input
                 id="proj-name"
@@ -163,7 +165,7 @@ function NewProjectModal({ onClose, onCreated }) {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               <label htmlFor="proj-desc" style={{ color: 'var(--text-secondary)', fontSize: '0.83rem' }}>
-                Descripción (opcional)
+                {t('projects.descriptionLabel')}
               </label>
               <textarea
                 id="proj-desc"
@@ -189,7 +191,7 @@ function NewProjectModal({ onClose, onCreated }) {
                   color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '0.88rem',
                 }}
               >
-                Atrás
+                {t('projects.back')}
               </button>
               <button
                 type="submit"
@@ -203,7 +205,7 @@ function NewProjectModal({ onClose, onCreated }) {
                 }}
               >
                 {isLoading ? <Loader size={15} style={{ animation: 'spin 1s linear infinite' }} /> : null}
-                Crear proyecto
+                {t('projects.createProject')}
               </button>
             </div>
           </form>
@@ -216,6 +218,7 @@ function NewProjectModal({ onClose, onCreated }) {
 // ── Project card ──────────────────────────────────────────────────────────────
 
 function ProjectCard({ project, onSelect, onDelete }) {
+  const { t } = useTranslation();
   const color = CASE_COLOR[project.use_case_type] ?? 'var(--brand-primary)';
   const icon  = CASE_ICON[project.use_case_type]  ?? <BookOpen size={20} />;
 
@@ -231,7 +234,7 @@ function ProjectCard({ project, onSelect, onDelete }) {
       onClick={() => onSelect(project)}
       role="button"
       tabIndex={0}
-      aria-label={`Abrir proyecto ${project.name}`}
+      aria-label={t('projects.open', { name: project.name })}
       onKeyDown={e => e.key === 'Enter' && onSelect(project)}
       onMouseEnter={e => { e.currentTarget.style.borderColor = color; e.currentTarget.style.background = 'var(--bg-overlay)'; }}
       onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-default)'; e.currentTarget.style.background = 'var(--bg-elevated)'; }}
@@ -258,7 +261,7 @@ function ProjectCard({ project, onSelect, onDelete }) {
               background: 'var(--brand-primary-light)', color: 'var(--brand-primary)',
               borderRadius: 99, fontWeight: 600,
             }}>
-              Sistema
+              {t('projects.system')}
             </span>
           )}
         </div>
@@ -276,7 +279,7 @@ function ProjectCard({ project, onSelect, onDelete }) {
       {!project.is_system && (
         <button
           onClick={e => { e.stopPropagation(); onDelete(project); }}
-          aria-label={`Eliminar proyecto ${project.name}`}
+          aria-label={t('projects.deleteNamed', { name: project.name })}
           style={{
             background: 'none', border: 'none', cursor: 'pointer',
             color: 'var(--text-muted)', padding: 6, borderRadius: 'var(--radius-sm)',
@@ -297,6 +300,7 @@ function ProjectCard({ project, onSelect, onDelete }) {
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function ProjectSelectionPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
   const { projects, fetchProjects, selectProject, deleteProject, isLoading, error } = useProjectStore();
@@ -320,15 +324,15 @@ export default function ProjectSelectionPage() {
   };
 
   const handleDelete = async (project) => {
-    if (!window.confirm(`¿Eliminar "${project.name}"? Esta acción no se puede deshacer.`)) return;
+    if (!window.confirm(t('projects.confirmDelete', { name: project.name }))) return;
     const result = await deleteProject(project.id);
-    if (result.ok) toast.success('Proyecto eliminado');
+    if (result.ok) toast.success(t('projects.deleted'));
     else toast.error(result.error);
   };
 
   const handleLogout = () => {
     logout();
-    toast.success('Sesión cerrada');
+    toast.success(t('projects.loggedOut'));
     navigate('/auth');
   };
 
@@ -373,7 +377,7 @@ export default function ProjectSelectionPage() {
               color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '0.8rem',
             }}
           >
-            Salir
+            {t('projects.logout')}
           </button>
         </div>
       </header>
@@ -384,17 +388,17 @@ export default function ProjectSelectionPage() {
           {/* Heading */}
           <div style={{ marginBottom: '2rem' }}>
             <h1 style={{ color: 'var(--text-primary)', fontWeight: 700, fontSize: '1.6rem', margin: 0 }}>
-              Tus proyectos
+              {t('projects.title')}
             </h1>
             <p style={{ color: 'var(--text-muted)', margin: '6px 0 0', fontSize: '0.9rem' }}>
-              Selecciona un proyecto para continuar o crea uno nuevo.
+              {t('projects.subtitle')}
             </p>
           </div>
 
           {/* New project button */}
           <button
             onClick={() => setShowModal(true)}
-            aria-label="Crear nuevo proyecto"
+            aria-label={t('projects.newAria')}
             style={{
               width: '100%', padding: '0.9rem 1.25rem',
               background: 'var(--bg-elevated)', border: '1.5px dashed var(--border-strong)',
@@ -407,7 +411,7 @@ export default function ProjectSelectionPage() {
             onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-strong)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
           >
             <Plus size={18} />
-            Nuevo proyecto
+            {t('projects.new')}
           </button>
 
           {/* Project list */}
@@ -416,12 +420,12 @@ export default function ProjectSelectionPage() {
             error={error}
             isEmpty={projects.length === 0}
             onRetry={fetchProjects}
-            loadingLabel="Cargando proyectos…"
+            loadingLabel={t('projects.loadingList')}
             empty={(
               <EmptyState
                 icon={<BookOpen size={28} />}
-                title="No hay proyectos aún"
-                description="Crea el primero con el botón de arriba."
+                title={t('projects.emptyTitle')}
+                description={t('projects.emptyDescription')}
               />
             )}
           >

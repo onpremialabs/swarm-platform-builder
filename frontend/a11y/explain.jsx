@@ -13,7 +13,13 @@ import React, { useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import ExplainPanel from '../src/platform/components/explain/ExplainPanel';
 import { setAgentCatalog } from '../src/platform/agentCatalog';
+import { registerMessages } from '../src/platform/i18n';
+import platformEs from '../src/platform/i18n/es.json';
 import '../src/index.css';
+
+// Los componentes del builder piden sus textos al catálogo (T29.7): sin esto el
+// banco enseñaría las claves.
+registerMessages('platform', { es: platformEs });
 
 // El panel pregunta al registro cómo se llama cada agente. Sin proyecto dado de
 // alta enseñaría los identificadores crudos, así que el banco registra uno.

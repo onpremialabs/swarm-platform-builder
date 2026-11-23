@@ -11,6 +11,7 @@ import { useAuthStore } from '../store/authStore';
 import { useProjectStore } from '../store/projectStore';
 import api from '../api/client';
 import toast from 'react-hot-toast';
+import { useTranslation } from '../i18n';
 
 const USE_CASE_ICON = {
   alejandria_magazine: <Newspaper size={16} />,
@@ -22,12 +23,12 @@ const USE_CASE_ICON = {
 };
 
 const USE_CASE_LABEL = {
-  alejandria_magazine: 'Revista científica',
-  desarrollo:          'Desarrollo de software',
-  marketing:           'Marketing',
-  tiqueting:           'Tiqueting',
-  diseno:              'Diseño',
-  custom:              'Proyecto custom',
+  alejandria_magazine: 'dashboard.useCase.alejandria_magazine',
+  desarrollo:          'dashboard.useCase.desarrollo',
+  marketing:           'dashboard.useCase.marketing',
+  tiqueting:           'dashboard.useCase.tiqueting',
+  diseno:              'dashboard.useCase.diseno',
+  custom:              'dashboard.useCase.custom',
 };
 
 const USE_CASE_COLOR = {
@@ -42,12 +43,14 @@ const USE_CASE_COLOR = {
 //: Entradas del **builder**. «Artículos» ya no está aquí: la aporta el proyecto
 //: (ver `platform/navigation.js`), porque el objeto que produce el pipeline se
 //: llama artículo en AlejandrIA y otra cosa en cualquier otro proyecto.
+//: Las del builder llevan `labelKey` (clave del catálogo); las del proyecto pueden
+//: traer `labelKey` o un `label` ya resuelto.
 const PLATFORM_NAV_ITEMS = [
-  { to: '/dashboard/flow-designer', icon: <GitBranch size={17} />, label: 'Flow Designer', roles: ['admin', 'redactor'] },
-  { to: '/dashboard/agents',        icon: <Bot size={17} />,        label: 'Agentes',       roles: ['admin', 'redactor'] },
-  { to: '/dashboard/flows',         icon: <Zap size={17} />,        label: 'Flujos',        roles: ['admin', 'redactor'] },
-  { to: '/dashboard/documents',     icon: <Database size={17} />,   label: 'Documentos',    roles: ['admin', 'redactor'] },
-  { to: '/dashboard/users',         icon: <Users size={17} />,      label: 'Usuarios',      roles: ['admin'] },
+  { to: '/dashboard/flow-designer', icon: <GitBranch size={17} />, labelKey: 'dashboard.nav.flowDesigner', roles: ['admin', 'redactor'] },
+  { to: '/dashboard/agents',        icon: <Bot size={17} />,        labelKey: 'dashboard.nav.agents',       roles: ['admin', 'redactor'] },
+  { to: '/dashboard/flows',         icon: <Zap size={17} />,        labelKey: 'dashboard.nav.flows',        roles: ['admin', 'redactor'] },
+  { to: '/dashboard/documents',     icon: <Database size={17} />,   labelKey: 'dashboard.nav.documents',    roles: ['admin', 'redactor'] },
+  { to: '/dashboard/users',         icon: <Users size={17} />,      labelKey: 'dashboard.nav.users',        roles: ['admin'] },
 ];
 
 //: Builder + proyecto, en el orden en que se leen: las vistas de consumo van
@@ -59,6 +62,7 @@ const navItems = () => {
 };
 
 export default function DashboardPage() {
+  const { t, formatDate } = useTranslation();
   const { user, logout } = useAuthStore();
   const { activeProject } = useProjectStore();
   const navigate = useNavigate();
@@ -117,7 +121,7 @@ export default function DashboardPage() {
   const handleLogout = () => {
     const projectName = activeProject?.name;
     logout();
-    toast.success('Sesión cerrada');
+    toast.success(t('dashboard.loggedOut'));
     navigate('/auth', projectName ? { state: { projectName } } : undefined);
   };
 
@@ -136,7 +140,7 @@ export default function DashboardPage() {
           return (
             <button
               onClick={() => navigate('/projects')}
-              title="Cambiar proyecto"
+              title={t('dashboard.changeProject')}
               style={{
                 display: 'flex', alignItems: 'center', gap: 10,
                 background: 'none', border: 'none', cursor: 'pointer',
@@ -163,7 +167,7 @@ export default function DashboardPage() {
                   {activeProject.name}
                 </div>
                 <div style={{ color: 'var(--text-muted)', fontSize: '0.7rem', marginTop: 1 }}>
-                  {USE_CASE_LABEL[activeProject.use_case_type] ?? activeProject.use_case_type}
+                  {USE_CASE_LABEL[activeProject.use_case_type] ? t(USE_CASE_LABEL[activeProject.use_case_type]) : activeProject.use_case_type}
                 </div>
               </div>
               <ChevronDown size={13} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
@@ -181,7 +185,7 @@ export default function DashboardPage() {
         )}
 
         <nav className="sidebar-nav">
-          <div className="nav-section-title">Workspace</div>
+          <div className="nav-section-title">{t('dashboard.nav.workspace')}</div>
           {navItems().filter(item => item.roles.includes(role)).map(item => (
             <NavLink
               key={item.to}
@@ -189,7 +193,7 @@ export default function DashboardPage() {
               className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
             >
               {item.icon}
-              {item.label}
+              {item.labelKey ? t(item.labelKey) : item.label}
             </NavLink>
           ))}
         </nav>
@@ -200,12 +204,12 @@ export default function DashboardPage() {
             className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
           >
             <Settings size={17} />
-            Configuración
+            {t('dashboard.nav.settings')}
           </NavLink>
           <button className="nav-item btn-ghost w-full" onClick={handleLogout}
             style={{ border: 'none', cursor: 'pointer', textAlign: 'left' }}>
             <LogOut size={17} />
-            Cerrar sesión
+            {t('dashboard.nav.logout')}
           </button>
         </div>
       </aside>
@@ -219,7 +223,7 @@ export default function DashboardPage() {
             <div className="relative" ref={notifRef}>
               <button className="btn btn-ghost btn-icon" style={{ position: 'relative' }}
                 onClick={() => setShowNotifs(v => !v)}
-                aria-label={`Notificaciones${unread ? ` (${unread} sin leer)` : ''}`}>
+                aria-label={unread ? t('dashboard.notificationsAriaUnread', { count: unread }) : t('dashboard.notificationsAria')}>
                 <Bell size={18} />
                 {unread > 0 && (
                   <span style={{
@@ -241,17 +245,17 @@ export default function DashboardPage() {
                   overflow: 'hidden',
                 }}>
                   <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border-default)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span style={{ fontWeight: 600, fontSize: 'var(--font-size-sm)' }}>Notificaciones {unread > 0 && <span style={{ color: 'var(--error)' }}>({unread} nuevas)</span>}</span>
+                    <span style={{ fontWeight: 600, fontSize: 'var(--font-size-sm)' }}>{t('dashboard.notifications')} {unread > 0 && <span style={{ color: 'var(--error)' }}>{t('dashboard.newCount', { count: unread })}</span>}</span>
                     {unread > 0 && (
-                      <button onClick={handleMarkAllRead} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: 'var(--text-muted)', padding: 0 }} aria-label="Marcar todas como leídas">
-                        Marcar todas
+                      <button onClick={handleMarkAllRead} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: 'var(--text-muted)', padding: 0 }} aria-label={t('dashboard.markAllAria')}>
+                        {t('dashboard.markAll')}
                       </button>
                     )}
                   </div>
                   <div style={{ maxHeight: 360, overflowY: 'auto' }}>
                     {notifications.length === 0 ? (
                       <div style={{ padding: '24px 16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 'var(--font-size-sm)' }}>
-                        Sin notificaciones
+                        {t('dashboard.noNotifications')}
                       </div>
                     ) : notifications.map(n => (
                       <div key={n.id}
@@ -269,7 +273,7 @@ export default function DashboardPage() {
                         </div>
                         <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>{n.message}</div>
                         <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>
-                          {new Date(n.created_at).toLocaleString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                          {formatDate(n.created_at, { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
                         </div>
                       </div>
                     ))}

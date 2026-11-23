@@ -7,15 +7,17 @@ import {
 import { agentsApi } from '../../api/agents';
 import Modal from '../ui/Modal';
 import toast from 'react-hot-toast';
+import { Trans, useTranslation } from '../../i18n';
 
 const TABS = [
-  { id: 'md', icon: 'Markdown', label: 'Markdown' },
-  { id: 'params', icon: 'Parametros', label: 'Parámetros' },
-  { id: 'rag', icon: 'RAG', label: 'RAG' },
+  { id: 'md', icon: 'Markdown', labelKey: 'agentEditor.tabs.md' },
+  { id: 'params', icon: 'Parametros', labelKey: 'agentEditor.tabs.params' },
+  { id: 'rag', icon: 'RAG', labelKey: 'agentEditor.tabs.rag' },
 ];
 
 /** Render a compact model selector used by the agent editor. */
 function ModelSelector({ value, onChange, models }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -39,7 +41,7 @@ function ModelSelector({ value, onChange, models }) {
         aria-haspopup="listbox"
         aria-expanded={open}
       >
-        <span>{value || 'Selecciona modelo'}</span>
+        <span>{value || t('agentEditor.model.select')}</span>
         <ChevronDown size={14} style={{ flexShrink: 0, color: 'var(--text-muted)' }} />
       </button>
 
@@ -75,9 +77,9 @@ function ModelSelector({ value, onChange, models }) {
           <li style={{ borderTop: '1px solid var(--border-subtle)', padding: '4px 8px' }}>
             <input
               className="input"
-              placeholder="Otro modelo..."
+              placeholder={t('agentEditor.model.other')}
               style={{ fontSize: 'var(--font-size-xs)', padding: '4px 8px' }}
-              aria-label="Nombre de modelo personalizado"
+              aria-label={t('agentEditor.model.customAria')}
               onKeyDown={(event) => {
                 if (event.key === 'Enter' && event.target.value.trim()) {
                   onChange(event.target.value.trim());
@@ -94,6 +96,7 @@ function ModelSelector({ value, onChange, models }) {
 
 /** Render the RAG documents panel for a single agent profile. */
 function RagTab({ agentName, ragCollection, ragChunkSize, ragChunkOverlap, onCollectionChange, ragDocIds = [], onDocIdsChange }) {
+  const { t } = useTranslation();
   const [docs, setDocs] = useState(null);
   const [libraryCollections, setLibraryCollections] = useState([]);
   const [uploading, setUploading] = useState(false);
@@ -112,7 +115,7 @@ function RagTab({ agentName, ragCollection, ragChunkSize, ragChunkOverlap, onCol
       const response = await agentsApi.getRagDocuments(agentName);
       setDocs(response.documents || []);
     } catch (error) {
-      setLoadError(error?.response?.data?.detail || 'No se pudo consultar Qdrant');
+      setLoadError(error?.response?.data?.detail || t('agentEditor.rag.loadError'));
       setDocs([]);
     }
   }, [agentName]);
@@ -144,9 +147,9 @@ function RagTab({ agentName, ragCollection, ragChunkSize, ragChunkOverlap, onCol
           ragChunkOverlap,
         });
         setLastIndexed(response);
-        toast.success(`${file.name} indexado (${response.chunks} chunks)`);
+        toast.success(t('agentEditor.rag.indexed', { name: file.name, chunks: response.chunks }));
       } catch (error) {
-        toast.error(error?.response?.data?.detail || `Error al subir ${file.name}`);
+        toast.error(error?.response?.data?.detail || t('agentEditor.rag.uploadError', { name: file.name }));
       } finally {
         setUploading(false);
       }
@@ -156,15 +159,15 @@ function RagTab({ agentName, ragCollection, ragChunkSize, ragChunkOverlap, onCol
 
   /** Delete a single indexed document from the agent collection. */
   const handleDelete = async (docId, filename) => {
-    if (!globalThis.confirm(`¿Eliminar "${filename}" del índice RAG?`)) {
+    if (!globalThis.confirm(t('agentEditor.rag.confirmDelete', { filename }))) {
       return;
     }
     try {
       await agentsApi.deleteRagDocument(agentName, docId);
-      toast.success('Documento eliminado');
+      toast.success(t('agentEditor.rag.deleted'));
       setDocs((current) => current.filter((item) => item.doc_id !== docId));
     } catch {
-      toast.error('Error al eliminar');
+      toast.error(t('agentEditor.rag.deleteError'));
     }
   };
 
@@ -173,7 +176,7 @@ function RagTab({ agentName, ragCollection, ragChunkSize, ragChunkOverlap, onCol
     if (loadError) return <div style={{ color: 'var(--warning)', fontSize: 'var(--font-size-sm)' }}>{loadError}</div>;
     if (docs.length === 0) return (
       <div style={{ color: 'var(--text-muted)', fontSize: 'var(--font-size-sm)', fontStyle: 'italic' }}>
-        Sin documentos indexados para este agente aún.
+        {t('agentEditor.rag.noOwnDocs')}
       </div>
     );
     return (
@@ -192,12 +195,12 @@ function RagTab({ agentName, ragCollection, ragChunkSize, ragChunkOverlap, onCol
               {doc.filename}
             </span>
             <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', flexShrink: 0 }}>
-              {doc.chunks} chunks
+              {t('documents.chunkCount', { count: doc.chunks })}
             </span>
             <button
               className="btn btn-ghost btn-sm btn-icon"
               onClick={() => handleDelete(doc.doc_id, doc.filename)}
-              aria-label={`Eliminar ${doc.filename} del RAG`}
+              aria-label={t('agentEditor.rag.deleteAria', { filename: doc.filename })}
             >
               <Trash2 size={13} style={{ color: 'var(--error)' }} />
             </button>
@@ -212,16 +215,16 @@ function RagTab({ agentName, ragCollection, ragChunkSize, ragChunkOverlap, onCol
 
       {/* ── Active collection ── */}
       <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', display: 'flex', gap: 'var(--space-4)', flexWrap: 'wrap' }}>
-        <span>Colección activa: <strong style={{ color: 'var(--text-secondary)' }}>{ragCollection || 'rag_docs'}</strong></span>
-        <span>Chunk size: <strong style={{ color: 'var(--text-secondary)' }}>{ragChunkSize}</strong></span>
-        <span>Overlap: <strong style={{ color: 'var(--text-secondary)' }}>{ragChunkOverlap}</strong></span>
+        <span>{t('agentEditor.rag.activeCollection')} <strong style={{ color: 'var(--text-secondary)' }}>{ragCollection || 'rag_docs'}</strong></span>
+        <span>{t('agentEditor.rag.chunkSizeLabel')} <strong style={{ color: 'var(--text-secondary)' }}>{ragChunkSize}</strong></span>
+        <span>{t('agentEditor.rag.overlapLabel')} <strong style={{ color: 'var(--text-secondary)' }}>{ragChunkOverlap}</strong></span>
       </div>
 
       {/* ── Library picker ── */}
       {libraryCollections.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
           <div style={{ fontSize: 'var(--font-size-xs)', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            Usar colección de la biblioteca
+            {t('agentEditor.rag.useLibraryCollection')}
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)' }}>
             {libraryCollections.map((col) => {
@@ -247,7 +250,7 @@ function RagTab({ agentName, ragCollection, ragChunkSize, ragChunkOverlap, onCol
                     transition: 'all 0.12s',
                   }}
                   aria-pressed={active}
-                  aria-label={`Usar colección ${col.name} (${col.documents.length} docs)`}
+                  aria-label={t('agentEditor.rag.useCollectionAria', { name: col.name, docs: t('documents.docCount', { count: col.documents.length }) })}
                 >
                   {col.name}
                   <span style={{ marginLeft: 6, opacity: 0.65 }}>{col.documents.length}</span>
@@ -263,7 +266,7 @@ function RagTab({ agentName, ragCollection, ragChunkSize, ragChunkOverlap, onCol
             return (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)', marginTop: 'var(--space-1)' }}>
                 <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>
-                  Elige documentos específicos (vacío = toda la colección):
+                  {t('agentEditor.rag.pickDocs')}
                 </div>
                 {col.documents.map((docItem) => {
                   const selected = ragDocIds.includes(docItem.doc_id);
@@ -288,13 +291,13 @@ function RagTab({ agentName, ragCollection, ragChunkSize, ragChunkOverlap, onCol
                             : [...ragDocIds, docItem.doc_id];
                           onDocIdsChange?.(next);
                         }}
-                        aria-label={`Incluir documento ${docItem.filename}`}
+                        aria-label={t('agentEditor.rag.includeDoc', { name: docItem.filename })}
                       />
                       <FileText size={12} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
                       <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {docItem.filename}
                       </span>
-                      <span style={{ color: 'var(--text-muted)', flexShrink: 0 }}>{docItem.chunks} chunks</span>
+                      <span style={{ color: 'var(--text-muted)', flexShrink: 0 }}>{t('documents.chunkCount', { count: docItem.chunks })}</span>
                     </label>
                   );
                 })}
@@ -305,7 +308,7 @@ function RagTab({ agentName, ragCollection, ragChunkSize, ragChunkOverlap, onCol
                     onClick={() => onDocIdsChange?.([])}
                     style={{ alignSelf: 'flex-start', fontSize: 'var(--font-size-xs)' }}
                   >
-                    Limpiar selección (usar toda la colección)
+                    {t('agentEditor.rag.clearSelection')}
                   </button>
                 )}
               </div>
@@ -314,8 +317,8 @@ function RagTab({ agentName, ragCollection, ragChunkSize, ragChunkOverlap, onCol
 
           <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>
             {ragDocIds.length > 0
-              ? `El agente buscará solo en ${ragDocIds.length} documento(s) seleccionado(s).`
-              : 'Al seleccionar una colección, el agente consultará todos sus vectores como contexto RAG.'}
+              ? t('agentEditor.rag.searchOnly', { count: ragDocIds.length })
+              : t('agentEditor.rag.searchAll')}
           </div>
         </div>
       )}
@@ -323,19 +326,19 @@ function RagTab({ agentName, ragCollection, ragChunkSize, ragChunkOverlap, onCol
       {/* ── Upload new doc ── */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
         <div style={{ fontSize: 'var(--font-size-xs)', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-          Subir nuevo documento
+          {t('agentEditor.rag.uploadNew')}
         </div>
 
         {lastIndexed && (
           <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--success)' }}>
-            Indexado: {lastIndexed.filename} · {lastIndexed.chunks} chunks en "{lastIndexed.collection}"
+            {t('agentEditor.rag.lastIndexed', { filename: lastIndexed.filename, chunks: lastIndexed.chunks, collection: lastIndexed.collection })}
           </div>
         )}
 
         <div
           role="button"
           tabIndex={0}
-          aria-label="Zona de carga de archivos RAG"
+          aria-label={t('agentEditor.rag.dropzoneAria')}
           onDragOver={(event) => { event.preventDefault(); setDragging(true); }}
           onDragLeave={() => setDragging(false)}
           onDrop={(event) => {
@@ -345,7 +348,7 @@ function RagTab({ agentName, ragCollection, ragChunkSize, ragChunkOverlap, onCol
               ['.txt', '.md', '.pdf'].some((ext) => file.name.toLowerCase().endsWith(ext))
             );
             if (files.length) handleFiles(files);
-            else toast.error('Solo .txt, .md y .pdf son aceptados');
+            else toast.error(t('agentEditor.rag.onlyAccepted'));
           }}
           onClick={() => inputRef.current?.click()}
           onKeyDown={(event) => {
@@ -362,14 +365,14 @@ function RagTab({ agentName, ragCollection, ragChunkSize, ragChunkOverlap, onCol
           {uploading ? (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
               <Loader size={20} style={{ color: 'var(--brand-primary)' }} />
-              <span style={{ fontSize: 'var(--font-size-sm)', color: 'var(--text-muted)' }}>Indexando...</span>
+              <span style={{ fontSize: 'var(--font-size-sm)', color: 'var(--text-muted)' }}>{t('agentEditor.rag.indexing')}</span>
             </div>
           ) : (
             <>
               <Upload size={20} style={{ color: 'var(--text-muted)', marginBottom: 6 }} />
-              <div style={{ fontSize: 'var(--font-size-sm)', fontWeight: 500 }}>Arrastra archivos o haz clic</div>
+              <div style={{ fontSize: 'var(--font-size-sm)', fontWeight: 500 }}>{t('agentEditor.rag.dropOrClick')}</div>
               <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', marginTop: 4 }}>
-                .txt · .md · .pdf — máx. 10 MB
+                {t('agentEditor.rag.limits')}
               </div>
             </>
           )}
@@ -379,7 +382,7 @@ function RagTab({ agentName, ragCollection, ragChunkSize, ragChunkOverlap, onCol
             accept=".txt,.md,.pdf,.docx"
             multiple
             style={{ display: 'none' }}
-            aria-label="Seleccionar archivo RAG"
+            aria-label={t('agentEditor.rag.fileAria')}
             onChange={(event) => { if (event.target.files?.length) handleFiles(Array.from(event.target.files)); }}
           />
         </div>
@@ -388,7 +391,7 @@ function RagTab({ agentName, ragCollection, ragChunkSize, ragChunkOverlap, onCol
       {/* ── Own indexed docs (only shown when not using library collection) ── */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
         <div style={{ fontSize: 'var(--font-size-xs)', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-          Documentos propios del agente
+          {t('agentEditor.rag.ownDocs')}
         </div>
         {ragDocIds.length > 0 ? (
           <div style={{
@@ -400,9 +403,9 @@ function RagTab({ agentName, ragCollection, ragChunkSize, ragChunkOverlap, onCol
             fontSize: 'var(--font-size-sm)',
             color: 'var(--brand-primary)',
           }}>
-            <span style={{ fontWeight: 600, flexShrink: 0 }}>✓ Activo:</span>
+            <span style={{ fontWeight: 600, flexShrink: 0 }}>{t('agentEditor.rag.active')}</span>
             <span>
-              El agente usará {ragDocIds.length === 1 ? 'el documento seleccionado' : `${ragDocIds.length} documentos seleccionados`} de la colección <strong>{ragCollection}</strong>. Los documentos propios no se usarán mientras haya una selección de biblioteca activa.
+              <Trans i18nKey="agentEditor.rag.activeSelection" values={{ count: ragDocIds.length, collection: ragCollection }} />
             </span>
           </div>
         ) : ownDocsContent}
@@ -416,6 +419,7 @@ function RagTab({ agentName, ragCollection, ragChunkSize, ragChunkOverlap, onCol
 
 /** Edit an agent profile and persist changes through the backend API. */
 export function AgentEditorModal({ agent, isBuiltin, models, onClose, onSaved, onDeleted }) {
+  const { t } = useTranslation();
   const [tab, setTab] = useState('md');
   const [mdContent, setMdContent] = useState(agent.content || `# ${agent.slug || agent.name}\n\nDescripción.\n`);
   const [params, setParams] = useState(() => {
@@ -468,10 +472,10 @@ export function AgentEditorModal({ agent, isBuiltin, models, onClose, onSaved, o
     setSaving(true);
     try {
       await agentsApi.updateClaudeDef(profileId, tab === 'markdown' ? mdContent : JSON.stringify(params));
-      toast.success('Agente guardado');
+      toast.success(t('agentEditor.saved'));
       await onSaved();
     } catch {
-      toast.error('Error al guardar');
+      toast.error(t('agentEditor.saveError'));
     } finally {
       setSaving(false);
     }
@@ -479,16 +483,16 @@ export function AgentEditorModal({ agent, isBuiltin, models, onClose, onSaved, o
 
   /** Delete the current custom agent profile from the backend. */
   const handleDelete = async () => {
-    if (!globalThis.confirm(`¿Eliminar el agente "${agent.name || agent.slug}"? No se puede deshacer.`)) {
+    if (!globalThis.confirm(t('agentEditor.confirmDelete', { name: agent.name || agent.slug }))) {
       return;
     }
 
     try {
       await agentsApi.deleteClaudeDef(profileId);
-      toast.success('Agente eliminado');
+      toast.success(t('agentEditor.deleted'));
       onDeleted(agent.id);
     } catch (error) {
-      toast.error(error?.response?.data?.detail || 'Error al eliminar');
+      toast.error(error?.response?.data?.detail || t('agentEditor.deleteError'));
     }
   };
 
@@ -496,15 +500,15 @@ export function AgentEditorModal({ agent, isBuiltin, models, onClose, onSaved, o
     <Modal
       onClose={onClose}
       size="lg"
-      title={`Editar — ${agent.name || agent.slug}`}
+      title={t('agentEditor.title', { name: agent.name || agent.slug })}
       headerActions={!isBuiltin && (
         <button
           className="btn btn-ghost btn-sm"
           onClick={handleDelete}
           style={{ color: 'var(--error)' }}
-          aria-label="Eliminar agente"
+          aria-label={t('agentEditor.deleteAria')}
         >
-          <Trash2 size={13} /> Eliminar
+          <Trash2 size={13} /> {t('agentEditor.delete')}
         </button>
       )}
     >
@@ -527,7 +531,7 @@ export function AgentEditorModal({ agent, isBuiltin, models, onClose, onSaved, o
                 }}
               >
                 {tabItem.id === 'params' ? <Sliders size={13} /> : tabItem.id === 'rag' ? <Database size={13} /> : null}
-                {tabItem.label}
+                {t(tabItem.labelKey)}
               </button>
             ))}
           </div>
@@ -539,18 +543,18 @@ export function AgentEditorModal({ agent, isBuiltin, models, onClose, onSaved, o
                 style={{ minHeight: 320, fontFamily: 'var(--font-mono)', fontSize: 'var(--font-size-xs)', lineHeight: 1.7 }}
                 value={mdContent}
                 onChange={(event) => setMdContent(event.target.value)}
-                aria-label="Contenido Markdown del agente"
+                aria-label={t('agentEditor.markdownAria')}
               />
             )}
 
             {tab === 'params' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
                 <div className="input-group">
-                  <label className="input-label">Modelo (Ollama)</label>
+                  <label className="input-label">{t('agentEditor.modelLabel')}</label>
                   <ModelSelector value={params.model} onChange={(value) => setParams((current) => ({ ...current, model: value }))} models={models} />
                 </div>
                 <div className="input-group">
-                  <label className="input-label">Temperature <strong>{params.temperature}</strong></label>
+                  <label className="input-label">{t('agentEditor.temperature')} <strong>{params.temperature}</strong></label>
                   <input
                     type="range"
                     min="0"
@@ -559,44 +563,47 @@ export function AgentEditorModal({ agent, isBuiltin, models, onClose, onSaved, o
                     value={params.temperature}
                     onChange={(event) => setParams((current) => ({ ...current, temperature: Number.parseFloat(event.target.value) }))}
                     style={{ width: '100%', accentColor: 'var(--brand-primary)' }}
-                    aria-label={`Temperature: ${params.temperature}`}
+                    aria-label={t('agentEditor.temperatureAria', { value: params.temperature })}
                   />
                 </div>
                 <div className="input-group">
-                  <label className="input-label">Prompt template</label>
+                  <label className="input-label">{t('agentEditor.promptTemplate')}</label>
                   <textarea
                     className="input"
                     rows={5}
                     value={params.prompt_template}
                     onChange={(event) => setParams((current) => ({ ...current, prompt_template: event.target.value }))}
                     placeholder={isRedactor
-                      ? 'Deja vacío para usar el prompt por defecto.\n\nVariables disponibles:\n{title} — título del artículo\n{keywords} — palabras clave\n{research_data} — contexto del investigador\n{feedback_section} — feedback del revisor (si aplica)'
-                      : 'Usa {title}, {context}, {feedback} como variables...'}
+                      ? t('agentEditor.promptPlaceholderRedactor')
+                      : t('agentEditor.promptPlaceholderDefault')}
                   />
                 </div>
 
                 {isRedactor && (
                   <div className="input-group">
-                    <label className="input-label">Idioma de redacción</label>
+                    <label className="input-label">{t('agentEditor.language.label')}</label>
                     <select
                       className="input"
                       value={params.output_language}
                       onChange={(event) => setParams((current) => ({ ...current, output_language: event.target.value }))}
-                      aria-label="Seleccionar idioma de redacción"
+                      aria-label={t('agentEditor.language.aria')}
                     >
-                      <option value="es">Español</option>
-                      <option value="en">English</option>
+                      <option value="es">{t('agentEditor.language.es')}</option>
+                      <option value="en">{t('agentEditor.language.en')}</option>
                     </select>
                     <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', marginTop: 4 }}>
-                      El redactor generará el borrador completo en este idioma.
-                      Idioma activo: <strong style={{ color: 'var(--text-secondary)' }}>{params.output_language === 'es' ? 'Español' : 'English'}</strong>
+                      <Trans
+                        i18nKey="agentEditor.language.hint"
+                        values={{ language: params.output_language === 'es' ? t('agentEditor.language.es') : t('agentEditor.language.en') }}
+                        components={{ strong: <strong style={{ color: 'var(--text-secondary)' }} /> }}
+                      />
                     </div>
                   </div>
                 )}
 
                 {isRedactor && (
                   <div className="input-group">
-                    <label className="input-label" htmlFor="target-word-count">Cantidad de palabras objetivo</label>
+                    <label className="input-label" htmlFor="target-word-count">{t('agentEditor.words.label')}</label>
                     <input
                       id="target-word-count"
                       type="number"
@@ -605,37 +612,39 @@ export function AgentEditorModal({ agent, isBuiltin, models, onClose, onSaved, o
                       step={100}
                       value={params.target_word_count}
                       onChange={(event) => setParams((current) => ({ ...current, target_word_count: parseInt(event.target.value, 10) || 0 }))}
-                      placeholder="0 = sin límite"
-                      aria-label="Cantidad de palabras objetivo para el borrador"
+                      placeholder={t('agentEditor.words.placeholder')}
+                      aria-label={t('agentEditor.words.aria')}
                     />
                     <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', marginTop: 4 }}>
-                      Orientativo: el modelo intentará ajustar la extensión del borrador.
                       {params.target_word_count > 0
-                        ? <> Objetivo: <strong style={{ color: 'var(--text-secondary)' }}>{params.target_word_count} palabras</strong></>
-                        : ' Sin límite definido.'}
+                        ? <Trans i18nKey="agentEditor.words.hintTarget" values={{ count: params.target_word_count }} components={{ strong: <strong style={{ color: 'var(--text-secondary)' }} /> }} />
+                        : t('agentEditor.words.hintNoLimit')}
                     </div>
                   </div>
                 )}
 
                 {isFormateador && (
                   <div className="input-group">
-                    <label className="input-label">Formato científico por defecto</label>
+                    <label className="input-label">{t('agentEditor.format.label')}</label>
                     <select
                       className="input"
                       value={params.scientific_format}
                       onChange={(event) => setParams((current) => ({ ...current, scientific_format: event.target.value }))}
-                      aria-label="Seleccionar formato científico"
+                      aria-label={t('agentEditor.format.aria')}
                     >
-                      <option value="apa">APA 7th edition — (Autor, Año)</option>
-                      <option value="ieee">IEEE — [1], [2] numerados</option>
-                      <option value="acl">ACL (conferencia) — (Autor et al., Año)</option>
-                      <option value="vancouver">Vancouver — numeración secuencial</option>
-                      <option value="chicago">Chicago 17th edition — (Autor Año)</option>
-                      <option value="nature">Nature / NLM — superíndices numerados</option>
+                      <option value="apa">{t('agentEditor.format.apa')}</option>
+                      <option value="ieee">{t('agentEditor.format.ieee')}</option>
+                      <option value="acl">{t('agentEditor.format.acl')}</option>
+                      <option value="vancouver">{t('agentEditor.format.vancouver')}</option>
+                      <option value="chicago">{t('agentEditor.format.chicago')}</option>
+                      <option value="nature">{t('agentEditor.format.nature')}</option>
                     </select>
                     <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', marginTop: 4 }}>
-                      El formateador aplicará este estilo de citas a todos los borradores que procese.
-                      Formato activo: <strong style={{ color: 'var(--text-secondary)' }}>{params.scientific_format.toUpperCase()}</strong>
+                      <Trans
+                        i18nKey="agentEditor.format.hint"
+                        values={{ format: params.scientific_format.toUpperCase() }}
+                        components={{ strong: <strong style={{ color: 'var(--text-secondary)' }} /> }}
+                      />
                     </div>
                   </div>
                 )}
@@ -657,7 +666,7 @@ export function AgentEditorModal({ agent, isBuiltin, models, onClose, onSaved, o
                       style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}
                     >
                       <div className={`toggle ${params.rag_enabled ? 'on' : ''}`} aria-hidden="true" />
-                      <span className="toggle-label">RAG habilitado</span>
+                      <span className="toggle-label">{t('agentEditor.ragEnabled')}</span>
                     </div>
 
                     {params.rag_enabled && (
@@ -690,7 +699,7 @@ export function AgentEditorModal({ agent, isBuiltin, models, onClose, onSaved, o
                           style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}
                         >
                           <div className={`toggle ${params.graph_rag_enabled ? 'on' : ''}`} aria-hidden="true" />
-                          <span className="toggle-label" style={{ fontSize: 'var(--font-size-xs)' }}>Graph RAG</span>
+                          <span className="toggle-label" style={{ fontSize: 'var(--font-size-xs)' }}>{t('agentEditor.graphRag')}</span>
                         </div>
 
                         <div
@@ -721,7 +730,7 @@ export function AgentEditorModal({ agent, isBuiltin, models, onClose, onSaved, o
                           style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}
                         >
                           <div className={`toggle ${params.semantic_search_enabled ? 'on' : ''}`} aria-hidden="true" />
-                          <span className="toggle-label" style={{ fontSize: 'var(--font-size-xs)' }}>Búsqueda Semántica</span>
+                          <span className="toggle-label" style={{ fontSize: 'var(--font-size-xs)' }}>{t('agentEditor.semanticSearch')}</span>
                         </div>
                       </div>
                     )}
@@ -729,7 +738,7 @@ export function AgentEditorModal({ agent, isBuiltin, models, onClose, onSaved, o
                     {params.rag_enabled && (
                       <>
                         <div className="input-group">
-                          <label className="input-label">Colección RAG</label>
+                          <label className="input-label">{t('agentEditor.ragCollection')}</label>
                           <input
                             className="input"
                             value={params.rag_collection}
@@ -739,7 +748,7 @@ export function AgentEditorModal({ agent, isBuiltin, models, onClose, onSaved, o
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 'var(--space-3)' }}>
                           <div className="input-group">
-                            <label className="input-label">Chunk size</label>
+                            <label className="input-label">{t('agentEditor.chunkSize')}</label>
                             <input
                               className="input"
                               type="number"
@@ -750,7 +759,7 @@ export function AgentEditorModal({ agent, isBuiltin, models, onClose, onSaved, o
                             />
                           </div>
                           <div className="input-group">
-                            <label className="input-label">Overlap</label>
+                            <label className="input-label">{t('agentEditor.overlap')}</label>
                             <input
                               className="input"
                               type="number"
@@ -770,7 +779,7 @@ export function AgentEditorModal({ agent, isBuiltin, models, onClose, onSaved, o
                     borderRadius: 'var(--radius-md)', padding: 'var(--space-3) var(--space-4)',
                     fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', lineHeight: 1.6,
                   }}>
-                    Este agente tiene un adaptador propio y no consulta RAG directamente. El contexto de investigación le llega a través del estado del pipeline (campo <code>research_data</code>).
+                    <Trans i18nKey="agentEditor.ownAdapterNote" />
                   </div>
                 )}
               </div>
@@ -794,17 +803,17 @@ export function AgentEditorModal({ agent, isBuiltin, models, onClose, onSaved, o
 
         {(tab !== 'rag') && (
           <div className="modal-footer">
-            <button className="btn btn-ghost" onClick={onClose}>Cancelar</button>
+            <button className="btn btn-ghost" onClick={onClose}>{t('agentEditor.cancel')}</button>
             <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
-              <Save size={14} /> {saving ? 'Guardando...' : 'Guardar cambios'}
+              <Save size={14} /> {saving ? t('agentEditor.saving') : t('agentEditor.saveChanges')}
             </button>
           </div>
         )}
         {tab === 'rag' && (
           <div className="modal-footer">
-            <button className="btn btn-ghost" onClick={onClose}>Cerrar</button>
+            <button className="btn btn-ghost" onClick={onClose}>{t('agentEditor.close')}</button>
             <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
-              <Save size={14} /> {saving ? 'Guardando...' : 'Guardar colección'}
+              <Save size={14} /> {saving ? t('agentEditor.saving') : t('agentEditor.saveCollection')}
             </button>
           </div>
         )}
@@ -814,6 +823,7 @@ export function AgentEditorModal({ agent, isBuiltin, models, onClose, onSaved, o
 
 /** Create a new agent profile and persist it through the backend API. */
 export function AgentCreateModal({ builtInIds, onClose, onCreate }) {
+  const { t } = useTranslation();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [model, setModel] = useState('llama3.2:1b');
@@ -832,9 +842,9 @@ export function AgentCreateModal({ builtInIds, onClose, onCreate }) {
   }, []);
 
   const validateName = (value) => {
-    if (!value) return 'Nombre requerido';
-    if (!/^[a-z0-9_-]+$/.test(value)) return 'Solo minúsculas, números, guiones y guiones bajos';
-    if (builtInIds.has(value)) return 'Ese nombre está reservado';
+    if (!value) return t('agentEditor.create.nameRequired');
+    if (!/^[a-z0-9_-]+$/.test(value)) return t('agentEditor.create.nameInvalid');
+    if (builtInIds.has(value)) return t('agentEditor.create.nameReserved');
     return '';
   };
 
@@ -858,17 +868,17 @@ export function AgentCreateModal({ builtInIds, onClose, onCreate }) {
       });
       onClose();
     } catch (error) {
-      toast.error(error?.response?.data?.detail || 'Error al crear agente');
+      toast.error(error?.response?.data?.detail || t('agentEditor.create.error'));
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <Modal onClose={onClose} title="Nuevo agente personalizado" panelStyle={{ maxWidth: 480 }}>
+    <Modal onClose={onClose} title={t('agentEditor.create.title')} panelStyle={{ maxWidth: 480 }}>
         <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
           <div className="input-group">
-            <label className="input-label" htmlFor="new-agent-name">Identificador <span aria-hidden="true">*</span></label>
+            <label className="input-label" htmlFor="new-agent-name">{t('agentEditor.create.identifier')} <span aria-hidden="true">*</span></label>
             <input
               id="new-agent-name"
               className="input"
@@ -877,7 +887,7 @@ export function AgentCreateModal({ builtInIds, onClose, onCreate }) {
                 setName(event.target.value.toLowerCase());
                 setNameError('');
               }}
-              placeholder="mi-agente-custom"
+              placeholder={t('agentEditor.create.identifierPlaceholder')}
               aria-describedby={nameError ? 'name-error' : undefined}
             />
             {nameError && (
@@ -887,18 +897,18 @@ export function AgentCreateModal({ builtInIds, onClose, onCreate }) {
             )}
           </div>
           <div className="input-group">
-            <label className="input-label" htmlFor="new-agent-desc">Descripción</label>
+            <label className="input-label" htmlFor="new-agent-desc">{t('agentEditor.create.description')}</label>
             <textarea
               id="new-agent-desc"
               className="input"
               rows={3}
               value={description}
               onChange={(event) => setDescription(event.target.value)}
-              placeholder="¿Qué hace este agente?"
+              placeholder={t('agentEditor.create.descriptionPlaceholder')}
             />
           </div>
           <div className="input-group">
-            <label className="input-label">Modelo por defecto</label>
+            <label className="input-label">{t('agentEditor.create.defaultModel')}</label>
             <ModelSelector value={model} onChange={setModel} models={models} />
           </div>
           <div
@@ -915,12 +925,12 @@ export function AgentCreateModal({ builtInIds, onClose, onCreate }) {
             style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}
           >
             <div className={`toggle ${ragEnabled ? 'on' : ''}`} aria-hidden="true" />
-            <span className="toggle-label">RAG habilitado</span>
+            <span className="toggle-label">{t('agentEditor.ragEnabled')}</span>
           </div>
           {ragEnabled && (
             <>
               <div className="input-group">
-                <label className="input-label" htmlFor="new-agent-rag">Colección RAG</label>
+                <label className="input-label" htmlFor="new-agent-rag">{t('agentEditor.ragCollection')}</label>
                 <input
                   id="new-agent-rag"
                   className="input"
@@ -931,7 +941,7 @@ export function AgentCreateModal({ builtInIds, onClose, onCreate }) {
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 'var(--space-3)' }}>
                 <div className="input-group">
-                  <label className="input-label" htmlFor="new-agent-chunk-size">Chunk size</label>
+                  <label className="input-label" htmlFor="new-agent-chunk-size">{t('agentEditor.chunkSize')}</label>
                   <input
                     id="new-agent-chunk-size"
                     className="input"
@@ -943,7 +953,7 @@ export function AgentCreateModal({ builtInIds, onClose, onCreate }) {
                   />
                 </div>
                 <div className="input-group">
-                  <label className="input-label" htmlFor="new-agent-chunk-overlap">Overlap</label>
+                  <label className="input-label" htmlFor="new-agent-chunk-overlap">{t('agentEditor.overlap')}</label>
                   <input
                     id="new-agent-chunk-overlap"
                     className="input"
@@ -959,9 +969,9 @@ export function AgentCreateModal({ builtInIds, onClose, onCreate }) {
           )}
         </div>
         <div className="modal-footer">
-          <button className="btn btn-ghost" onClick={onClose}>Cancelar</button>
+          <button className="btn btn-ghost" onClick={onClose}>{t('agentEditor.cancel')}</button>
           <button className="btn btn-primary" onClick={handleSubmit} disabled={saving}>
-            {saving ? 'Creando...' : 'Crear agente'}
+            {saving ? t('agentEditor.create.creating') : t('agentEditor.create.create')}
           </button>
         </div>
     </Modal>
