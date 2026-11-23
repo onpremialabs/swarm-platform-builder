@@ -5,9 +5,10 @@ import { ArrowLeft, Save, Loader, Columns2, Columns3, ImagePlus } from 'lucide-r
 import { articlesApi } from '../api/articles';
 import toast from 'react-hot-toast';
 import { PAPER_ACCENTS } from '../paperTheme';
+import { tr, useT } from '../i18n/useT';
 
 /**
- * Paper design studio: edit the article's text and presentation with a live
+ * Paper design studio: edit the text of the article and presentation with a live
  * preview of the final layout (SPEC-022 / T11.4).
  *
  * The preview is rendered **server-side** by the same function that produces the
@@ -28,22 +29,23 @@ const FONTS = [
   { value: 'verdana', label: 'Verdana', preview: 'Verdana, sans-serif' },
 ];
 
-// Espejo de `_THEME_ACCENTS` del backend: son los colores del **paper**, no de la
+// Espejo de «_THEME_ACCENTS» del backend: son los colores del **paper**, no de la
 // interfaz. Ver el porqué en src/paperTheme.js.
 const ACCENTS = PAPER_ACCENTS;
 
 const FORMATS = [
-  { value: 'apa', label: 'APA (1 columna)' },
-  { value: 'ieee', label: 'IEEE (2 columnas)' },
-  { value: 'acl', label: 'ACL — conferencia (2 columnas)' },
-  { value: 'vancouver', label: 'Vancouver' },
-  { value: 'chicago', label: 'Chicago' },
-  { value: 'nature', label: 'Nature' },
+  { value: 'apa', label: 'paperDesign.format.apa' },
+  { value: 'ieee', label: 'paperDesign.format.ieee' },
+  { value: 'acl', label: 'paperDesign.format.acl' },
+  { value: 'vancouver', label: 'paperDesign.format.vancouver' },
+  { value: 'chicago', label: 'paperDesign.format.chicago' },
+  { value: 'nature', label: 'paperDesign.format.nature' },
 ];
 
 const PREVIEW_DEBOUNCE_MS = 400;   // AC3 requires the repaint within 1 s of the last change
 
 export default function PaperDesignPage() {
+  const { t } = useT();
   const { id } = useParams();
   const navigate = useNavigate();
 
@@ -85,7 +87,7 @@ export default function PaperDesignPage() {
         setPreviewKey(k => k + 1);
       }
     } catch {
-      if (seq === requestSeq.current) toast.error('No se pudo generar la vista previa');
+      if (seq === requestSeq.current) toast.error(tr('paperDesign.previewError'));
     } finally {
       if (seq === requestSeq.current) setRendering(false);
     }
@@ -94,8 +96,8 @@ export default function PaperDesignPage() {
   // Debounced repaint: one request after the user stops typing / clicking.
   useEffect(() => {
     if (!draft) return undefined;
-    const t = setTimeout(() => renderPreview(draft), PREVIEW_DEBOUNCE_MS);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => renderPreview(draft), PREVIEW_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
   }, [draft, renderPreview]);
 
   const update = (patch) => {
@@ -114,19 +116,19 @@ export default function PaperDesignPage() {
       // Append the reference at the end of the body; the preview picks it up on
       // the next debounce tick, so the figure shows up without a manual step.
       update({ body: `${draft.body}\n\n${asset.markdown}\n` });
-      toast.success('Figura insertada');
+      toast.success(tr('paperDesign.figureInserted'));
     } catch (e) {
       const detail = e?.response?.data?.detail;
-      toast.error(detail || 'No se pudo subir la figura');
+      toast.error(detail || tr('paperDesign.figureError'));
     }
   };
 
-  // «Volver» va a un destino explícito y no a `navigate(-1)` (BUG-005): la vista
+  // «Volver» va a un destino explícito y no a «navigate(-1)» (BUG-005): la vista
   // previa es un iframe que se repinta con cada edición, y cada repintado puede
-  // dejar una entrada en el historial de sesión. `-1` se comía esa entrada en el
+  // dejar una entrada en el historial de sesión. «-1» se comía esa entrada en el
   // primer clic y solo el segundo salía de la página.
   const handleBack = () => {
-    if (dirty && !globalThis.confirm('Tienes cambios sin guardar. ¿Salir sin guardarlos?')) return;
+    if (dirty && !globalThis.confirm(t('paperDesign.unsavedConfirm'))) return;
     navigate(`/dashboard/articles/${id}`);
   };
 
@@ -141,26 +143,26 @@ export default function PaperDesignPage() {
         theme: draft.theme,
       });
       setDirty(false);
-      toast.success('Cambios guardados');
+      toast.success(tr('paperDesign.saved'));
     } catch {
-      toast.error('No se pudieron guardar los cambios');
+      toast.error(tr('paperDesign.saveError'));
     } finally {
       setSaving(false);
     }
   };
 
   if (loading) {
-    return <div className="page-body"><LoadingState label="Cargando la maquetación…" /></div>;
+    return <div className="page-body"><LoadingState label={t('paperDesign.loading')} /></div>;
   }
 
   if (error || !draft) {
     return (
       <div className="page-body">
         <ErrorState
-          title="No se pudo cargar el artículo"
-          description="Revisa que exista y que tengas permisos."
+          title={t('paperDesign.loadErrorTitle')}
+          description={t('paperDesign.loadErrorDescription')}
           onRetry={() => globalThis.location.reload()}
-          retryLabel="Volver a intentarlo"
+          retryLabel={t('paperDesign.retry')}
         />
       </div>
     );
@@ -176,18 +178,18 @@ export default function PaperDesignPage() {
         padding: 'var(--space-3) var(--space-5)', borderBottom: '1px solid var(--border-default)',
         background: 'var(--bg-surface)', flex: 'none',
       }}>
-        <button className="btn btn-ghost btn-sm" onClick={handleBack} aria-label="Volver">
-          <ArrowLeft size={15} /> Volver
+        <button className="btn btn-ghost btn-sm" onClick={handleBack} aria-label={t('common.back')}>
+          <ArrowLeft size={15} /> {t('common.back')}
         </button>
-        <strong style={{ flex: 1 }}>Diseño del paper</strong>
+        <strong style={{ flex: 1 }}>{t('paperDesign.title')}</strong>
         {rendering && (
           <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>
             <Loader size={12} style={{ animation: 'spin 1s linear infinite', verticalAlign: 'middle' }} />
-            {' '}Actualizando previa…
+            {' '}{t('paperDesign.updatingPreview')}
           </span>
         )}
         <button className="btn btn-primary btn-sm" onClick={handleSave} disabled={saving || !dirty}>
-          <Save size={15} /> {saving ? 'Guardando…' : dirty ? 'Guardar' : 'Guardado'}
+          <Save size={15} /> {saving ? t('paperDesign.saving') : dirty ? t('paperDesign.save') : t('paperDesign.savedState')}
         </button>
       </div>
 
@@ -199,26 +201,26 @@ export default function PaperDesignPage() {
           display: 'flex', flexDirection: 'column', gap: 'var(--space-5)',
         }}>
           <section>
-            <h4 style={{ margin: '0 0 var(--space-3)' }}>Formato de cita</h4>
+            <h4 style={{ margin: '0 0 var(--space-3)' }}>{t('paperDesign.citationFormat')}</h4>
             <select
               className="input" style={{ width: '100%' }}
               value={draft.scientific_format}
               onChange={e => update({ scientific_format: e.target.value })}
-              aria-label="Formato de cita"
+              aria-label={t('paperDesign.citationFormat')}
             >
-              {FORMATS.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+              {FORMATS.map(f => <option key={f.value} value={f.value}>{t(f.label)}</option>)}
             </select>
           </section>
 
           <section>
-            <h4 style={{ margin: '0 0 var(--space-3)' }}>Tipografía</h4>
+            <h4 style={{ margin: '0 0 var(--space-3)' }}>{t('paperDesign.typography')}</h4>
             <select
               className="input" style={{ width: '100%' }}
               value={draft.theme.font || ''}
               onChange={e => updateTheme({ font: e.target.value || undefined })}
-              aria-label="Tipografía"
+              aria-label={t('paperDesign.typography')}
             >
-              <option value="">(la del formato)</option>
+              <option value="">{t('paperDesign.formatDefault')}</option>
               {FONTS.map(f => (
                 <option key={f.value} value={f.value} style={{ fontFamily: f.preview }}>{f.label}</option>
               ))}
@@ -226,7 +228,7 @@ export default function PaperDesignPage() {
           </section>
 
           <section>
-            <h4 style={{ margin: '0 0 var(--space-3)' }}>Color de acento</h4>
+            <h4 style={{ margin: '0 0 var(--space-3)' }}>{t('paperDesign.accentColor')}</h4>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               {ACCENTS.map(a => {
                 const active = (draft.theme.accent_color || 'ink') === a.value;
@@ -234,8 +236,8 @@ export default function PaperDesignPage() {
                   <button
                     key={a.value}
                     onClick={() => updateTheme({ accent_color: a.value })}
-                    title={a.label}
-                    aria-label={`Acento ${a.label}`}
+                    title={t(`paperDesign.accent.${a.value}`)}
+                    aria-label={t('paperDesign.accentAria', { name: t(`paperDesign.accent.${a.value}`) })}
                     aria-pressed={active}
                     style={{
                       width: 30, height: 30, borderRadius: '50%', background: a.hex,
@@ -249,70 +251,70 @@ export default function PaperDesignPage() {
           </section>
 
           <section>
-            <h4 style={{ margin: '0 0 var(--space-3)' }}>Columnas</h4>
+            <h4 style={{ margin: '0 0 var(--space-3)' }}>{t('paperDesign.columns')}</h4>
             <div style={{ display: 'flex', gap: 8 }}>
               <button
                 className={`btn btn-sm ${columns === 1 ? 'btn-primary' : 'btn-ghost'}`}
                 onClick={() => updateTheme({ columns: 1 })} aria-pressed={columns === 1}
               >
-                <Columns2 size={14} /> Una
+                <Columns2 size={14} /> {t('paperDesign.columnsOne')}
               </button>
               <button
                 className={`btn btn-sm ${columns === 2 ? 'btn-primary' : 'btn-ghost'}`}
                 onClick={() => updateTheme({ columns: 2 })} aria-pressed={columns === 2}
               >
-                <Columns3 size={14} /> Dos
+                <Columns3 size={14} /> {t('paperDesign.columnsTwo')}
               </button>
               <button
                 className={`btn btn-sm ${!columns ? 'btn-primary' : 'btn-ghost'}`}
                 onClick={() => updateTheme({ columns: undefined })} aria-pressed={!columns}
               >
-                Auto
+                {t('paperDesign.columnsAuto')}
               </button>
             </div>
             <p style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', marginTop: 6 }}>
-              «Auto» usa las columnas propias del formato de cita.
+              {t('paperDesign.columnsAutoHint')}
             </p>
           </section>
 
           <section>
-            <h4 style={{ margin: '0 0 var(--space-3)' }}>Figuras</h4>
+            <h4 style={{ margin: '0 0 var(--space-3)' }}>{t('paperDesign.figures')}</h4>
             <label className="btn btn-ghost btn-sm" style={{ cursor: 'pointer' }}>
-              <ImagePlus size={14} /> Insertar imagen
+              <ImagePlus size={14} /> {t('paperDesign.insertImage')}
               <input
                 type="file"
                 accept=".png,.jpg,.jpeg,.gif,.webp"
                 style={{ display: 'none' }}
                 onChange={e => { handleInsertImage(e.target.files?.[0]); e.target.value = ''; }}
-                aria-label="Insertar imagen en el artículo"
+                aria-label={t('paperDesign.insertImageAria')}
               />
             </label>
             <p style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', marginTop: 6 }}>
-              Se valida por contenido real y se añade al cuerpo como
-              {' '}<code>![pie](asset:…)</code>. Máx. 5 MB.
+              {t('paperDesign.figuresHintBefore')}
+              {' '}<code>![pie](asset:…)</code>{t('paperDesign.figuresHintAfter')}
             </p>
           </section>
 
           <section>
-            <h4 style={{ margin: '0 0 var(--space-3)' }}>Contenido</h4>
-            <label style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>Título</label>
+            <h4 style={{ margin: '0 0 var(--space-3)' }}>{t('paperDesign.content')}</h4>
+            <label style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>{t('paperDesign.fieldTitle')}</label>
             <input
               className="input" style={{ width: '100%', marginBottom: 'var(--space-3)' }}
               value={draft.title} onChange={e => update({ title: e.target.value })}
-              aria-label="Título del artículo"
+              aria-label={t('paperDesign.titleAria')}
             />
-            <label style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>Abstract</label>
+            <label style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>{t('paperDesign.abstract')}</label>
             <textarea
               className="input" rows={4} style={{ width: '100%', marginBottom: 'var(--space-3)' }}
               value={draft.abstract} onChange={e => update({ abstract: e.target.value })}
-              aria-label="Abstract"
+              aria-label={t('paperDesign.abstract')}
             />
-            <label style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>Cuerpo (markdown)</label>
+            <label style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>{t('paperDesign.body')}</label>
             <textarea
               className="input" rows={14}
               style={{ width: '100%', fontFamily: 'var(--font-mono)', fontSize: 'var(--font-size-xs)' }}
               value={draft.body} onChange={e => update({ body: e.target.value })}
-              aria-label="Cuerpo del artículo"
+              aria-label={t('paperDesign.bodyAria')}
             />
           </section>
         </div>
@@ -322,9 +324,9 @@ export default function PaperDesignPage() {
           <iframe
             // Cada previa es un iframe nuevo: la primera navegación de un iframe
             // recién creado sustituye a about:blank y no añade entrada al historial,
-            // mientras que cambiar `srcdoc` de uno ya cargado sí la añade (BUG-005).
+            // mientras que cambiar «srcdoc» de uno ya cargado sí la añade (BUG-005).
             key={previewKey}
-            title="Vista previa de la maquetación"
+            title={t('paperDesign.previewTitle')}
             srcDoc={html}
             // Static HTML+CSS only: no scripts, no same-origin (T2.2).
             sandbox=""

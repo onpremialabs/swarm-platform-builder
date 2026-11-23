@@ -5,12 +5,14 @@ import { mensajeDeCarga } from '../../../platform/api/errors';
 import ReactMarkdown from 'react-markdown';
 import { ChevronLeft, ChevronRight, BookOpen, Loader } from 'lucide-react';
 import api from '../../../platform/api/client';
+import { tr, useT } from '../i18n/useT';
 
 /**
  * Public magazine page — no authentication required.
  * Displays published articles as a full-screen slideshow.
  */
 export default function MagazinePage() {
+  const { t } = useT();
   const [articles, setArticles] = useState([]);
   const [current, setCurrent] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -24,7 +26,7 @@ export default function MagazinePage() {
       // Esta es la portada pública: con `.catch(() => {})` un backend caído se
       // leía como «no hay artículos publicados aún», que es justo lo contrario
       // de lo que le interesa saber a quien llega de fuera.
-      .catch(err => setError(mensajeDeCarga(err, 'No se pudo cargar la revista')))
+      .catch(err => setError(mensajeDeCarga(err, tr('magazine.loadError'))))
       .finally(() => setLoading(false));
   }, []);
 
@@ -78,7 +80,7 @@ export default function MagazinePage() {
         {articles.length > 1 && (
           <button
             onClick={prev}
-            aria-label="Artículo anterior"
+            aria-label={t('magazine.previous')}
             style={{
               position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)',
               zIndex: 10, background: 'var(--bg-elevated)', border: '1px solid var(--border-default)',
@@ -100,12 +102,12 @@ export default function MagazinePage() {
             error={error}
             isEmpty={articles.length === 0}
             onRetry={cargar}
-            loadingLabel="Cargando la revista…"
+            loadingLabel={t('magazine.loading')}
             empty={(
               <EmptyState
                 icon={<BookOpen size={28} />}
-                title="No hay artículos publicados aún"
-                description="Vuelve pronto: los artículos aparecen aquí en cuanto se publican."
+                title={t('magazine.emptyTitle')}
+                description={t('magazine.emptyDescription')}
               />
             )}
           >
@@ -122,7 +124,7 @@ export default function MagazinePage() {
                   {article.title}
                 </h1>
                 <div style={{ fontSize: 'var(--font-size-sm)', color: 'var(--text-muted)' }}>
-                  Publicado el {new Date(article.published_at || article.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' })}
+                  {t('magazine.publishedOn', { date: new Date(article.published_at || article.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' }) })}
                 </div>
               </div>
 
@@ -139,7 +141,7 @@ export default function MagazinePage() {
         {articles.length > 1 && (
           <button
             onClick={next}
-            aria-label="Artículo siguiente"
+            aria-label={t('magazine.next')}
             style={{
               position: 'absolute', right: 16, top: '50%', transform: 'translateY(-50%)',
               zIndex: 10, background: 'var(--bg-elevated)', border: '1px solid var(--border-default)',
@@ -159,7 +161,7 @@ export default function MagazinePage() {
             <button
               key={i}
               onClick={() => setCurrent(i)}
-              aria-label={`Ir al artículo ${i + 1}`}
+              aria-label={t('magazine.goTo', { n: i + 1 })}
               style={{
                 width: i === current ? 20 : 8, height: 8, borderRadius: 4,
                 background: i === current ? 'var(--brand-primary)' : 'var(--border-default)',
