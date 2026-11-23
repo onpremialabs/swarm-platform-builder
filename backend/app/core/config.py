@@ -87,6 +87,12 @@ class Settings(BaseModel):
     LITERATURE_MAX_BACKOFF_S: float = 30.0
     #: Resultados pedidos por base y consulta.
     LITERATURE_MAX_RESULTS: int = 10
+    #: Interruptor del descubrimiento disparado por la persona autora (SPEC-034 / T22.11).
+    #: Apagado por defecto: el endpoint responde «descubrimiento desactivado» sin red.
+    LITERATURE_DISCOVERY_ENABLED: bool = False
+    #: Búsquedas por persona usuaria y ventana (0 = sin límite). Cada una sale a terceros.
+    LITERATURE_SEARCH_RATELIMIT_MAX: int = 5
+    LITERATURE_SEARCH_RATELIMIT_WINDOW_SECONDS: int = 60
     # Permite que el propietario apruebe su propio artículo, para entornos de un
     # solo usuario. **Imposible de encender con DEBUG=false** (`_DEV_ONLY_FLAGS`).
     PUBLICATION_ALLOW_SELF_APPROVAL: bool = False
@@ -346,6 +352,10 @@ def _build_settings() -> Settings:
         "LITERATURE_BACKOFF_S": float(literature.get("backoff_s", 1.0)),
         "LITERATURE_MAX_BACKOFF_S": float(literature.get("max_backoff_s", 30.0)),
         "LITERATURE_MAX_RESULTS": int(literature.get("max_results", 10)),
+        "LITERATURE_DISCOVERY_ENABLED": bool(literature.get("discovery_enabled", False)),
+        "LITERATURE_SEARCH_RATELIMIT_MAX": int(literature.get("search_ratelimit_max", 5)),
+        "LITERATURE_SEARCH_RATELIMIT_WINDOW_SECONDS": int(
+            literature.get("search_ratelimit_window_seconds", 60)),
         # RAG global defaults
         "RAG_CHUNK_SIZE": yaml_config.get("rag", {}).get("chunk_size", 800),
         "RAG_CHUNK_OVERLAP": yaml_config.get("rag", {}).get("chunk_overlap", 80),

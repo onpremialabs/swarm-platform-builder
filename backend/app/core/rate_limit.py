@@ -119,6 +119,8 @@ class AccountLockoutTracker:
 # ─── Process-wide singletons used by the auth router ──────────────────────────
 login_ip_limiter = SlidingWindowCounter()
 register_ip_limiter = SlidingWindowCounter()
+#: Búsquedas de literatura (T22.11), por persona usuaria: cada una sale a APIs de terceros.
+literature_search_limiter = SlidingWindowCounter()
 account_lockout = AccountLockoutTracker()
 
 
@@ -126,4 +128,5 @@ def reset_auth_throttling() -> None:
     """Clear all throttling state (used by tests and on a clean startup)."""
     login_ip_limiter.reset()
     register_ip_limiter.reset()
+    literature_search_limiter.reset()
     account_lockout.reset()

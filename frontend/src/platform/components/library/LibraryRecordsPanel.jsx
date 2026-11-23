@@ -9,7 +9,7 @@
 // Estados de datos: cargando / vacío por pestaña / error con reintento (`AsyncState`).
 // El estado vacío y el error no se confunden: fallar al preguntar no es «no hay fichas».
 import React, { useCallback, useEffect, useId, useMemo, useState } from 'react';
-import { BookOpen, Check, Pencil, Star, Upload, X } from 'lucide-react';
+import { BookOpen, Check, Pencil, Search, Star, Upload, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { agentsApi } from '../../api/agents';
 import { mensajeDeCarga } from '../../api/errors';
@@ -204,6 +204,122 @@ function ImportModal({ onClose, onDone }) {
   );
 }
 
+const BASES = {
+  openalex: 'OpenAlex', crossref: 'Crossref', semantic_scholar: 'Semantic Scholar',
+  arxiv: 'arXiv', pubmed: 'PubMed',
+};
+const ESTADO_BASE = { ok: 'respondió', failed: 'falló', skipped: 'omitida' };
+
+/** Búsqueda de literatura (T22.11 / AC12): la lanza la persona autora y solo crea candidatos verificados. */
+function SearchForm({ onFound }) {
+  const uid = useId();
+  const [config, setConfig] = useState(null);
+  const [configError, setConfigError] = useState(null);
+  const [query, setQuery] = useState('');
+  const [active, setActive] = useState([]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [result, setResult] = useState(null);
+
+  const loadConfig = useCallback(async () => {
+    setConfigError(null);
+    try {
+      const cfg = await agentsApi.getLibrarySearchConfig();
+      setConfig(cfg);
+      setActive(cfg.sources || []);
+    } catch (err) {
+      setConfigError(mensajeDeCarga(err, 'No se pudo comprobar si la búsqueda está disponible'));
+    }
+  }, []);
+  useEffect(() => { loadConfig(); }, [loadConfig]);
+
+  if (configError) {
+    return (
+      <div role="alert" style={{ fontSize: 'var(--font-size-sm)', color: 'var(--error)' }}>
+        {configError} <button type="button" className="btn btn-ghost btn-sm" onClick={loadConfig}>Reintentar</button>
+      </div>
+    );
+  }
+  if (!config) return <p role="status" style={{ margin: 0, fontSize: 'var(--font-size-sm)' }}>Comprobando la búsqueda bibliográfica…</p>;
+  if (!config.enabled) {
+    return (
+      <p role="status" style={{ margin: 0, fontSize: 'var(--font-size-sm)', color: 'var(--text-muted)' }}>
+        La búsqueda bibliográfica está desactivada ({config.message || 'descubrimiento desactivado'}). Puedes seguir
+        usando las referencias ya importadas.
+      </p>
+    );
+  }
+
+  const toggle = (db) => setActive((a) => (a.includes(db) ? a.filter((x) => x !== db) : [...a, db]));
+  const submit = async (e) => {
+    e.preventDefault();
+    setBusy(true);
+    setError('');
+    setResult(null);
+    try {
+      const res = await agentsApi.searchLibrary(query.trim(), active);
+      setResult(res);
+      if (res.new_candidates > 0) onFound();
+    } catch (err) {
+      setError(errorDe(err, 'No se pudo completar la búsqueda'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <form onSubmit={submit} aria-labelledby={`${uid}-title`}
+      style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+      <strong id={`${uid}-title`} style={{ fontSize: 'var(--font-size-sm)' }}>Buscar referencias</strong>
+      <div className="input-group">
+        <label className="input-label" htmlFor={`${uid}-q`}>Consulta</label>
+        <input id={`${uid}-q`} className="input" value={query} maxLength={300} required
+          aria-describedby={`${uid}-help`} onChange={(e) => setQuery(e.target.value)}
+          placeholder="p. ej. deep learning image recognition" />
+        <span id={`${uid}-help`} style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>
+          La consulta se envía a las bases marcadas. No pegues texto de tu manuscrito. Solo se guardan
+          como candidatos las referencias cuyo DOI se verifica.
+        </span>
+      </div>
+      <fieldset style={{ border: 0, padding: 0, margin: 0, display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
+        <legend style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>Bases</legend>
+        {(config.sources || []).map((db) => (
+          <label key={db} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 'var(--font-size-sm)' }}>
+            <input type="checkbox" checked={active.includes(db)} onChange={() => toggle(db)} />
+            {BASES[db] || db}
+          </label>
+        ))}
+      </fieldset>
+      <div>
+        <button type="submit" className="btn btn-primary btn-sm" disabled={busy || !query.trim() || active.length === 0}>
+          <Search size={14} /> {busy ? 'Buscando…' : 'Buscar'}
+        </button>
+      </div>
+      <div aria-live="polite">
+        {busy && <p role="status" style={{ margin: 0 }}>Buscando y verificando referencias…</p>}
+        {error && <div role="alert" style={{ color: 'var(--error)', fontSize: 'var(--font-size-sm)' }}>{error}</div>}
+        {result && (
+          <div style={{ fontSize: 'var(--font-size-sm)', display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <p style={{ margin: 0 }}>
+              {result.new_candidates === 0 ? 'No hay candidatos verificados nuevos.' : `${result.new_candidates} candidato(s) nuevo(s) verificado(s) en «Candidatos».`}
+              {result.already_in_library > 0 && ` ${result.already_in_library} ya estaban en la biblioteca.`}
+            </p>
+            <ul style={{ margin: 0, paddingLeft: 'var(--space-4)' }}>
+              {(result.sources || []).map((s) => (
+                <li key={s.db}>
+                  <strong>{BASES[s.db] || s.db}</strong>: {ESTADO_BASE[s.status] || s.status}
+                  {s.status === 'ok' ? ` — ${s.returned} devueltos, ${s.verified} verificados` : s.message ? ` — ${s.message}` : ''}
+                </li>
+              ))}
+            </ul>
+            {result.status === 'failed' && <p role="alert" style={{ margin: 0, color: 'var(--error)' }}>{result.message}</p>}
+          </div>
+        )}
+      </div>
+    </form>
+  );
+}
+
 function RecordRow({ record, busy, onCurate, onEdit, onUploadPdf }) {
   const meta = [record.year, record.journal].filter(Boolean).join(' · ');
   const estado = record.curation_status;
@@ -337,6 +453,7 @@ export default function LibraryRecordsPanel() {
         </button>
       </div>
       <div className="config-section-body" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+        <SearchForm onFound={() => { setTab('candidate'); load(); }} />
         <div role="group" aria-label="Estado de las referencias" style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
           {PESTANAS.map((p) => (
             <button key={p.id} type="button" aria-pressed={tab === p.id}
