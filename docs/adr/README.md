@@ -39,6 +39,7 @@ Crea un ADR cuando una decisión:
 | [0009](0009-claude-default-agentic-engine.md) | Claude (Anthropic) como motor agéntico por defecto, multi-proveedor y multi-modelo por agente | Propuesto |
 | [0011](0011-publication-gate-fail-closed.md) | Compuerta de publicación determinista con falla cerrada | Propuesto |
 | [0012](0012-local-finetune-format-learning.md) | Fine-tune local para aprender formato, acotado y reversible | Propuesto |
+| [0013](0013-author-supplied-sources-and-deferred-verification.md) | Fuentes aportadas por el autor y verificación de identificadores diferida a la compuerta | Propuesto |
 
 Ver también: [docs/specs](../specs) (especificaciones SDD) y
 [docs/governance](../governance) (gobernanza, DoD, CODEOWNERS).

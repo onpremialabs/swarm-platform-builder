@@ -41,6 +41,11 @@
   COMPLETADO y el botón «Ver artículo» activo, con los otros cuatro agentes en «PENDIENTE». El
   motivo real solo se ve en el log de eventos. La abstención es correcta; su **estado** no lo es:
   nada distingue «terminó» de «se detuvo por falta de fuentes verificadas».
+- **Hallazgo de la prueba manual del 2026-11-23 (2):** con documentos relevantes subidos por la
+  persona y sin DOI, el Investigador se abstiene (0/3) antes de empezar a escribir. La regla (T22.5,
+  ADR-0011) impide generar un paper a partir de los borradores y PDFs propios de la persona autora,
+  y el DOI de un documento que ella misma aporta no es lo que evita la cita inventada. [ADR-0013](../adr/0013-author-supplied-sources-and-deferred-verification.md)
+  lo revisa: ver AC4, AC5, AC7 y AC14.
 
 ## 2. Objetivos / No-objetivos
 
@@ -53,8 +58,10 @@
   (f) abstención si la evidencia es insuficiente.
 - **No-objetivos:** raspado de páginas web; PDFs de pago o saltarse paywalls;
   revisiones sistemáticas completas con cribado (V08, Fase 4 de SPEC-032);
-  fichas de afirmación (SPEC-040); una **excepción para «documento interno»**
-  (descartada por [ADR-0011](../adr/0011-publication-gate-fail-closed.md)).
+  fichas de afirmación (SPEC-040); una excepción **implícita** para «documento interno»: la
+  única vía sin identificador es la declaración **explícita** «aportado por el autor»
+  ([ADR-0013](../adr/0013-author-supplied-sources-and-deferred-verification.md), que enmienda
+  [ADR-0011](../adr/0011-publication-gate-fail-closed.md)).
 
 ## Clarifications
 
@@ -64,7 +71,7 @@
   citable? → A: No. Sin excepción (opción A): un documento sin DOI verificado se
   puede subir y consultar como contexto, pero no entra en `sources` ni en
   Referencias hasta que se resuelva o el autor aporte el DOI. Se mantiene
-  ADR-0011.
+  ADR-0011. **(Sustituida el 2026-11-23: ver la sesión siguiente y ADR-0013.)**
 - Q: ¿Qué se hace con un candidato aceptado sin texto completo? → A: Descarga
   automática solo si es acceso abierto (opción C): el PDF se baja desde la URL de
   acceso abierto que informa la base, por `safe_get`; si no hay URL o falla, se
@@ -79,6 +86,14 @@
   OpenAlex y Crossref; el resto se activa por proyecto (opción B) en
   `research.sources` de `template.yaml`, validado al cargar. Semantic Scholar solo
   si hay clave configurada (variable de entorno); arXiv y PubMed según disciplina.
+
+### Session 2026-11-23
+
+- Q: ¿Puede citarse un documento que la persona aporta y que no tiene DOI? → A: Sí, por la
+  vía intermedia de ADR-0013: la persona lo declara «aportado por el autor» (registro de quién
+  y cuándo, reversible), entra en `sources` etiquetado, y la verificación de identificadores se
+  hace después, en la compuerta (V09), con severidad por proyecto. Un DOI declarado que no
+  resuelve sigue bloqueando. Sustituye a la respuesta A del 2026-11-22.
 
 ## 3. Criterios de aceptación (Given/When/Then)
 
@@ -99,19 +114,22 @@
 - [ ] **AC4** — *Given* un PDF subido a mano *When* se indexa *Then* el sistema
   intenta resolver su DOI por título/autores (opción a de la matriz); si no se
   resuelve queda «sin verificar», visible y editable (el autor puede aportar el DOI,
-  con registro de quién y cuándo) y **no puede figurar en Referencias** hasta
-  entonces.
+  con registro de quién y cuándo) y **no puede figurar en Referencias** hasta que se
+  resuelva, el autor aporte el DOI **o lo declare «aportado por el autor»** (AC14).
 - [ ] **AC5** — *Given* un artículo en ejecución *When* el Investigador produce
-  fuentes *Then* `sources` solo incluye documentos de la biblioteca **con DOI
-  verificado** (resuelto por el sistema o aportado por el autor); un documento «sin
-  verificar» puede consultarse como contexto pero no entra en `sources` ni en
-  Referencias, y **no existe excepción para «documento interno»** (ADR-0011); el
-  Redactor no añade fuentes propias fuera de `sources`.
+  fuentes *Then* `sources` solo incluye documentos **aceptados** de la biblioteca que sean
+  **citables**: con DOI verificado (resuelto por el sistema o aportado por el autor) o
+  declarados «aportados por el autor» (AC14), cada uno con su clase en `sources`; un
+  documento «sin verificar» y sin declarar puede consultarse como contexto pero no entra en
+  `sources` ni en Referencias, y **no existe excepción implícita para «documento interno»**
+  (la única vía es la declaración explícita, ADR-0013); el Redactor no añade fuentes propias
+  fuera de `sources`.
 - [ ] **AC6** — *Given* una búsqueda *When* termina *Then* se persiste un registro
   (bases, fecha, cadena, filtros, nº de resultados) exportable y visible en la
   traza.
-- [ ] **AC7** — *Given* evidencia insuficiente, es decir **menos de N fuentes
-  verificadas por encima del umbral de similitud** *When* corre el Investigador
+- [ ] **AC7** — *Given* evidencia insuficiente, es decir **menos de N fuentes citables
+  (con DOI verificado o aportadas por el autor, con texto utilizable) por encima del umbral de
+  similitud** *When* corre el Investigador
   *Then* se abstiene, lo declara en la traza y al autor, y no sintetiza desde
   conocimiento paramétrico. `N` es `research.min_sources` en `template.yaml` (por
   defecto **3**), se valida al cargar la plantilla (entero ≥ 1) y no lo puede bajar
@@ -154,6 +172,18 @@
   *And* el artículo permanece en borrador y ningún agente posterior se ejecuta. *And* una
   ejecución que sí completa el flujo sigue mostrándose como completada, sin cambios.
 
+- [ ] **AC14** — *Given* un documento aceptado en la biblioteca sin identificador resoluble y
+  **sin DOI declarado** *When* la persona autora lo declara «aportado por el autor» en la pantalla
+  Documentos *Then* se guarda quién y cuándo, el documento pasa a ser citable (clase «aportada
+  por el autor», visible con su etiqueta) y la declaración es **reversible**; *And* un documento
+  con DOI declarado que no resuelve **no** puede declararse así (hay que corregir o quitar el
+  DOI); *And* solo una persona puede declararlo, ni el sistema ni el modelo; *And* al ejecutar,
+  el Investigador **no se abstiene por falta de DOI**: usa los documentos citables de las dos
+  clases y solo se abstiene por menos de N fuentes citables con texto utilizable (AC7), con un
+  mensaje que dice cómo resolverlo (verificar el DOI **o** declararlo «aportado por el autor»);
+  *And* esas fuentes llegan a Referencias etiquetadas y la compuerta (SPEC-032, AC17) decide su
+  severidad; *And* una ejecución con todas las fuentes identificadas se comporta como antes.
+
 ## 4. Diseño propuesto
 
 - **Capacidad nueva** `literature` en `platform/capabilities/registry.py`, con
@@ -195,6 +225,16 @@
   valor nuevo no cambia el formato ni sube `CANON_VERSION`. El cierre es `done` con
   `outcome: "abstained"`. La traza de explicabilidad ya registra la abstención
   (`explainability.py`) y no cambia.
+- **Fuentes aportadas por el autor (AC14, T22.13).** La biblioteca distingue la clase de cada
+  documento citable (identificada / aportada por el autor) y registra quién y cuándo declaró la
+  segunda. **Comprobar antes de implementar** si `verification_method` y los estados de
+  `library_documents` son enum nativo o texto: si hace falta un valor o columna nuevos, va por
+  migración Alembic y, si afecta a algo sellado, se revisa `CANON_VERSION`. La resolución de
+  identificadores deja de ser condición para generar: el Investigador cuenta documentos
+  citables, y V09 (SPEC-032) comprueba lo identificado después del Formateador. Hay
+  que actualizar T22.5 (adaptador y mensaje de abstención), los datasets EDD de T22.9 que
+  afirman «un documento interno sin verificar no se cita», y el panel de Documentos (acción
+  «declarar aportado por el autor» y su etiqueta).
 - **Seguridad:** claves de API solo por variable de entorno; User-Agent genérico
   de la plataforma (sin datos del usuario) y cabecera de contacto configurable.
 
@@ -290,4 +330,9 @@ tasks:
     sev: high
     depends_on: [T22.5]
     acceptance: [AC7, AC13]
+  - id: T22.13
+    title: "Fuentes aportadas por el autor: declararlas, citarlas etiquetadas y abstención solo por falta de fuentes citables"
+    sev: high
+    depends_on: [T22.4, T22.5, T22.8]
+    acceptance: [AC4, AC5, AC7, AC14]
 ```
