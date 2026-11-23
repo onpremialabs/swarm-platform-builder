@@ -23,6 +23,15 @@ que acompaña. Evidencia:
 - No hay fuente de retractaciones (V11 **ausente**).
 - El Redactor añade su propia consulta RAG que no pasa por `sources`, así que
   puede usar fragmentos sin que figuren en Referencias (matriz 0.6).
+- **Hallazgo de la implementación de T23.1 a T23.7 (2026-11-23):** las piezas existen
+  pero **nada las conecta**. `save_citation_map` y `to_citation_inputs`
+  (`platform/citations.py`) no tienen ningún llamador fuera de ese módulo, así que el mapa
+  de AC1 no se guarda en ninguna ejecución. Consecuencias: el criterio `citation_support`
+  (T23.3) no puede declararse en `projects/alejandria-magazine/template.yaml` sin bloquear
+  toda publicación por `no_citations`; la pestaña Fuentes (T23.6) muestra siempre el estado
+  vacío; y el juez (T23.4) no tendría fragmentos que juzgar fuera de los tests. Además, el
+  enlace «documento/página» de la pestaña apunta a `/dashboard/documents?doc=…&page=…` y
+  `DocumentsPage` no lee esos parámetros, así que no coloca al usuario en el documento.
 
 ## 2. Objetivos / No-objetivos
 
@@ -63,6 +72,19 @@ que acompaña. Evidencia:
 - [ ] **AC8** — *Given* el harness EDD *When* se añaden los datasets *Then* una
   métrica `citation_support` distingue casos golden y regressions y se ejecuta en
   modo `live` además de `replay`.
+- [ ] **AC9** — *Given* una ejecución completa de AlejandrIA en la que el Redactor produce
+  un borrador con citas *When* termina el flujo y el texto final está fijado *Then* el mapa
+  cita→fragmento se guarda con `save_citation_map` **versionado con la huella del texto
+  final** (el que evalúa la compuerta, no el de salida del Redactor si el Formateador lo
+  modifica), de modo que `current_citation_map` lo devuelve para el artículo; *And* el
+  criterio `citation_support` está declarado en `template.yaml` y la compuerta lo evalúa
+  con ese mapa, **en modo aviso** (no bloquea) hasta medir falsos positivos, con
+  `CITATION_SUPPORT_ENFORCE` como interruptor documentado en `.env.example`; *And* la
+  pestaña Fuentes muestra esas citas con su estado y permite confirmarlas, y el enlace a
+  documento/página **coloca** al usuario en el documento indicado; *And* una ejecución cuyo
+  texto no tiene citas o cuyo mapa no se pudo guardar queda `not_verified` (falla cerrada)
+  y lo dice, no se omite en silencio; *And* una ejecución sin `gate.citation_support`
+  declarado se comporta como antes.
 
 ## 4. Diseño propuesto
 
@@ -77,6 +99,19 @@ que acompaña. Evidencia:
   `ArticleTraceHistoryPage.jsx` y en el detalle del artículo.
 - **Evaluación:** módulo `evals/agent_behavior/metrics/citation_support.py`
   registrado como el resto de métricas.
+- **Cableado del mapa (AC9, T23.8).** El orquestador (o el nodo del Redactor, vía la
+  capacidad correspondiente) llama a `to_citation_inputs` y `save_citation_map` con las
+  citas que el Redactor ya extrae (`[F#]`). **Punto delicado:** la huella del texto cambia si
+  el Formateador reescribe el texto, y el mapa es por huella; por eso el guardado debe
+  hacerse (o repetirse, es idempotente por huella) sobre el **texto final** que lee la
+  compuerta (`service.py`), y la tarea debe comprobar con un test que
+  `current_citation_map` devuelve filas para el artículo tras una ejecución completa, con y
+  sin Formateador que modifique el texto. La activación en `template.yaml` es en modo aviso
+  (`CITATION_SUPPORT_ENFORCE`, apagado por defecto); pasar a bloqueo es una decisión
+  posterior, con datos de falsos positivos. El juez (T23.4) opera sobre el mapa persistido,
+  por lo que depende de esta tarea para ejercerse de punta a punta. El arreglo del enlace
+  documento/página es mínimo: `DocumentsPage` lee `doc` y `page` de la URL y los usa para
+  seleccionar y posicionar; no se rediseña la pantalla.
 
 ## 5. Riesgos y mitigaciones
 
@@ -127,7 +162,7 @@ tasks:
   - id: T23.4
     title: "Juez independiente de soporte con modelo distinto al redactor y muestra humana"
     sev: high
-    depends_on: [T23.3]
+    depends_on: [T23.3, T23.8]
     acceptance: [AC3, AC7]
   - id: T23.5
     title: "Comprobación de retractaciones y expresiones de preocupación vía Crossref"
@@ -144,4 +179,9 @@ tasks:
     sev: medium
     depends_on: [T23.3]
     acceptance: [AC8]
+  - id: T23.8
+    title: "Cablear el mapa de citas: guardarlo tras el Redactor sobre el texto final, activar el criterio en modo aviso y enlazar documento/página"
+    sev: high
+    depends_on: [T23.1, T23.2, T23.3, T23.6]
+    acceptance: [AC1, AC6, AC9]
 ```
