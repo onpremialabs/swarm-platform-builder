@@ -137,7 +137,7 @@ def test_cada_agente_declara_las_capacidades_que_compone():
     alejandria.register()
     esperado = {
         "investigador": {"rag_results", "llm"},
-        "redactor": {"rag", "llm", "llm_stream"},
+        "redactor": {"rag_results", "llm", "llm_stream"},
         "revisor": {"llm"},
         "formateador": {"llm"},
         "publicador": {"format"},
@@ -223,7 +223,7 @@ def _instalar_agentes_deterministas(monkeypatch, registro):
                           "sources": [{"title": "una fuente"}]}))
     monkeypatch.setattr(
         adapter_redactor, "run_redactor",
-        _hacer("redactor", ("rag", "llm", "llm_stream"),
+        _hacer("redactor", ("rag_results", "llm", "llm_stream"),
                lambda s: {"draft_text": f"borrador[{s.get('research_data','')}]"}))
     monkeypatch.setattr(
         adapter_revisor, "run_revisor",

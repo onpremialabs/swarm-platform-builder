@@ -35,7 +35,7 @@ agents:
 
   - name: redactor
     entrypoint: app.modules.agents.adapters.redactor:run_redactor
-    requires: [rag, llm, llm_stream]
+    requires: [rag_results, llm, llm_stream]
     profile: agents/redactor.agent.md
     description: Escribe el borrador a partir de la investigación y del feedback.
 
