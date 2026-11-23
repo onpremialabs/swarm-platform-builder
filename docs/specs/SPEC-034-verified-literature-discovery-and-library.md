@@ -34,6 +34,13 @@
   invoca**. El panel de candidatos queda vacío porque nada crea filas
   `curation_status=candidate`, así que AC1 y AC3 no se pueden ejercer de punta a punta.
   Además, el flag `LITERATURE_DISCOVERY_ENABLED` del apartado 7 no existe en el código.
+- **Hallazgo de la prueba manual de T22.5 (2026-11-23):** cuando el Investigador se
+  abstiene, el motor detiene el flujo como pide AC7, pero la ejecución se presenta como
+  **completada**: el paso se registra `completed` (`use_cases.py`, `log_run_end(..., "completed")`),
+  se emite `done` y la pantalla de ejecución muestra «Pipeline completado», la insignia verde
+  COMPLETADO y el botón «Ver artículo» activo, con los otros cuatro agentes en «PENDIENTE». El
+  motivo real solo se ve en el log de eventos. La abstención es correcta; su **estado** no lo es:
+  nada distingue «terminó» de «se detuvo por falta de fuentes verificadas».
 
 ## 2. Objetivos / No-objetivos
 
@@ -136,6 +143,16 @@
   o limitada no oculta a las demás). *And* con `LITERATURE_DISCOVERY_ENABLED` apagado el
   endpoint responde «descubrimiento desactivado», no hace ninguna petición de red y el
   panel sigue funcionando con lo ya importado.
+- [ ] **AC13** — *Given* una ejecución en la que el Investigador se abstiene (AC7) *When*
+  el flujo se detiene *Then* la ejecución **no** se registra ni se muestra como completada:
+  queda con un estado propio de «detenida por abstención» distinto de `completed`, `failed`
+  y `cancelled`, visible en la lista de ejecuciones y en la traza. *And* la pantalla de
+  ejecución muestra, en lugar de «Pipeline completado», un aviso destacado «El Investigador
+  se abstuvo» con las fuentes verificadas frente al mínimo (`k/N`) y el mensaje de qué
+  hacer, y no ofrece «Ver artículo» como si hubiera contenido. *And* los agentes que no
+  llegaron a ejecutarse se muestran como «No ejecutado» y no como «PENDIENTE» indefinido.
+  *And* el artículo permanece en borrador y ningún agente posterior se ejecuta. *And* una
+  ejecución que sí completa el flujo sigue mostrándose como completada, sin cambios.
 
 ## 4. Diseño propuesto
 
@@ -162,6 +179,18 @@
   (apartado 7) se implementa en esta tarea, apagado por defecto, y se declara en
   `.env.example`; la búsqueda se limita con el limitador de peticiones existente. Queda fuera
   de esta spec que el Investigador lance búsquedas por su cuenta durante la ejecución.
+- **Estado de la abstención (AC13, T22.12).** El orquestador ya conoce la abstención
+  (`res["abstained"]`, evento SSE `abstained`); falta que la **ejecución** la refleje. La
+  tarea añade un estado terminal propio para la ejecución y su paso (nombre a fijar al
+  implementar, p. ej. `abstained`) y hace que el evento final lo lleve (`done` con un
+  `outcome` distinto, o un evento de cierre específico) en lugar de un `done` indistinguible.
+  El frontend (`ExecutionPage.jsx`) usa ese dato para la insignia, el aviso destacado y los
+  pasos «No ejecutado». **Comprobar antes de implementar** si el estado de `agent_runs` y
+  `agent_run_steps` es un enum nativo (hay una migración `native_enum_labels`): de serlo,
+  el valor nuevo va por una migración Alembic, nunca con SQL a mano; y si el estado forma
+  parte del canon de la cadena de integridad, ver la regla de `CANON_VERSION` en
+  `data-retention.md`. La traza de explicabilidad ya registra la abstención
+  (`explainability.py`) y no cambia.
 - **Seguridad:** claves de API solo por variable de entorno; User-Agent genérico
   de la plataforma (sin datos del usuario) y cabecera de contacto configurable.
 
@@ -252,4 +281,9 @@ tasks:
     sev: high
     depends_on: [T22.1, T22.2, T22.3, T22.7, T22.8]
     acceptance: [AC12]
+  - id: T22.12
+    title: "Mostrar la abstención como ejecución detenida, no completada: estado propio, aviso destacado y pasos no ejecutados"
+    sev: high
+    depends_on: [T22.5]
+    acceptance: [AC7, AC13]
 ```
