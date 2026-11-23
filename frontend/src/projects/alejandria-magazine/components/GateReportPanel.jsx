@@ -18,7 +18,7 @@ import { useT } from '../i18n/useT';
 export default function GateReportPanel({
   data, loading, error, onRetry, onReevaluate, busy, onAction, onProvideDoi,
 }) {
-  const { t } = useT();
+  const { t, formatDate } = useT();
   const report = data?.report;
   const criteria = report?.criteria?.criteria || [];
   const pending = report?.criteria?.pending || [];
@@ -112,7 +112,7 @@ export default function GateReportPanel({
               </div>
             )}
             <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', marginTop: 4 }}>
-              {t('gate.evaluatedOn', { when: new Date(report.created_at).toLocaleString('es-ES') })}
+              {t('gate.evaluatedOn', { when: formatDate(report.created_at, { dateStyle: 'short', timeStyle: 'medium' }) })}
             </div>
           </div>
 

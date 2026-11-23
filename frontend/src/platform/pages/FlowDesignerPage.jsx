@@ -31,7 +31,7 @@ let nodeId = 100;
 const newId = () => `node_${++nodeId}`;
 
 export default function FlowDesignerPage() {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
   // When navigating from ArticleDetailPage, an existing article can be passed
@@ -137,6 +137,23 @@ export default function FlowDesignerPage() {
       setPaletteAgents(listAgents());
     }
   }, [buildPaletteAgent, activeProject?.id]);
+
+  // Los textos del catálogo del proyecto se copian a la paleta y a los nodos al
+  // cargarlos; al cambiar de idioma hay que volver a leerlos (SPEC-041/AC6).
+  const lastLocale = useRef(locale);
+  useEffect(() => {
+    if (lastLocale.current === locale) return;
+    lastLocale.current = locale;
+    setPaletteAgents((current) => current.map((agent) => {
+      const slug = agent.slug || agent.id;
+      const meta = agentMeta(slug);
+      return {
+        ...agent,
+        label: meta.label || agent.label,
+        desc: meta.desc || (agent.profileId ? translate('flowDesigner.profileDesc', { slug }) : agent.desc),
+      };
+    }));
+  }, [locale]);
 
   // Auto-checkpoint every 30s
   useEffect(() => {

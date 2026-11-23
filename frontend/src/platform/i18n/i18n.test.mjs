@@ -51,3 +51,66 @@ test('formatos según el idioma activo', () => {
   i18n.setLocale('en', { persist: false });
   assert.equal(i18n.formatNumber(1234.5), '1,234.5');
 });
+
+// ── T29.10 / AC1, AC6: detección inicial, persistencia y <html lang> ─────────
+
+function conAlmacenamiento(fn, almacen) {
+  const previo = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  Object.defineProperty(globalThis, 'localStorage', { value: almacen, configurable: true, writable: true });
+  try { return fn(); } finally {
+    if (previo) Object.defineProperty(globalThis, 'localStorage', previo); else delete globalThis.localStorage;
+  }
+}
+
+test('AC1: navegador es/en -> ese idioma; cualquier otro -> es', () => {
+  const sinGuardado = (navigatorLanguages) => i18n.detectLocale({ stored: null, navigatorLanguages });
+  assert.equal(sinGuardado(['es-CL']), 'es');
+  assert.equal(sinGuardado(['en-US', 'es']), 'en');
+  assert.equal(sinGuardado(['fr-FR', 'de']), 'es');
+  assert.equal(sinGuardado(['fr', 'en']), 'en');
+  assert.equal(sinGuardado([]), 'es');
+  // La preferencia guardada manda sobre el navegador; una guardada inválida no.
+  assert.equal(i18n.detectLocale({ stored: 'en', navigatorLanguages: ['es'] }), 'en');
+  assert.equal(i18n.detectLocale({ stored: 'xx', navigatorLanguages: ['en'] }), 'en');
+});
+
+test('AC6: setLocale persiste, actualiza <html lang> y notifica sin recargar', () => {
+  const datos = new Map();
+  const almacen = { getItem: (k) => datos.get(k) ?? null, setItem: (k, v) => datos.set(k, v) };
+  globalThis.document = { documentElement: { lang: 'es' } };
+  try {
+    conAlmacenamiento(() => {
+      let avisos = 0;
+      const baja = i18n.subscribe(() => { avisos += 1; });
+      assert.equal(i18n.setLocale('en'), 'en');
+      assert.equal(datos.get(i18n.STORAGE_KEY), 'en');
+      assert.equal(document.documentElement.lang, 'en');
+      assert.equal(avisos, 1);
+      assert.equal(i18n.detectLocale({ navigatorLanguages: ['es'] }), 'en'); // lo guardado
+      assert.equal(i18n.setLocale('fr'), null);
+      assert.equal(i18n.getLocale(), 'en');
+      baja();
+    }, almacen);
+  } finally { delete globalThis.document; }
+});
+
+test('el almacenamiento puede faltar o lanzar: no rompe el cambio ni la detección', () => {
+  const roto = { getItem() { throw new Error('bloqueado'); }, setItem() { throw new Error('cuota'); } };
+  conAlmacenamiento(() => {
+    assert.equal(i18n.setLocale('en'), 'en');
+    assert.equal(i18n.getLocale(), 'en');
+    assert.equal(i18n.detectLocale({ navigatorLanguages: ['en'] }), 'en');
+    assert.equal(i18n.detectLocale({ navigatorLanguages: ['fr'] }), 'es');
+  }, roto);
+  assert.equal(i18n.setLocale('es'), 'es'); // sin localStorage definido
+});
+
+test('AC6: fechas y números siguen el idioma activo (Intl)', () => {
+  const fecha = new Date(Date.UTC(2026, 10, 5, 12));
+  const opts = { timeZone: 'UTC', dateStyle: 'long' };
+  assert.equal(i18n.formatNumber(1234567.5), '1.234.567,5');
+  assert.match(i18n.formatDate(fecha, opts), /noviembre/);
+  i18n.setLocale('en', { persist: false });
+  assert.equal(i18n.formatNumber(1234567.5), '1,234,567.5');
+  assert.match(i18n.formatDate(fecha, opts), /November/);
+});

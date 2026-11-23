@@ -18,6 +18,7 @@ export default defineConfig({
         modales: path.resolve(__dirname, 'index.html'),
         estados: path.resolve(__dirname, 'states.html'),
         explicabilidad: path.resolve(__dirname, 'explain.html'),
+        idioma: path.resolve(__dirname, 'language.html'),
       },
     },
   },

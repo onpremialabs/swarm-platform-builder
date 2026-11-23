@@ -12,6 +12,7 @@ import { useProjectStore } from '../store/projectStore';
 import api from '../api/client';
 import toast from 'react-hot-toast';
 import { useTranslation } from '../i18n';
+import LanguageSelector from '../components/ui/LanguageSelector';
 
 const USE_CASE_ICON = {
   alejandria_magazine: <Newspaper size={16} />,
@@ -220,6 +221,7 @@ export default function DashboardPage() {
         <header className="topbar">
           <span className="topbar-title" />
           <div className="flex items-center gap-3">
+            <LanguageSelector />
             <div className="relative" ref={notifRef}>
               <button className="btn btn-ghost btn-icon" style={{ position: 'relative' }}
                 onClick={() => setShowNotifs(v => !v)}

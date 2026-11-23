@@ -5,6 +5,7 @@ import { mensajeDeCarga } from '../../../platform/api/errors';
 import ReactMarkdown from 'react-markdown';
 import { ChevronLeft, ChevronRight, BookOpen, Loader } from 'lucide-react';
 import api from '../../../platform/api/client';
+import LanguageSelector from '../../../platform/components/ui/LanguageSelector';
 import { tr, useT } from '../i18n/useT';
 
 /**
@@ -12,7 +13,7 @@ import { tr, useT } from '../i18n/useT';
  * Displays published articles as a full-screen slideshow.
  */
 export default function MagazinePage() {
-  const { t } = useT();
+  const { t, formatDate } = useT();
   const [articles, setArticles] = useState([]);
   const [current, setCurrent] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -66,11 +67,14 @@ export default function MagazinePage() {
             Alej<span style={{ color: 'var(--brand-primary)' }}>andrIA</span> Magazine
           </span>
         </div>
-        {!loading && articles.length > 0 && (
-          <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>
-            {current + 1} / {articles.length}
-          </span>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          {!loading && articles.length > 0 && (
+            <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>
+              {current + 1} / {articles.length}
+            </span>
+          )}
+          <LanguageSelector />
+        </div>
       </header>
 
       {/* Content */}
@@ -111,7 +115,7 @@ export default function MagazinePage() {
               />
             )}
           >
-            {(
+            {article && (
             <article style={{ maxWidth: 780, width: '100%' }}>
               {/* Article header */}
               <div style={{ marginBottom: 32, paddingBottom: 24, borderBottom: '1px solid var(--border-subtle)' }}>
@@ -124,7 +128,7 @@ export default function MagazinePage() {
                   {article.title}
                 </h1>
                 <div style={{ fontSize: 'var(--font-size-sm)', color: 'var(--text-muted)' }}>
-                  {t('magazine.publishedOn', { date: new Date(article.published_at || article.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' }) })}
+                  {t('magazine.publishedOn', { date: formatDate(article.published_at || article.created_at, { day: '2-digit', month: 'long', year: 'numeric' }) })}
                 </div>
               </div>
 

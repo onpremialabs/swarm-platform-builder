@@ -28,7 +28,7 @@ const TAB_FILTER = {
 };
 
 export default function ArticlesPage() {
-  const { t } = useT();
+  const { t, formatDate } = useT();
   const navigate = useNavigate();
   const { articles, fetchArticles, updateArticle, deleteArticle, isLoading, error } = useArticleStore();
   const { user } = useAuthStore();
@@ -175,7 +175,7 @@ export default function ArticlesPage() {
                 </div>
                 <div className="article-card-meta">
                   <Clock size={11} />
-                  {new Date(article.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}
+                  {formatDate(article.created_at, { day: '2-digit', month: 'short', year: 'numeric' })}
                   {article.author_name && (
                     <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
                       <User size={10} />
