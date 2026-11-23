@@ -7,7 +7,13 @@
 import React, { useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import Modal from '../src/platform/components/ui/Modal';
+import { registerMessages } from '../src/platform/i18n';
+import platformEs from '../src/platform/i18n/es.json';
 import '../src/index.css';
+
+// Los componentes del builder piden sus textos al catálogo (T29.7): sin esto el
+// banco enseñaría las claves.
+registerMessages('platform', { es: platformEs });
 
 function Banco() {
   const [abierto, setAbierto] = useState(false);

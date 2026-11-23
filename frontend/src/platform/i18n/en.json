@@ -1,0 +1,862 @@
+{
+  "edge": {
+    "deleteNamed": "Eliminar {name}",
+    "delete": "Eliminar conexión"
+  },
+  "node": {
+    "agentBadge": "agent",
+    "condition": "Condición"
+  },
+  "states": {
+    "loading": "Cargando…",
+    "loadError": "No se pudieron cargar los datos",
+    "retry": "Reintentar"
+  },
+  "modal": {
+    "close": "Cerrar"
+  },
+  "flows": {
+    "labelWithPublisher": "Pasa por compuerta y aprobación humana",
+    "labelWithoutPublisher": "No publica: queda en borrador",
+    "confirmDelete": "¿Eliminar este flujo?",
+    "deleted": "Flujo eliminado",
+    "deleteError": "Error al eliminar",
+    "title": "Flujos",
+    "subtitle": "Pipelines guardados",
+    "new": "Nuevo flujo",
+    "loadingList": "Cargando flujos…",
+    "emptyTitle": "Sin flujos guardados",
+    "emptyDescription": "Crea tu primer pipeline en el Flow Designer.",
+    "create": "Crear flujo",
+    "edit": "Editar",
+    "delete": "Eliminar"
+  },
+  "auth": {
+    "nameRequired": "El nombre es requerido",
+    "welcomeBack": "¡Bienvenido de vuelta!",
+    "accountCreated": "¡Cuenta creada!",
+    "brandLine1": "Plataforma",
+    "brandLine2": "IA Agentes",
+    "taglineProject": "Inicia sesión para volver a {project}.",
+    "taglineDefault": "Automatiza flujos de trabajo con agentes de inteligencia artificial.",
+    "features": {
+      "designer": "Flow Designer visual con LangGraph",
+      "agents": "Agentes IA configurables por proyecto",
+      "realtime": "Ejecución en tiempo real con SSE",
+      "rag": "RAG integrado con base de conocimiento"
+    },
+    "login": "Iniciar sesión",
+    "createAccount": "Crear cuenta",
+    "subtitleProject": "Accede a {project}",
+    "subtitleLogin": "Accede a tu espacio de trabajo",
+    "subtitleRegister": "Crea tu cuenta para empezar",
+    "register": "Registrarse",
+    "fullName": "Nombre completo",
+    "fullNamePlaceholder": "Tu nombre",
+    "email": "Email",
+    "emailPlaceholder": "tu@email.com",
+    "password": "Contraseña",
+    "passwordHint": "Mínimo 6 caracteres",
+    "loading": "Cargando...",
+    "enter": "Entrar",
+    "noAccount": "¿No tienes cuenta? ",
+    "haveAccount": "¿Ya tienes cuenta? ",
+    "signUpLink": "Regístrate",
+    "signInLink": "Inicia sesión"
+  },
+  "users": {
+    "roles": {
+      "admin": {
+        "label": "Admin",
+        "desc": "Acceso total a la plataforma y gestión de usuarios"
+      },
+      "redactor": {
+        "label": "Redactor",
+        "desc": "Puede crear y editar artículos, ejecutar pipelines"
+      },
+      "lector": {
+        "label": "Lector",
+        "desc": "Solo lectura de artículos publicados"
+      },
+      "publico": {
+        "label": "Público",
+        "desc": "Acceso únicamente a la revista pública"
+      }
+    },
+    "loadError": "No se pudieron cargar los usuarios",
+    "roleUpdated": "Rol actualizado a \"{role}\"",
+    "roleError": "Error al actualizar rol",
+    "projectsLoadError": "Error al cargar proyectos del usuario",
+    "grantOk": "Acceso al proyecto concedido",
+    "grantError": "Error al conceder acceso",
+    "revokeOk": "Acceso al proyecto revocado",
+    "revokeError": "Error al revocar acceso",
+    "title": "Gestión de usuarios",
+    "subtitle": "Asigna roles y acceso a proyectos para los usuarios de la plataforma.",
+    "permissionsByRole": "Permisos por rol",
+    "loadingList": "Cargando usuarios…",
+    "empty": "No hay usuarios registrados",
+    "cols": {
+      "user": "Usuario",
+      "email": "Email",
+      "role": "Rol",
+      "projects": "Proyectos"
+    },
+    "you": "(tú)",
+    "manageProjectsOf": "Gestionar proyectos de {name}",
+    "projects": "Proyectos",
+    "cannotChangeOwnRole": "No puedes cambiar tu propio rol",
+    "roleOf": "Rol de {name}",
+    "projectAccess": "Acceso a proyectos",
+    "noProjects": "Sin proyectos asignados",
+    "revokeAccessTo": "Revocar acceso a {name}",
+    "addProjectTo": "Añadir proyecto a {name}",
+    "addProject": "Añadir proyecto…"
+  },
+  "projects": {
+    "useCases": {
+      "alejandria_magazine": {
+        "label": "AlejandrIA Magazine",
+        "description": "Flujo editorial completo para revista científica."
+      },
+      "desarrollo": {
+        "label": "Desarrollo",
+        "description": "Agentes orientados a ciclos de desarrollo de software."
+      },
+      "marketing": {
+        "label": "Marketing",
+        "description": "Generación de contenido y campañas de marketing."
+      },
+      "tiqueting": {
+        "label": "Tiqueting",
+        "description": "Gestión y resolución automática de tickets de soporte."
+      },
+      "diseno": {
+        "label": "Diseño",
+        "description": "Flujos de revisión y producción de assets visuales."
+      },
+      "custom": {
+        "label": "Custom",
+        "description": "Crea tus propios agentes completamente desde cero."
+      }
+    },
+    "defaultName": "{type} Project",
+    "created": "Proyecto creado",
+    "chooseType": "Elige el tipo de proyecto",
+    "details": "Detalles del proyecto",
+    "change": "Cambiar",
+    "nameLabel": "Nombre del proyecto *",
+    "descriptionLabel": "Descripción (opcional)",
+    "back": "Atrás",
+    "createProject": "Crear proyecto",
+    "open": "Abrir proyecto {name}",
+    "system": "Sistema",
+    "deleteNamed": "Eliminar proyecto {name}",
+    "confirmDelete": "¿Eliminar \"{name}\"? Esta acción no se puede deshacer.",
+    "deleted": "Proyecto eliminado",
+    "loggedOut": "Sesión cerrada",
+    "logout": "Salir",
+    "title": "Tus proyectos",
+    "subtitle": "Selecciona un proyecto para continuar o crea uno nuevo.",
+    "newAria": "Crear nuevo proyecto",
+    "new": "Nuevo proyecto",
+    "loadingList": "Cargando proyectos…",
+    "emptyTitle": "No hay proyectos aún",
+    "emptyDescription": "Crea el primero con el botón de arriba."
+  },
+  "documents": {
+    "backfillDone_one": "Metadatos reprocesados en {count} documento(s)",
+    "backfillDone_other": "Metadatos reprocesados en {count} documento(s)",
+    "backfillNone": "No había documentos sin metadatos",
+    "backfillError": "No se pudieron reprocesar los metadatos",
+    "loadError": "No se pudo cargar la biblioteca vectorial",
+    "indexed": "{filename} indexado · {chunks} chunks en \"{collection}\"",
+    "uploadError": "Error al subir {name}",
+    "confirmDelete": "¿Eliminar \"{filename}\" de la colección \"{collection}\"?",
+    "deleted": "Documento eliminado",
+    "deleteError": "No se pudo eliminar el documento",
+    "title": "Biblioteca vectorial",
+    "docCount_one": "{count} doc",
+    "docCount_other": "{count} docs",
+    "collectionCount_one": "{count} colección",
+    "collectionCount_other": "{count} colecciones",
+    "chunkCount_one": "{count} chunk",
+    "chunkCount_other": "{count} chunks",
+    "summary": "{docs} en {collections} · vectores en {backend}",
+    "intro": "Documentos vectorizados disponibles para que cualquier agente los consuma como RAG.",
+    "reload": "Recargar",
+    "backfillHint": "Re-extraer título y autores de documentos ya cargados",
+    "backfilling": "Reprocesando…",
+    "backfill": "Reprocesar metadatos",
+    "upload": "Subir documento",
+    "uploadToLibrary": "Subir a la biblioteca",
+    "close": "Cerrar",
+    "collectionLabel": "Colección:",
+    "dropzoneAria": "Zona de arrastre para subir archivos",
+    "onlyAccepted": "Solo .txt, .md y .pdf son aceptados",
+    "indexing": "Indexando…",
+    "dropOrClick": "Arrastra archivos o haz clic",
+    "limits": ".txt · .md · .pdf — máx. 10 MB",
+    "selectFilesAria": "Seleccionar archivos para la biblioteca RAG",
+    "loadingLibrary": "Cargando la biblioteca vectorial…",
+    "emptyTitle": "Biblioteca vacía",
+    "emptyDescription": "Sube documentos con el botón de arriba para vectorizarlos y ponerlos a disposición de los agentes.",
+    "collectionEmpty": "Colección vacía.",
+    "uploadedBy": "· subido por {name}",
+    "deleteNamed": "Eliminar {name}"
+  },
+  "dashboard": {
+    "useCase": {
+      "alejandria_magazine": "Revista científica",
+      "desarrollo": "Desarrollo de software",
+      "marketing": "Marketing",
+      "tiqueting": "Tiqueting",
+      "diseno": "Diseño",
+      "custom": "Proyecto custom"
+    },
+    "nav": {
+      "flowDesigner": "Flow Designer",
+      "agents": "Agentes",
+      "flows": "Flujos",
+      "documents": "Documentos",
+      "users": "Usuarios",
+      "settings": "Configuración",
+      "logout": "Cerrar sesión",
+      "workspace": "Workspace"
+    },
+    "loggedOut": "Sesión cerrada",
+    "changeProject": "Cambiar proyecto",
+    "notificationsAria": "Notificaciones",
+    "notificationsAriaUnread": "Notificaciones ({count} sin leer)",
+    "notifications": "Notificaciones",
+    "newCount_one": "({count} nueva)",
+    "newCount_other": "({count} nuevas)",
+    "markAllAria": "Marcar todas como leídas",
+    "markAll": "Marcar todas",
+    "noNotifications": "Sin notificaciones"
+  },
+  "agentsPage": {
+    "selectModel": "Selecciona modelo",
+    "otherModel": "Otro modelo…",
+    "customModelName": "Nombre de modelo personalizado",
+    "kindSystem": "sistema",
+    "kindCustom": "personalizado",
+    "model": "Modelo:",
+    "editNamed": "Editar agente {name}",
+    "edit": "Editar",
+    "deleteNamed": "Eliminar agente {name}",
+    "delete": "Eliminar",
+    "loadError": "No se pudieron cargar los perfiles de agente",
+    "confirmDelete": "¿Eliminar el agente \"{name}\"? Esta acción no se puede deshacer.",
+    "deleted": "Agente \"{name}\" eliminado",
+    "deleteError": "Error al eliminar el agente",
+    "title": "Agentes",
+    "subtitle": "Gestiona perfiles, modelos y bases de conocimiento de cada agente.",
+    "newAria": "Crear nuevo agente personalizado",
+    "new": "Nuevo agente",
+    "sectionSystem": "Agentes del sistema",
+    "sectionCustom": "Agentes personalizados",
+    "loadingProfiles": "Cargando perfiles de agente…",
+    "emptyTitle": "Sin perfiles de agente",
+    "emptyCreate": "Crea un agente personalizado para empezar a componer pipelines.",
+    "emptySelectProject": "Selecciona un proyecto para ver sus agentes.",
+    "created": "Agente \"{name}\" creado"
+  },
+  "configPage": {
+    "sections": {
+      "app": "Aplicación",
+      "llm": "Motor LLM",
+      "anthropic": "Claude (Anthropic)",
+      "ollama": "Ollama",
+      "openai": "OpenAI",
+      "qdrant": "Qdrant (RAG)",
+      "rag": "RAG global",
+      "agent_investigador": "Investigador",
+      "agent_redactor": "Redactor",
+      "agent_revisor": "Revisor",
+      "agent_formateador": "Formateador",
+      "agent_publicador": "Publicador",
+      "database": "Base de datos",
+      "security": "Seguridad JWT",
+      "access_control": "Control de acceso"
+    },
+    "fields": {
+      "app_name": {
+        "label": "Nombre",
+        "desc": "Nombre de la plataforma (cosmético, aparece en logs y UI)"
+      },
+      "app_version": {
+        "label": "Versión",
+        "desc": "Versión actual de la aplicación (ej: 0.2.0)"
+      },
+      "app_debug": {
+        "label": "Modo debug",
+        "desc": "Activa logs detallados, endpoints /dev y stack traces completos en errores HTTP"
+      },
+      "llm_provider": {
+        "label": "Proveedor",
+        "desc": "Motor LLM activo: anthropic (Claude, por defecto), ollama (local) u openai (API o servidor compatible)"
+      },
+      "anthropic_api_key": {
+        "label": "API Key",
+        "desc": "Solo por variable de entorno: ANTHROPIC_API_KEY=sk-ant-… (nunca se guarda en config.yaml, que está versionado)"
+      },
+      "anthropic_model": {
+        "label": "Modelo por defecto",
+        "desc": "Default global del proveedor (ej: claude-opus-5). El modelo por agente se define en su .agent.md"
+      },
+      "anthropic_max_tokens": {
+        "label": "Max tokens",
+        "desc": "Anthropic exige max_tokens en cada llamada (por defecto 4096)"
+      },
+      "anthropic_base_url": {
+        "label": "Base URL (opcional)",
+        "desc": "Dejar vacío para usar el endpoint oficial de Anthropic"
+      },
+      "ollama_base_url": {
+        "label": "URL base",
+        "desc": "http://localhost:11434"
+      },
+      "ollama_default_model": {
+        "label": "Modelo generación",
+        "desc": "Modelo por defecto para todos los agentes"
+      },
+      "ollama_embed_model": {
+        "label": "Modelo embeddings",
+        "desc": "Modelo para vectorización RAG (ej: nomic-embed-text)"
+      },
+      "openai_api_key": {
+        "label": "API Key",
+        "desc": "sk-..."
+      },
+      "openai_model": {
+        "label": "Modelo generación",
+        "desc": "ej: gpt-4o-mini"
+      },
+      "openai_embed_model": {
+        "label": "Modelo embeddings",
+        "desc": "ej: text-embedding-3-small"
+      },
+      "openai_base_url": {
+        "label": "Base URL (opcional)",
+        "desc": "Dejar vacío para usar la URL oficial de OpenAI"
+      },
+      "qdrant_url": {
+        "label": "URL",
+        "desc": "http://localhost:6333"
+      },
+      "qdrant_collection": {
+        "label": "Colección",
+        "desc": "Nombre de la colección vectorial"
+      },
+      "qdrant_vector_size": {
+        "label": "Dimensiones vector",
+        "desc": "768 para nomic-embed-text, 1536 para text-embedding-3-small"
+      },
+      "qdrant_api_key": {
+        "label": "API Key",
+        "desc": "Dejar vacío si Qdrant es local sin autenticación"
+      },
+      "rag_chunk_size": {
+        "label": "Chunk size",
+        "desc": "Tamaño de fragmento al indexar documentos (tokens aprox.)"
+      },
+      "rag_chunk_overlap": {
+        "label": "Chunk overlap",
+        "desc": "Solapamiento entre fragmentos consecutivos"
+      },
+      "rag_top_k": {
+        "label": "Top-K resultados",
+        "desc": "Número de fragmentos relevantes a recuperar por consulta"
+      },
+      "rag_score_threshold": {
+        "label": "Score mínimo",
+        "desc": "Umbral de similitud para descartar resultados (0 = sin filtro)"
+      },
+      "agents_investigador_model": {
+        "label": "Modelo",
+        "desc": "Dejar vacío para usar el modelo global"
+      },
+      "agents_investigador_temperature": {
+        "label": "Temperature",
+        "desc": "Creatividad del modelo (0.0 – 1.0)"
+      },
+      "agents_investigador_rag_enabled": {
+        "label": "RAG activado",
+        "desc": "Consultar base vectorial en la fase de investigación"
+      },
+      "agents_investigador_rag_collection": {
+        "label": "Colección RAG",
+        "desc": "Colección Qdrant específica (vacío = colección global)"
+      },
+      "agents_investigador_rag_top_k": {
+        "label": "Top-K RAG",
+        "desc": "Fragmentos a recuperar (sobreescribe el global)"
+      },
+      "agents_investigador_rag_chunk_size": {
+        "label": "Chunk size",
+        "desc": "Tamaño de chunk al indexar páginas scrapeadas"
+      },
+      "agents_investigador_semantic_rerank": {
+        "label": "Semantic re-rank",
+        "desc": "Re-ordenar páginas scrapeadas por similitud semántica (coseno)"
+      },
+      "agents_redactor_model": {
+        "label": "Modelo",
+        "desc": "Dejar vacío para usar el modelo global"
+      },
+      "agents_redactor_temperature": {
+        "label": "Temperature",
+        "desc": "Creatividad del modelo (0.0 – 1.0)"
+      },
+      "agents_redactor_rag_enabled": {
+        "label": "RAG activado",
+        "desc": "Usar contexto RAG al redactar"
+      },
+      "agents_revisor_model": {
+        "label": "Modelo",
+        "desc": "Dejar vacío para usar el modelo global"
+      },
+      "agents_revisor_temperature": {
+        "label": "Temperature",
+        "desc": "Creatividad del modelo (0.0 – 1.0)"
+      },
+      "agents_revisor_rag_enabled": {
+        "label": "RAG activado",
+        "desc": "Usar contexto RAG al revisar"
+      },
+      "agents_formateador_model": {
+        "label": "Modelo",
+        "desc": "Dejar vacío para usar el modelo global"
+      },
+      "agents_formateador_temperature": {
+        "label": "Temperature",
+        "desc": "Creatividad del modelo (0.0 – 1.0)"
+      },
+      "agents_formateador_rag_enabled": {
+        "label": "RAG activado",
+        "desc": "Usar contexto RAG al formatear"
+      },
+      "agents_publicador_model": {
+        "label": "Modelo",
+        "desc": "Dejar vacío para usar el modelo global"
+      },
+      "agents_publicador_rag_enabled": {
+        "label": "RAG activado",
+        "desc": "Usar contexto RAG al publicar"
+      },
+      "database_url": {
+        "label": "Database URL",
+        "desc": "Cadena de conexión SQLAlchemy"
+      },
+      "security_secret_key": {
+        "label": "Secret Key",
+        "desc": "Clave secreta para firmar tokens JWT — usa openssl rand -hex 32 para generar una segura"
+      },
+      "security_algorithm": {
+        "label": "Algoritmo",
+        "desc": "Algoritmo de firma JWT (ej: HS256). Cambiar requiere revocar todos los tokens activos."
+      },
+      "security_access_token_expire_minutes": {
+        "label": "Expiración access token (min)",
+        "desc": "Tiempo de vida del token de acceso en minutos (por defecto: 30)"
+      },
+      "security_refresh_token_expire_days": {
+        "label": "Expiración refresh token (días)",
+        "desc": "Tiempo de vida del token de refresco en días (por defecto: 7)"
+      },
+      "access_control_enable_dev_role_promotion": {
+        "label": "Dev Role Promotion",
+        "desc": "Permite auto-promoción a reviewer via POST /api/v1/auth/dev/promote-reviewer. Solo activar en entornos de desarrollo."
+      }
+    },
+    "options": {
+      "llm_provider": {
+        "anthropic": "Claude (Anthropic)",
+        "ollama": "Ollama (local)",
+        "openai": "OpenAI API"
+      }
+    },
+    "envSet": "Configurada por entorno",
+    "envUnset": "No configurada",
+    "inheritsModel": "(hereda modelo global)",
+    "modelPlaceholder": "ej: mistral:7b",
+    "currentModel": "{model} (actual)",
+    "reloadModels": "Recargar modelos instalados",
+    "reloadModelsAria": "Recargar modelos Ollama",
+    "detected_one": "{count} detectado",
+    "detected_other": "{count} detectados",
+    "loadError": "No se pudo cargar la configuración",
+    "saved": "Configuración guardada",
+    "saveError": "Error al guardar configuración",
+    "loggedOut": "Sesión cerrada",
+    "loading": "Cargando la configuración…",
+    "title": "Configuración",
+    "subtitle": "Parámetros del sistema (config.yaml)",
+    "reloaded": "Recargado",
+    "reload": "Recargar",
+    "saving": "Guardando…",
+    "save": "Guardar",
+    "agentDefaults": "Agentes — defaults globales (sobrescritos por agent_profile en BD)",
+    "priorityLabel": "Prioridad en runtime:",
+    "priorityBefore": "los perfiles de agente guardados en BD (editables en cada proyecto)",
+    "priorityAlways": "siempre",
+    "priorityAfter": "tienen prioridad sobre estos defaults. Estos valores solo aplican cuando el campo en BD está vacío o el agente no tiene perfil guardado.",
+    "session": "Sesión",
+    "logout": "Cerrar sesión",
+    "logoutDesc": "Elimina el token de sesión actual"
+  },
+  "flowDesigner": {
+    "draftNotice": "Tienes un borrador sin guardar",
+    "restore": "Restaurar",
+    "discard": "Descartar",
+    "edgeAria": "conexión de {from} a {to}",
+    "profileDesc": "Perfil {slug}",
+    "saved": "Flujo guardado",
+    "saveError": "Error al guardar",
+    "docAdded": "Añadido: \"{title}\"",
+    "docAddedWithAuthors": "Añadido: \"{title}\" — {authors}",
+    "docAddedFile": "Documento añadido: {name}",
+    "docUploadError": "No se pudo subir el documento",
+    "titleRequired": "Escribe un título para el artículo",
+    "runError": "Error al iniciar pipeline",
+    "palette": {
+      "title": "Agentes",
+      "new": "Nuevo",
+      "edit": "Editar"
+    },
+    "issuesAria": "Problemas del flujo",
+    "issueError": "Error: ",
+    "issueWarning": "Aviso: ",
+    "flowNamePlaceholder": "Nombre del flujo",
+    "clearCanvas": "Limpiar canvas",
+    "saving": "Guardando…",
+    "save": "Guardar",
+    "run": "Ejecutar",
+    "emptyTitle": "Diseña tu pipeline",
+    "emptyDescription": "Arrastra agentes desde el panel izquierdo al canvas para crear tu flujo de trabajo.",
+    "runModal": {
+      "title": "Ejecutar pipeline",
+      "rerun": "Re-ejecutando pipeline <strong>{name}</strong> sobre el artículo existente. Puedes cambiar el título a continuación.",
+      "new": "Se creará un nuevo artículo y se ejecutará el pipeline <strong>{name}</strong> sobre él.",
+      "titleLabel": "Título del artículo",
+      "titleKeep": "— opcional, deja igual para mantener el actual",
+      "titlePlaceholder": "Ej: El impacto del cambio climático en ecosistemas marinos",
+      "descriptionLabel": "Descripción / enfoque",
+      "optional": "— opcional",
+      "descriptionPlaceholder": "Ej: Enfocado en arrecifes de coral del Caribe, con énfasis en acidificación oceánica y pérdida de biodiversidad post-2010.",
+      "descriptionHelp": "El <strong>Investigador</strong> la usa para afinar la búsqueda semántica. El <strong>Redactor</strong> la recibe como instrucción de enfoque en el prompt.",
+      "advanced": "Opciones avanzadas (palabras clave, estructura)",
+      "keywordsLabel": "Palabras clave",
+      "keywordsHint": "— orientan la búsqueda del Investigador",
+      "removeKeyword": "Eliminar keyword {keyword}",
+      "keywordPlaceholder": "Escribe y pulsa Enter o coma…",
+      "addKeyword": "Añadir palabra clave",
+      "keywordsHelp": "Si no se proporcionan, se extraen automáticamente del título.",
+      "outlineLabel": "Estructura / Esquema del artículo",
+      "outlinePlaceholder": "Ej:\n- Introducción: Contexto del cambio climático\n- Sección 1: Acidificación oceánica\n- Sección 2: Consecuencias ecológicas\n- Conclusiones generales",
+      "outlineHelp": "Define las secciones, subsecciones o títulos creativos que el <strong>Redactor</strong> debe seguir obligatoriamente.",
+      "sourcesLabel": "Fuentes de información (RAG)",
+      "uploading": "Subiendo…",
+      "upload": "Subir documento",
+      "loadingDocs": "Cargando documentos…",
+      "noDocs": "No hay documentos. Sube uno o continúa sin fuentes.",
+      "sourcesHelp": "Selecciona los documentos que el <strong>Investigador</strong> usará como fuentes. Si no seleccionas ninguno, buscará en toda la colección.",
+      "sequence": "Secuencia:",
+      "cancel": "Cancelar",
+      "runPipeline": "Ejecutar pipeline"
+    },
+    "agentCreated": "Agente \"{name}\" creado"
+  },
+  "explain": {
+    "duration": {
+      "ms": "{value} ms",
+      "seconds": "{value} s",
+      "minutes": "{minutes} min {seconds} s"
+    },
+    "status": {
+      "completed": "Completado",
+      "failed": "Falló"
+    },
+    "source": {
+      "similarity": "{percent} de similitud",
+      "fragments_one": "{count} fragmento",
+      "fragments_other": "{count} fragmentos",
+      "retrievedBy": "Recuperada por {agents}"
+    },
+    "step": {
+      "round": "· vuelta {round}",
+      "score": "score {score}/100"
+    },
+    "metric": {
+      "model": "Modelo",
+      "tokens": "Tokens",
+      "duration": "Duración",
+      "steps": "Pasos",
+      "loops": "Vueltas de revisión",
+      "failedSteps": "Pasos fallidos"
+    },
+    "tokensInOut": "{in} ent. / {out} sal.",
+    "params": "Parámetros: {params}",
+    "input": "Con qué entró",
+    "decision": {
+      "title": "Qué decidió",
+      "score": "Score de aprobación: <strong>{score}/100</strong>",
+      "coherent": "Coherencia: <strong>{value}</strong>",
+      "yes": "sí",
+      "no": "no",
+      "human": "Decisión humana: <strong>{outcome}</strong>",
+      "abstained": "Se abstuvo: <strong>{verified} de {min}</strong> fuentes verificadas necesarias"
+    },
+    "retrieved": "Qué recuperó ({count})",
+    "title": "Por qué este resultado",
+    "viewAll": "Ver las {count} ejecuciones",
+    "viewLastOnly": "Ver solo la última ejecución",
+    "viewLast": "Ver solo la última",
+    "multipleRuns": "Este artículo se ha ejecutado {count} veces. Se explica la última, que es la que produjo el texto actual.",
+    "loadError": "No se pudo cargar la traza de la ejecución",
+    "loading": "Cargando la traza de la ejecución…",
+    "emptyTitle": "Sin traza que explicar",
+    "emptyDescription": "Este artículo no tiene una ejecución registrada. La traza se guarda al ejecutar el pipeline, y se conserva 90 días.",
+    "supports": "En qué se apoya ({count})"
+  },
+  "library": {
+    "tabs": {
+      "candidate": "Candidatos",
+      "accepted": "Biblioteca",
+      "discarded": "Descartados"
+    },
+    "empty": {
+      "candidate": {
+        "title": "Sin candidatos por revisar",
+        "description": "Los candidatos verificados que proponga la búsqueda bibliográfica aparecerán aquí para que los aceptes o descartes."
+      },
+      "accepted": {
+        "title": "La biblioteca no tiene fichas",
+        "description": "Acepta un candidato o importa referencias en BibTeX o una lista de DOI."
+      },
+      "discarded": {
+        "title": "Nada descartado",
+        "description": "Los candidatos que descartes se quedan aquí por si cambias de idea."
+      }
+    },
+    "method": {
+      "doi_resolved": "DOI resuelto",
+      "author_supplied": "DOI aportado por la autora"
+    },
+    "unverifiedTitle": "Sin DOI verificado: solo sirve como contexto, no entra en Referencias",
+    "unverified": "Sin verificar",
+    "verifiedAt": "Verificado {date}",
+    "verified": "Verificado",
+    "edit": {
+      "saved": "Ficha actualizada",
+      "saveError": "No se pudo guardar la ficha",
+      "title": "Editar metadatos",
+      "titleField": "Título",
+      "authors": "Autores (separados por punto y coma)",
+      "year": "Año",
+      "journal": "Revista",
+      "doi": "DOI",
+      "doiPlaceholder": "10.xxxx/xxxxx",
+      "doiHelp": "Un DOI nuevo queda verificado como aportado por ti, con tu usuario y la fecha. Vaciarlo retira la verificación."
+    },
+    "cancel": "Cancelar",
+    "saving": "Guardando…",
+    "save": "Guardar",
+    "import": {
+      "error": "No se pudo importar",
+      "title": "Importar referencias",
+      "summary": "{imported} de {total} importadas.",
+      "importedVerified": "importada y verificada",
+      "importedUnverified": "importada sin verificar",
+      "duplicate": "ya existía",
+      "notImported": "no importada",
+      "formatAria": "Formato de importación",
+      "modeBibtex": "BibTeX",
+      "modeDois": "Lista de DOI",
+      "contentBibtex": "Contenido BibTeX",
+      "contentDois": "DOI (uno por línea)",
+      "placeholderBibtex": "@article{clave,\n  title = {…},\n  doi = {10.xxxx/xxxxx}\n}",
+      "placeholderDois": "10.1000/xyz123\nhttps://doi.org/10.1000/abc456",
+      "help": "Cada DOI se comprueba contra Crossref/OpenAlex. Lo que no se pueda verificar se importa «sin verificar» y no podrá citarse hasta que aportes el DOI.",
+      "importing": "Importando…",
+      "import": "Importar"
+    },
+    "close": "Cerrar",
+    "dbStatus": {
+      "ok": "respondió",
+      "failed": "falló",
+      "skipped": "omitida"
+    },
+    "search": {
+      "configError": "No se pudo comprobar si la búsqueda está disponible",
+      "retry": "Reintentar",
+      "checking": "Comprobando la búsqueda bibliográfica…",
+      "disabled": "La búsqueda bibliográfica está desactivada ({reason}). Puedes seguir usando las referencias ya importadas.",
+      "disabledDefault": "descubrimiento desactivado",
+      "error": "No se pudo completar la búsqueda",
+      "title": "Buscar referencias",
+      "query": "Consulta",
+      "placeholder": "p. ej. deep learning image recognition",
+      "help": "La consulta se envía a las bases marcadas. No pegues texto de tu manuscrito. Solo se guardan como candidatos las referencias cuyo DOI se verifica.",
+      "databases": "Bases",
+      "searching": "Buscando…",
+      "search": "Buscar",
+      "searchingVerifying": "Buscando y verificando referencias…",
+      "noNew": "No hay candidatos verificados nuevos.",
+      "newCandidates_one": "{count} candidato nuevo verificado en «Candidatos».",
+      "newCandidates_other": "{count} candidatos nuevos verificados en «Candidatos».",
+      "alreadyIn_one": "{count} ya estaba en la biblioteca.",
+      "alreadyIn_other": "{count} ya estaban en la biblioteca.",
+      "sourceCounts": " — {returned} devueltos, {verified} verificados"
+    },
+    "record": {
+      "etAl": "et al.",
+      "mustCite": "Imprescindible",
+      "doiLabel": "DOI:",
+      "noDoi": "sin DOI",
+      "baseLabel": "Base:",
+      "abstractOnlyTitle": "Solo hay el resumen de la base: sube el PDF para tener el texto completo",
+      "abstractOnly": "solo resumen",
+      "acceptAria": "Aceptar {title}",
+      "accept": "Aceptar",
+      "unmarkAria": "Quitar la marca imprescindible de {title}",
+      "markAria": "Marcar como imprescindible {title}",
+      "unmark": "Quitar marca",
+      "mark": "Imprescindible",
+      "discardAria": "Descartar {title}",
+      "discard": "Descartar",
+      "uploadPdfAria": "Subir el PDF de {title}",
+      "uploadPdf": "Subir PDF",
+      "editAria": "Editar metadatos de {title}",
+      "edit": "Editar"
+    },
+    "panel": {
+      "loadError": "No se pudieron cargar las fichas bibliográficas",
+      "discarded": "Descartada",
+      "markedMustCite": "Marcada como imprescindible",
+      "addedFullText": "Añadida a la biblioteca con el texto completo",
+      "addedAbstract": "Añadida a la biblioteca: solo resumen. Puedes subir el PDF.",
+      "added": "Añadida a la biblioteca",
+      "updateError": "No se pudo actualizar la ficha",
+      "pdfIndexed": "PDF indexado: la ficha tiene el texto completo",
+      "pdfError": "No se pudo subir el PDF",
+      "title": "Referencias bibliográficas",
+      "importButton": "Importar BibTeX / DOI",
+      "statusAria": "Estado de las referencias",
+      "loading": "Cargando las referencias…"
+    }
+  },
+  "agentEditor": {
+    "tabs": {
+      "md": "Markdown",
+      "params": "Parámetros",
+      "rag": "RAG"
+    },
+    "model": {
+      "select": "Selecciona modelo",
+      "other": "Otro modelo...",
+      "customAria": "Nombre de modelo personalizado"
+    },
+    "rag": {
+      "loadError": "No se pudo consultar Qdrant",
+      "indexed": "{name} indexado ({chunks} chunks)",
+      "uploadError": "Error al subir {name}",
+      "confirmDelete": "¿Eliminar \"{filename}\" del índice RAG?",
+      "deleted": "Documento eliminado",
+      "deleteError": "Error al eliminar",
+      "noOwnDocs": "Sin documentos indexados para este agente aún.",
+      "deleteAria": "Eliminar {filename} del RAG",
+      "activeCollection": "Colección activa:",
+      "chunkSizeLabel": "Chunk size:",
+      "overlapLabel": "Overlap:",
+      "useLibraryCollection": "Usar colección de la biblioteca",
+      "useCollectionAria": "Usar colección {name} ({docs})",
+      "pickDocs": "Elige documentos específicos (vacío = toda la colección):",
+      "includeDoc": "Incluir documento {name}",
+      "clearSelection": "Limpiar selección (usar toda la colección)",
+      "searchOnly_one": "El agente buscará solo en {count} documento seleccionado.",
+      "searchOnly_other": "El agente buscará solo en {count} documentos seleccionados.",
+      "searchAll": "Al seleccionar una colección, el agente consultará todos sus vectores como contexto RAG.",
+      "uploadNew": "Subir nuevo documento",
+      "lastIndexed": "Indexado: {filename} · {chunks} chunks en \"{collection}\"",
+      "dropzoneAria": "Zona de carga de archivos RAG",
+      "onlyAccepted": "Solo .txt, .md y .pdf son aceptados",
+      "indexing": "Indexando...",
+      "dropOrClick": "Arrastra archivos o haz clic",
+      "limits": ".txt · .md · .pdf — máx. 10 MB",
+      "fileAria": "Seleccionar archivo RAG",
+      "ownDocs": "Documentos propios del agente",
+      "active": "✓ Activo:",
+      "activeSelection_one": "El agente usará el documento seleccionado de la colección <strong>{collection}</strong>. Los documentos propios no se usarán mientras haya una selección de biblioteca activa.",
+      "activeSelection_other": "El agente usará {count} documentos seleccionados de la colección <strong>{collection}</strong>. Los documentos propios no se usarán mientras haya una selección de biblioteca activa."
+    },
+    "saved": "Agente guardado",
+    "saveError": "Error al guardar",
+    "confirmDelete": "¿Eliminar el agente \"{name}\"? No se puede deshacer.",
+    "deleted": "Agente eliminado",
+    "deleteError": "Error al eliminar",
+    "title": "Editar — {name}",
+    "deleteAria": "Eliminar agente",
+    "delete": "Eliminar",
+    "markdownAria": "Contenido Markdown del agente",
+    "modelLabel": "Modelo (Ollama)",
+    "temperature": "Temperature",
+    "temperatureAria": "Temperature: {value}",
+    "promptTemplate": "Prompt template",
+    "promptPlaceholderRedactor": "Deja vacío para usar el prompt por defecto.\n\nVariables disponibles:\n{title} — título del artículo\n{keywords} — palabras clave\n{research_data} — contexto del investigador\n{feedback_section} — feedback del revisor (si aplica)",
+    "promptPlaceholderDefault": "Usa {title}, {context}, {feedback} como variables...",
+    "language": {
+      "label": "Idioma de redacción",
+      "aria": "Seleccionar idioma de redacción",
+      "es": "Español",
+      "en": "English",
+      "hint": "El redactor generará el borrador completo en este idioma. Idioma activo: <strong>{language}</strong>"
+    },
+    "words": {
+      "label": "Cantidad de palabras objetivo",
+      "placeholder": "0 = sin límite",
+      "aria": "Cantidad de palabras objetivo para el borrador",
+      "hintTarget_one": "Orientativo: el modelo intentará ajustar la extensión del borrador. Objetivo: <strong>{count} palabras</strong>",
+      "hintTarget_other": "Orientativo: el modelo intentará ajustar la extensión del borrador. Objetivo: <strong>{count} palabras</strong>",
+      "hintNoLimit": "Orientativo: el modelo intentará ajustar la extensión del borrador. Sin límite definido."
+    },
+    "format": {
+      "label": "Formato científico por defecto",
+      "aria": "Seleccionar formato científico",
+      "apa": "APA 7th edition — (Autor, Año)",
+      "ieee": "IEEE — [1], [2] numerados",
+      "acl": "ACL (conferencia) — (Autor et al., Año)",
+      "vancouver": "Vancouver — numeración secuencial",
+      "chicago": "Chicago 17th edition — (Autor Año)",
+      "nature": "Nature / NLM — superíndices numerados",
+      "hint": "El formateador aplicará este estilo de citas a todos los borradores que procese. Formato activo: <strong>{format}</strong>"
+    },
+    "ragEnabled": "RAG habilitado",
+    "graphRag": "Graph RAG",
+    "semanticSearch": "Búsqueda Semántica",
+    "ragCollection": "Colección RAG",
+    "chunkSize": "Chunk size",
+    "overlap": "Overlap",
+    "ownAdapterNote": "Este agente tiene un adaptador propio y no consulta RAG directamente. El contexto de investigación le llega a través del estado del pipeline (campo <code>research_data</code>).",
+    "cancel": "Cancelar",
+    "saving": "Guardando...",
+    "saveChanges": "Guardar cambios",
+    "close": "Cerrar",
+    "saveCollection": "Guardar colección",
+    "create": {
+      "nameRequired": "Nombre requerido",
+      "nameInvalid": "Solo minúsculas, números, guiones y guiones bajos",
+      "nameReserved": "Ese nombre está reservado",
+      "error": "Error al crear agente",
+      "title": "Nuevo agente personalizado",
+      "identifier": "Identificador",
+      "identifierPlaceholder": "mi-agente-custom",
+      "description": "Descripción",
+      "descriptionPlaceholder": "¿Qué hace este agente?",
+      "defaultModel": "Modelo por defecto",
+      "creating": "Creando...",
+      "create": "Crear agente"
+    }
+  }
+}

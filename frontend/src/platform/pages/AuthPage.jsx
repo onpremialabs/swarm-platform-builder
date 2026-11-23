@@ -2,8 +2,10 @@ import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import toast from 'react-hot-toast';
+import { useTranslation } from '../i18n';
 
 export default function AuthPage() {
+  const { t } = useTranslation();
   const [tab, setTab] = useState('login');
   const [form, setForm] = useState({ email: '', password: '', fullName: '' });
   const navigate = useNavigate();
@@ -24,11 +26,11 @@ export default function AuthPage() {
     if (tab === 'login') {
       result = await login(form.email, form.password);
     } else {
-      if (!form.fullName.trim()) { toast.error('El nombre es requerido'); return; }
+      if (!form.fullName.trim()) { toast.error(t('auth.nameRequired')); return; }
       result = await register(form.email, form.password, form.fullName);
     }
     if (result.ok) {
-      toast.success(tab === 'login' ? '¡Bienvenido de vuelta!' : '¡Cuenta creada!');
+      toast.success(tab === 'login' ? t('auth.welcomeBack') : t('auth.accountCreated'));
       const role = useAuthStore.getState().user?.role;
       navigate((role === 'lector' || role === 'publico') ? '/reader' : '/projects');
     } else {
@@ -54,22 +56,22 @@ export default function AuthPage() {
               </>
             ) : (
               <>
-                Plataforma<br />
-                <span style={{ color: 'var(--brand-primary)' }}>IA Agentes</span>
+                {t('auth.brandLine1')}<br />
+                <span style={{ color: 'var(--brand-primary)' }}>{t('auth.brandLine2')}</span>
               </>
             )}
           </h1>
           <p className="auth-tagline">
             {projectName
-              ? `Inicia sesión para volver a ${projectName}.`
-              : 'Automatiza flujos de trabajo con agentes de inteligencia artificial.'}
+              ? t('auth.taglineProject', { project: projectName })
+              : t('auth.taglineDefault')}
           </p>
           <div className="auth-features">
             {[
-              { text: 'Flow Designer visual con LangGraph' },
-              { text: 'Agentes IA configurables por proyecto' },
-              { text: 'Ejecución en tiempo real con SSE' },
-              { text: 'RAG integrado con base de conocimiento' },
+              { text: t('auth.features.designer') },
+              { text: t('auth.features.agents') },
+              { text: t('auth.features.realtime') },
+              { text: t('auth.features.rag') },
             ].map((f, i) => (
               <div className="auth-feature" key={i}>
                 <div className="auth-feature-dot" />
@@ -87,34 +89,34 @@ export default function AuthPage() {
         <div className="auth-form-box animate-fade-in">
           <div>
             <h2 style={{ fontSize: 'var(--font-size-xl)', marginBottom: 4 }}>
-              {tab === 'login' ? 'Iniciar sesión' : 'Crear cuenta'}
+              {tab === 'login' ? t('auth.login') : t('auth.createAccount')}
             </h2>
             <p style={{ fontSize: 'var(--font-size-sm)', color: 'var(--text-muted)' }}>
               {tab === 'login'
-                ? (projectName ? `Accede a ${projectName}` : 'Accede a tu espacio de trabajo')
-                : 'Crea tu cuenta para empezar'}
+                ? (projectName ? t('auth.subtitleProject', { project: projectName }) : t('auth.subtitleLogin'))
+                : t('auth.subtitleRegister')}
             </p>
           </div>
 
           {/* Tabs */}
           <div className="tabs">
             <button className={`tab ${tab === 'login' ? 'active' : ''}`} onClick={() => { setTab('login'); clearError(); }}>
-              Iniciar sesión
+              {t('auth.login')}
             </button>
             <button className={`tab ${tab === 'register' ? 'active' : ''}`} onClick={() => { setTab('register'); clearError(); }}>
-              Registrarse
+              {t('auth.register')}
             </button>
           </div>
 
           <form className="auth-form" onSubmit={handleSubmit}>
             {tab === 'register' && (
               <div className="input-group">
-                <label className="input-label">Nombre completo</label>
+                <label className="input-label">{t('auth.fullName')}</label>
                 <input
                   className="input"
                   type="text"
                   name="fullName"
-                  placeholder="Tu nombre"
+                  placeholder={t('auth.fullNamePlaceholder')}
                   value={form.fullName}
                   onChange={handleChange}
                   required
@@ -122,24 +124,24 @@ export default function AuthPage() {
               </div>
             )}
             <div className="input-group">
-              <label className="input-label">Email</label>
+              <label className="input-label">{t('auth.email')}</label>
               <input
                 className="input"
                 type="email"
                 name="email"
-                placeholder="tu@email.com"
+                placeholder={t('auth.emailPlaceholder')}
                 value={form.email}
                 onChange={handleChange}
                 required
               />
             </div>
             <div className="input-group">
-              <label className="input-label">Contraseña</label>
+              <label className="input-label">{t('auth.password')}</label>
               <input
                 className="input"
                 type="password"
                 name="password"
-                placeholder={tab === 'register' ? 'Mínimo 6 caracteres' : '••••••••'}
+                placeholder={tab === 'register' ? t('auth.passwordHint') : '••••••••'}
                 value={form.password}
                 onChange={handleChange}
                 required
@@ -162,20 +164,20 @@ export default function AuthPage() {
 
             <button className="btn btn-primary btn-lg w-full" type="submit" disabled={isLoading}>
               {isLoading ? (
-                <><div className="spinner" style={{ borderTopColor: 'white' }} /> Cargando...</>
+                <><div className="spinner" style={{ borderTopColor: 'white' }} /> {t('auth.loading')}</>
               ) : (
-                tab === 'login' ? 'Entrar' : 'Crear cuenta'
+                tab === 'login' ? t('auth.enter') : t('auth.createAccount')
               )}
             </button>
           </form>
 
           <p style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', textAlign: 'center' }}>
-            {tab === 'login' ? '¿No tienes cuenta? ' : '¿Ya tienes cuenta? '}
+            {tab === 'login' ? t('auth.noAccount') : t('auth.haveAccount')}
             <button
               onClick={() => { setTab(tab === 'login' ? 'register' : 'login'); clearError(); }}
               style={{ background: 'none', border: 'none', color: 'var(--brand-primary)', cursor: 'pointer', fontSize: 'inherit', fontWeight: 600 }}
             >
-              {tab === 'login' ? 'Regístrate' : 'Inicia sesión'}
+              {tab === 'login' ? t('auth.signUpLink') : t('auth.signInLink')}
             </button>
           </p>
         </div>

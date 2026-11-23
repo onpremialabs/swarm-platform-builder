@@ -11,6 +11,7 @@ import { configApi } from '../api/config';
 import { useAuthStore } from '../store/authStore';
 import { useProjectStore } from '../store/projectStore';
 import toast from 'react-hot-toast';
+import { translate, useTranslation } from '../i18n';
 
 // ── Nested-path helpers ──────────────────────────────────────────────────────
 
@@ -38,177 +39,177 @@ function setPath(obj, path, value) {
 const SECTIONS = [
   {
     id: 'app',
-    label: 'Aplicación',
+    labelKey: 'configPage.sections.app',
     icon: <Layers size={15} />,
     fields: [
-      { path: 'app.name', label: 'Nombre', type: 'text', desc: 'Nombre de la plataforma (cosmético, aparece en logs y UI)' },
-      { path: 'app.version', label: 'Versión', type: 'text', desc: 'Versión actual de la aplicación (ej: 0.2.0)' },
-      { path: 'app.debug', label: 'Modo debug', type: 'toggle', desc: 'Activa logs detallados, endpoints /dev y stack traces completos en errores HTTP' },
+      { path: 'app.name', labelKey: 'configPage.fields.app_name.label', type: 'text', descKey: 'configPage.fields.app_name.desc' },
+      { path: 'app.version', labelKey: 'configPage.fields.app_version.label', type: 'text', descKey: 'configPage.fields.app_version.desc' },
+      { path: 'app.debug', labelKey: 'configPage.fields.app_debug.label', type: 'toggle', descKey: 'configPage.fields.app_debug.desc' },
     ],
   },
   {
     id: 'llm',
-    label: 'Motor LLM',
+    labelKey: 'configPage.sections.llm',
     icon: <Cpu size={15} />,
     fields: [
       {
-        path: 'llm.provider', label: 'Proveedor', type: 'select',
-        desc: 'Motor LLM activo: anthropic (Claude, por defecto), ollama (local) u openai (API o servidor compatible)',
+        path: 'llm.provider', labelKey: 'configPage.fields.llm_provider.label', type: 'select',
+        descKey: 'configPage.fields.llm_provider.desc',
         options: [
-          { value: 'anthropic', label: 'Claude (Anthropic)' },
-          { value: 'ollama', label: 'Ollama (local)' },
-          { value: 'openai', label: 'OpenAI API' },
+          { value: 'anthropic', labelKey: 'configPage.options.llm_provider.anthropic' },
+          { value: 'ollama', labelKey: 'configPage.options.llm_provider.ollama' },
+          { value: 'openai', labelKey: 'configPage.options.llm_provider.openai' },
         ],
       },
     ],
   },
   {
     id: 'anthropic',
-    label: 'Claude (Anthropic)',
+    labelKey: 'configPage.sections.anthropic',
     icon: <Sparkles size={15} />,
     visibleWhen: cfg => (getPath(cfg, 'llm.provider') || 'anthropic') === 'anthropic',
     fields: [
       {
         // Read-only on purpose: config.yaml is tracked in git, so the key is
         // never writable from the UI — only its presence is reported (SPEC-023).
-        path: 'anthropic.api_key', label: 'API Key', type: 'env-status',
-        desc: 'Solo por variable de entorno: ANTHROPIC_API_KEY=sk-ant-… (nunca se guarda en config.yaml, que está versionado)',
+        path: 'anthropic.api_key', labelKey: 'configPage.fields.anthropic_api_key.label', type: 'env-status',
+        descKey: 'configPage.fields.anthropic_api_key.desc',
       },
-      { path: 'anthropic.model', label: 'Modelo por defecto', type: 'text', desc: 'Default global del proveedor (ej: claude-opus-5). El modelo por agente se define en su .agent.md' },
-      { path: 'anthropic.max_tokens', label: 'Max tokens', type: 'number', desc: 'Anthropic exige max_tokens en cada llamada (por defecto 4096)' },
-      { path: 'anthropic.base_url', label: 'Base URL (opcional)', type: 'text', desc: 'Dejar vacío para usar el endpoint oficial de Anthropic' },
+      { path: 'anthropic.model', labelKey: 'configPage.fields.anthropic_model.label', type: 'text', descKey: 'configPage.fields.anthropic_model.desc' },
+      { path: 'anthropic.max_tokens', labelKey: 'configPage.fields.anthropic_max_tokens.label', type: 'number', descKey: 'configPage.fields.anthropic_max_tokens.desc' },
+      { path: 'anthropic.base_url', labelKey: 'configPage.fields.anthropic_base_url.label', type: 'text', descKey: 'configPage.fields.anthropic_base_url.desc' },
     ],
   },
   {
     id: 'ollama',
-    label: 'Ollama',
+    labelKey: 'configPage.sections.ollama',
     icon: <Bot size={15} />,
     // Strict match: the default provider is anthropic, so an absent value must
     // not fall back to showing the Ollama section.
     visibleWhen: cfg => getPath(cfg, 'llm.provider') === 'ollama',
     fields: [
-      { path: 'ollama.base_url', label: 'URL base', type: 'text', desc: 'http://localhost:11434' },
-      { path: 'ollama.default_model', label: 'Modelo generación', type: 'model-select', desc: 'Modelo por defecto para todos los agentes' },
-      { path: 'ollama.embed_model', label: 'Modelo embeddings', type: 'model-select', desc: 'Modelo para vectorización RAG (ej: nomic-embed-text)' },
+      { path: 'ollama.base_url', labelKey: 'configPage.fields.ollama_base_url.label', type: 'text', descKey: 'configPage.fields.ollama_base_url.desc' },
+      { path: 'ollama.default_model', labelKey: 'configPage.fields.ollama_default_model.label', type: 'model-select', descKey: 'configPage.fields.ollama_default_model.desc' },
+      { path: 'ollama.embed_model', labelKey: 'configPage.fields.ollama_embed_model.label', type: 'model-select', descKey: 'configPage.fields.ollama_embed_model.desc' },
     ],
   },
   {
     id: 'openai',
-    label: 'OpenAI',
+    labelKey: 'configPage.sections.openai',
     icon: <Search size={15} />,
     visibleWhen: cfg => getPath(cfg, 'llm.provider') === 'openai',
     fields: [
-      { path: 'openai.api_key', label: 'API Key', type: 'password', desc: 'sk-...' },
-      { path: 'openai.model', label: 'Modelo generación', type: 'text', desc: 'ej: gpt-4o-mini' },
-      { path: 'openai.embed_model', label: 'Modelo embeddings', type: 'text', desc: 'ej: text-embedding-3-small' },
-      { path: 'openai.base_url', label: 'Base URL (opcional)', type: 'text', desc: 'Dejar vacío para usar la URL oficial de OpenAI' },
+      { path: 'openai.api_key', labelKey: 'configPage.fields.openai_api_key.label', type: 'password', descKey: 'configPage.fields.openai_api_key.desc' },
+      { path: 'openai.model', labelKey: 'configPage.fields.openai_model.label', type: 'text', descKey: 'configPage.fields.openai_model.desc' },
+      { path: 'openai.embed_model', labelKey: 'configPage.fields.openai_embed_model.label', type: 'text', descKey: 'configPage.fields.openai_embed_model.desc' },
+      { path: 'openai.base_url', labelKey: 'configPage.fields.openai_base_url.label', type: 'text', descKey: 'configPage.fields.openai_base_url.desc' },
     ],
   },
   {
     id: 'qdrant',
-    label: 'Qdrant (RAG)',
+    labelKey: 'configPage.sections.qdrant',
     icon: <Box size={15} />,
     fields: [
-      { path: 'qdrant.url', label: 'URL', type: 'text', desc: 'http://localhost:6333' },
-      { path: 'qdrant.collection', label: 'Colección', type: 'text', desc: 'Nombre de la colección vectorial' },
-      { path: 'qdrant.vector_size', label: 'Dimensiones vector', type: 'number', desc: '768 para nomic-embed-text, 1536 para text-embedding-3-small' },
-      { path: 'qdrant.api_key', label: 'API Key', type: 'password', desc: 'Dejar vacío si Qdrant es local sin autenticación' },
+      { path: 'qdrant.url', labelKey: 'configPage.fields.qdrant_url.label', type: 'text', descKey: 'configPage.fields.qdrant_url.desc' },
+      { path: 'qdrant.collection', labelKey: 'configPage.fields.qdrant_collection.label', type: 'text', descKey: 'configPage.fields.qdrant_collection.desc' },
+      { path: 'qdrant.vector_size', labelKey: 'configPage.fields.qdrant_vector_size.label', type: 'number', descKey: 'configPage.fields.qdrant_vector_size.desc' },
+      { path: 'qdrant.api_key', labelKey: 'configPage.fields.qdrant_api_key.label', type: 'password', descKey: 'configPage.fields.qdrant_api_key.desc' },
     ],
   },
   {
     id: 'rag',
-    label: 'RAG global',
+    labelKey: 'configPage.sections.rag',
     icon: <Database size={15} />,
     fields: [
-      { path: 'rag.chunk_size', label: 'Chunk size', type: 'number', desc: 'Tamaño de fragmento al indexar documentos (tokens aprox.)' },
-      { path: 'rag.chunk_overlap', label: 'Chunk overlap', type: 'number', desc: 'Solapamiento entre fragmentos consecutivos' },
-      { path: 'rag.top_k', label: 'Top-K resultados', type: 'number', desc: 'Número de fragmentos relevantes a recuperar por consulta' },
-      { path: 'rag.score_threshold', label: 'Score mínimo', type: 'number-float', desc: 'Umbral de similitud para descartar resultados (0 = sin filtro)' },
+      { path: 'rag.chunk_size', labelKey: 'configPage.fields.rag_chunk_size.label', type: 'number', descKey: 'configPage.fields.rag_chunk_size.desc' },
+      { path: 'rag.chunk_overlap', labelKey: 'configPage.fields.rag_chunk_overlap.label', type: 'number', descKey: 'configPage.fields.rag_chunk_overlap.desc' },
+      { path: 'rag.top_k', labelKey: 'configPage.fields.rag_top_k.label', type: 'number', descKey: 'configPage.fields.rag_top_k.desc' },
+      { path: 'rag.score_threshold', labelKey: 'configPage.fields.rag_score_threshold.label', type: 'number-float', descKey: 'configPage.fields.rag_score_threshold.desc' },
     ],
   },
   {
     id: 'agent-investigador',
-    label: 'Investigador',
+    labelKey: 'configPage.sections.agent_investigador',
     icon: <Search size={15} />,
     group: 'agents',
     fields: [
-      { path: 'agents.investigador.model', label: 'Modelo', type: 'model-select-nullable', desc: 'Dejar vacío para usar el modelo global' },
-      { path: 'agents.investigador.temperature', label: 'Temperature', type: 'number-float', desc: 'Creatividad del modelo (0.0 – 1.0)' },
-      { path: 'agents.investigador.rag_enabled', label: 'RAG activado', type: 'toggle', desc: 'Consultar base vectorial en la fase de investigación' },
-      { path: 'agents.investigador.rag_collection', label: 'Colección RAG', type: 'text', desc: 'Colección Qdrant específica (vacío = colección global)' },
-      { path: 'agents.investigador.rag_top_k', label: 'Top-K RAG', type: 'number', desc: 'Fragmentos a recuperar (sobreescribe el global)' },
-      { path: 'agents.investigador.rag_chunk_size', label: 'Chunk size', type: 'number', desc: 'Tamaño de chunk al indexar páginas scrapeadas' },
-      { path: 'agents.investigador.semantic_rerank', label: 'Semantic re-rank', type: 'toggle', desc: 'Re-ordenar páginas scrapeadas por similitud semántica (coseno)' },
+      { path: 'agents.investigador.model', labelKey: 'configPage.fields.agents_investigador_model.label', type: 'model-select-nullable', descKey: 'configPage.fields.agents_investigador_model.desc' },
+      { path: 'agents.investigador.temperature', labelKey: 'configPage.fields.agents_investigador_temperature.label', type: 'number-float', descKey: 'configPage.fields.agents_investigador_temperature.desc' },
+      { path: 'agents.investigador.rag_enabled', labelKey: 'configPage.fields.agents_investigador_rag_enabled.label', type: 'toggle', descKey: 'configPage.fields.agents_investigador_rag_enabled.desc' },
+      { path: 'agents.investigador.rag_collection', labelKey: 'configPage.fields.agents_investigador_rag_collection.label', type: 'text', descKey: 'configPage.fields.agents_investigador_rag_collection.desc' },
+      { path: 'agents.investigador.rag_top_k', labelKey: 'configPage.fields.agents_investigador_rag_top_k.label', type: 'number', descKey: 'configPage.fields.agents_investigador_rag_top_k.desc' },
+      { path: 'agents.investigador.rag_chunk_size', labelKey: 'configPage.fields.agents_investigador_rag_chunk_size.label', type: 'number', descKey: 'configPage.fields.agents_investigador_rag_chunk_size.desc' },
+      { path: 'agents.investigador.semantic_rerank', labelKey: 'configPage.fields.agents_investigador_semantic_rerank.label', type: 'toggle', descKey: 'configPage.fields.agents_investigador_semantic_rerank.desc' },
     ],
   },
   {
     id: 'agent-redactor',
-    label: 'Redactor',
+    labelKey: 'configPage.sections.agent_redactor',
     icon: <Bot size={15} />,
     group: 'agents',
     fields: [
-      { path: 'agents.redactor.model', label: 'Modelo', type: 'model-select-nullable', desc: 'Dejar vacío para usar el modelo global' },
-      { path: 'agents.redactor.temperature', label: 'Temperature', type: 'number-float', desc: 'Creatividad del modelo (0.0 – 1.0)' },
-      { path: 'agents.redactor.rag_enabled', label: 'RAG activado', type: 'toggle', desc: 'Usar contexto RAG al redactar' },
+      { path: 'agents.redactor.model', labelKey: 'configPage.fields.agents_redactor_model.label', type: 'model-select-nullable', descKey: 'configPage.fields.agents_redactor_model.desc' },
+      { path: 'agents.redactor.temperature', labelKey: 'configPage.fields.agents_redactor_temperature.label', type: 'number-float', descKey: 'configPage.fields.agents_redactor_temperature.desc' },
+      { path: 'agents.redactor.rag_enabled', labelKey: 'configPage.fields.agents_redactor_rag_enabled.label', type: 'toggle', descKey: 'configPage.fields.agents_redactor_rag_enabled.desc' },
     ],
   },
   {
     id: 'agent-revisor',
-    label: 'Revisor',
+    labelKey: 'configPage.sections.agent_revisor',
     icon: <Bot size={15} />,
     group: 'agents',
     fields: [
-      { path: 'agents.revisor.model', label: 'Modelo', type: 'model-select-nullable', desc: 'Dejar vacío para usar el modelo global' },
-      { path: 'agents.revisor.temperature', label: 'Temperature', type: 'number-float', desc: 'Creatividad del modelo (0.0 – 1.0)' },
-      { path: 'agents.revisor.rag_enabled', label: 'RAG activado', type: 'toggle', desc: 'Usar contexto RAG al revisar' },
+      { path: 'agents.revisor.model', labelKey: 'configPage.fields.agents_revisor_model.label', type: 'model-select-nullable', descKey: 'configPage.fields.agents_revisor_model.desc' },
+      { path: 'agents.revisor.temperature', labelKey: 'configPage.fields.agents_revisor_temperature.label', type: 'number-float', descKey: 'configPage.fields.agents_revisor_temperature.desc' },
+      { path: 'agents.revisor.rag_enabled', labelKey: 'configPage.fields.agents_revisor_rag_enabled.label', type: 'toggle', descKey: 'configPage.fields.agents_revisor_rag_enabled.desc' },
     ],
   },
   {
     id: 'agent-formateador',
-    label: 'Formateador',
+    labelKey: 'configPage.sections.agent_formateador',
     icon: <Bot size={15} />,
     group: 'agents',
     fields: [
-      { path: 'agents.formateador.model', label: 'Modelo', type: 'model-select-nullable', desc: 'Dejar vacío para usar el modelo global' },
-      { path: 'agents.formateador.temperature', label: 'Temperature', type: 'number-float', desc: 'Creatividad del modelo (0.0 – 1.0)' },
-      { path: 'agents.formateador.rag_enabled', label: 'RAG activado', type: 'toggle', desc: 'Usar contexto RAG al formatear' },
+      { path: 'agents.formateador.model', labelKey: 'configPage.fields.agents_formateador_model.label', type: 'model-select-nullable', descKey: 'configPage.fields.agents_formateador_model.desc' },
+      { path: 'agents.formateador.temperature', labelKey: 'configPage.fields.agents_formateador_temperature.label', type: 'number-float', descKey: 'configPage.fields.agents_formateador_temperature.desc' },
+      { path: 'agents.formateador.rag_enabled', labelKey: 'configPage.fields.agents_formateador_rag_enabled.label', type: 'toggle', descKey: 'configPage.fields.agents_formateador_rag_enabled.desc' },
     ],
   },
   {
     id: 'agent-publicador',
-    label: 'Publicador',
+    labelKey: 'configPage.sections.agent_publicador',
     icon: <Bot size={15} />,
     group: 'agents',
     fields: [
-      { path: 'agents.publicador.model', label: 'Modelo', type: 'model-select-nullable', desc: 'Dejar vacío para usar el modelo global' },
-      { path: 'agents.publicador.rag_enabled', label: 'RAG activado', type: 'toggle', desc: 'Usar contexto RAG al publicar' },
+      { path: 'agents.publicador.model', labelKey: 'configPage.fields.agents_publicador_model.label', type: 'model-select-nullable', descKey: 'configPage.fields.agents_publicador_model.desc' },
+      { path: 'agents.publicador.rag_enabled', labelKey: 'configPage.fields.agents_publicador_rag_enabled.label', type: 'toggle', descKey: 'configPage.fields.agents_publicador_rag_enabled.desc' },
     ],
   },
   {
     id: 'database',
-    label: 'Base de datos',
+    labelKey: 'configPage.sections.database',
     icon: <Database size={15} />,
     fields: [
-      { path: 'database.url', label: 'Database URL', type: 'text', desc: 'Cadena de conexión SQLAlchemy' },
+      { path: 'database.url', labelKey: 'configPage.fields.database_url.label', type: 'text', descKey: 'configPage.fields.database_url.desc' },
     ],
   },
   {
     id: 'security',
-    label: 'Seguridad JWT',
+    labelKey: 'configPage.sections.security',
     icon: <Shield size={15} />,
     fields: [
-      { path: 'security.secret_key', label: 'Secret Key', type: 'password', desc: 'Clave secreta para firmar tokens JWT — usa openssl rand -hex 32 para generar una segura' },
-      { path: 'security.algorithm', label: 'Algoritmo', type: 'text', desc: 'Algoritmo de firma JWT (ej: HS256). Cambiar requiere revocar todos los tokens activos.' },
-      { path: 'security.access_token_expire_minutes', label: 'Expiración access token (min)', type: 'number', desc: 'Tiempo de vida del token de acceso en minutos (por defecto: 30)' },
-      { path: 'security.refresh_token_expire_days', label: 'Expiración refresh token (días)', type: 'number', desc: 'Tiempo de vida del token de refresco en días (por defecto: 7)' },
+      { path: 'security.secret_key', labelKey: 'configPage.fields.security_secret_key.label', type: 'password', descKey: 'configPage.fields.security_secret_key.desc' },
+      { path: 'security.algorithm', labelKey: 'configPage.fields.security_algorithm.label', type: 'text', descKey: 'configPage.fields.security_algorithm.desc' },
+      { path: 'security.access_token_expire_minutes', labelKey: 'configPage.fields.security_access_token_expire_minutes.label', type: 'number', descKey: 'configPage.fields.security_access_token_expire_minutes.desc' },
+      { path: 'security.refresh_token_expire_days', labelKey: 'configPage.fields.security_refresh_token_expire_days.label', type: 'number', descKey: 'configPage.fields.security_refresh_token_expire_days.desc' },
     ],
   },
   {
     id: 'access_control',
-    label: 'Control de acceso',
+    labelKey: 'configPage.sections.access_control',
     icon: <Shield size={15} />,
     fields: [
-      { path: 'access_control.enable_dev_role_promotion', label: 'Dev Role Promotion', type: 'toggle', desc: 'Permite auto-promoción a reviewer via POST /api/v1/auth/dev/promote-reviewer. Solo activar en entornos de desarrollo.' },
+      { path: 'access_control.enable_dev_role_promotion', labelKey: 'configPage.fields.access_control_enable_dev_role_promotion.label', type: 'toggle', descKey: 'configPage.fields.access_control_enable_dev_role_promotion.desc' },
     ],
   },
 ];
@@ -220,6 +221,7 @@ const SECTIONS = [
  * Handles: toggle, select, model-select, model-select-nullable, number, number-float, text, password.
  */
 function FieldControl({ field, config, onChange, ollamaModels, modelsLoading, onReloadModels, llmStatus }) {
+  const { t } = useTranslation();
   const value = getPath(config, field.path);
   const isNullable = field.type === 'model-select-nullable';
 
@@ -239,7 +241,7 @@ function FieldControl({ field, config, onChange, ollamaModels, modelsLoading, on
         }}
       >
         <span aria-hidden="true">{isSet ? '●' : '○'}</span>
-        {isSet ? 'Configurada por entorno' : 'No configurada'}
+        {isSet ? t('configPage.envSet') : t('configPage.envUnset')}
       </span>
     );
   }
@@ -252,7 +254,7 @@ function FieldControl({ field, config, onChange, ollamaModels, modelsLoading, on
         className={`toggle-wrapper ${value ? 'on' : ''}`}
         onClick={() => onChange(field.path, !value)}
         tabIndex={0}
-        aria-label={field.label}
+        aria-label={t(field.labelKey)}
         onKeyDown={e => (e.key === ' ' || e.key === 'Enter') && onChange(field.path, !value)}
         style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
       >
@@ -268,10 +270,10 @@ function FieldControl({ field, config, onChange, ollamaModels, modelsLoading, on
         style={{ width: 200, padding: '6px 10px', fontSize: 'var(--font-size-xs)' }}
         value={value || ''}
         onChange={e => onChange(field.path, e.target.value)}
-        aria-label={field.label}
+        aria-label={t(field.labelKey)}
       >
         {(field.options || []).map(o => (
-          <option key={o.value} value={o.value}>{o.label}</option>
+          <option key={o.value} value={o.value}>{t(o.labelKey)}</option>
         ))}
       </select>
     );
@@ -286,11 +288,11 @@ function FieldControl({ field, config, onChange, ollamaModels, modelsLoading, on
             style={{ width: 240, padding: '6px 10px', fontSize: 'var(--font-size-xs)' }}
             value={value || ''}
             onChange={e => onChange(field.path, e.target.value || null)}
-            aria-label={field.label}
+            aria-label={t(field.labelKey)}
           >
-            {isNullable && <option value="">(hereda modelo global)</option>}
+            {isNullable && <option value="">{t('configPage.inheritsModel')}</option>}
             {value && !ollamaModels.includes(value) && (
-              <option value={value}>{value} (actual)</option>
+              <option value={value}>{t('configPage.currentModel', { model: value })}</option>
             )}
             {ollamaModels.map(m => <option key={m} value={m}>{m}</option>)}
           </select>
@@ -300,24 +302,24 @@ function FieldControl({ field, config, onChange, ollamaModels, modelsLoading, on
             type="text"
             style={{ width: 240, padding: '6px 10px', fontSize: 'var(--font-size-xs)' }}
             value={value || ''}
-            placeholder={isNullable ? '(hereda modelo global)' : 'ej: mistral:7b'}
+            placeholder={isNullable ? t('configPage.inheritsModel') : t('configPage.modelPlaceholder')}
             onChange={e => onChange(field.path, e.target.value || null)}
-            aria-label={field.label}
+            aria-label={t(field.labelKey)}
           />
         )}
         <button
           className="btn btn-ghost btn-sm"
           onClick={onReloadModels}
           disabled={modelsLoading}
-          title="Recargar modelos instalados"
-          aria-label="Recargar modelos Ollama"
+          title={t('configPage.reloadModels')}
+          aria-label={t('configPage.reloadModelsAria')}
           style={{ padding: '5px 8px' }}
         >
           <RefreshCw size={13} style={modelsLoading ? { animation: 'spin 1s linear infinite' } : {}} />
         </button>
         {ollamaModels.length > 0 && (
           <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>
-            {ollamaModels.length} detectado{ollamaModels.length === 1 ? '' : 's'}
+            {t('configPage.detected', { count: ollamaModels.length })}
           </span>
         )}
       </div>
@@ -339,7 +341,7 @@ function FieldControl({ field, config, onChange, ollamaModels, modelsLoading, on
             : Number.parseInt(e.target.value, 10);
           onChange(field.path, Number.isNaN(v) ? null : v);
         }}
-        aria-label={field.label}
+        aria-label={t(field.labelKey)}
       />
     );
   }
@@ -355,7 +357,7 @@ function FieldControl({ field, config, onChange, ollamaModels, modelsLoading, on
       }}
       value={value ?? ''}
       onChange={e => onChange(field.path, e.target.value)}
-      aria-label={field.label}
+      aria-label={t(field.labelKey)}
     />
   );
 }
@@ -366,6 +368,7 @@ function FieldControl({ field, config, onChange, ollamaModels, modelsLoading, on
  * Collapsible section card. Renders a header with chevron toggle and a list of field rows.
  */
 function ConfigSection({ section, config, onChange, ollamaModels, modelsLoading, onReloadModels, llmStatus, defaultOpen = true }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(defaultOpen);
   const isAgent = !!section.group;
 
@@ -382,7 +385,7 @@ function ConfigSection({ section, config, onChange, ollamaModels, modelsLoading,
       >
         <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {section.icon}
-          {section.label}
+          {t(section.labelKey)}
         </span>
         {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
       </button>
@@ -391,8 +394,8 @@ function ConfigSection({ section, config, onChange, ollamaModels, modelsLoading,
           {section.fields.map(field => (
             <div className="config-row" key={field.path}>
               <div className="config-row-info">
-                <div className="config-row-key">{field.label}</div>
-                <div className="config-row-desc">{field.desc}</div>
+                <div className="config-row-key">{t(field.labelKey)}</div>
+                <div className="config-row-desc">{t(field.descKey)}</div>
               </div>
               <FieldControl
                 field={field}
@@ -418,6 +421,7 @@ function ConfigSection({ section, config, onChange, ollamaModels, modelsLoading,
  * Uses nested dot-notation paths to map fields to YAML structure.
  */
 export default function ConfigPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { logout } = useAuthStore();
   const { activeProject } = useProjectStore();
@@ -450,7 +454,7 @@ export default function ConfigPage() {
         setOllamaModels(modelsData.models || []);
         setLlmStatus(status);
       })
-      .catch(err => setLoadError(mensajeDeCarga(err, 'No se pudo cargar la configuración')))
+      .catch(err => setLoadError(mensajeDeCarga(err, translate('configPage.loadError'))))
       .finally(() => setLoading(false));
   }, []);
 
@@ -462,9 +466,9 @@ export default function ConfigPage() {
     setSaving(true);
     try {
       await configApi.update(config);
-      toast.success('Configuración guardada');
+      toast.success(t('configPage.saved'));
     } catch {
-      toast.error('Error al guardar configuración');
+      toast.error(t('configPage.saveError'));
     } finally {
       setSaving(false);
     }
@@ -473,19 +477,19 @@ export default function ConfigPage() {
   const handleLogout = () => {
     const projectName = activeProject?.name;
     logout();
-    toast.success('Sesión cerrada');
+    toast.success(t('configPage.loggedOut'));
     navigate('/auth', projectName ? { state: { projectName } } : undefined);
   };
 
   if (loading) {
-    return <div className="page-body"><LoadingState label="Cargando la configuración…" /></div>;
+    return <div className="page-body"><LoadingState label={t('configPage.loading')} /></div>;
   }
 
   if (loadError) {
     return (
       <div className="page-body">
         <ErrorState
-          title="No se pudo cargar la configuración"
+          title={t('configPage.loadError')}
           description={loadError}
           onRetry={cargarConfig}
         />
@@ -513,19 +517,19 @@ export default function ConfigPage() {
         marginBottom: 'var(--space-6)',
       }}>
         <div>
-          <h2 style={{ marginBottom: 4 }}>Configuración</h2>
+          <h2 style={{ marginBottom: 4 }}>{t('configPage.title')}</h2>
           <p style={{ fontSize: 'var(--font-size-sm)', color: 'var(--text-muted)' }}>
-            Parámetros del sistema (config.yaml)
+            {t('configPage.subtitle')}
           </p>
         </div>
         <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
           <button className="btn btn-ghost btn-sm" onClick={() => {
-            configApi.get().then(data => { setConfig(data || {}); toast.success('Recargado'); });
+            configApi.get().then(data => { setConfig(data || {}); toast.success(t('configPage.reloaded')); });
           }}>
-            <RefreshCw size={14} /> Recargar
+            <RefreshCw size={14} /> {t('configPage.reload')}
           </button>
           <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
-            <Save size={14} /> {saving ? 'Guardando…' : 'Guardar'}
+            <Save size={14} /> {saving ? t('configPage.saving') : t('configPage.save')}
           </button>
         </div>
       </div>
@@ -546,7 +550,7 @@ export default function ConfigPage() {
               textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600,
             }}>
               <Layers size={13} />
-              Agentes — defaults globales (sobrescritos por agent_profile en BD)
+              {t('configPage.agentDefaults')}
             </div>
 
             {/* Explanation callout */}
@@ -561,10 +565,8 @@ export default function ConfigPage() {
               color: 'var(--text-muted)',
               lineHeight: 1.5,
             }}>
-              <strong style={{ color: 'var(--text-body)' }}>Prioridad en runtime:</strong>{' '}
-              los perfiles de agente guardados en BD (editables en cada proyecto) <em>siempre</em> tienen
-              prioridad sobre estos defaults. Estos valores solo aplican cuando el campo en BD está vacío
-              o el agente no tiene perfil guardado.
+              <strong style={{ color: 'var(--text-body)' }}>{t('configPage.priorityLabel')}</strong>{' '}
+              {t('configPage.priorityBefore')} <em>{t('configPage.priorityAlways')}</em> {t('configPage.priorityAfter')}
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
@@ -578,16 +580,16 @@ export default function ConfigPage() {
         {/* Logout */}
         <div className="config-section">
           <div className="config-section-header" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <LogOut size={15} /> Sesión
+            <LogOut size={15} /> {t('configPage.session')}
           </div>
           <div className="config-section-body">
             <div className="config-row">
               <div className="config-row-info">
-                <div className="config-row-key">Cerrar sesión</div>
-                <div className="config-row-desc">Elimina el token de sesión actual</div>
+                <div className="config-row-key">{t('configPage.logout')}</div>
+                <div className="config-row-desc">{t('configPage.logoutDesc')}</div>
               </div>
               <button className="btn btn-danger btn-sm" onClick={handleLogout}>
-                <LogOut size={13} /> Cerrar sesión
+                <LogOut size={13} /> {t('configPage.logout')}
               </button>
             </div>
           </div>

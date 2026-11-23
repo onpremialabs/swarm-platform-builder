@@ -12,8 +12,10 @@
 import React, { memo } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import { Bot, Zap } from 'lucide-react';
+import { useTranslation } from '../../i18n';
 
 export const AgentNode = memo(({ data, selected }) => {
+  const { t } = useTranslation();
   const meta = {
     Icon:  data.icon  || Bot,
     color: data.color || 'var(--neutral-60)',
@@ -38,7 +40,7 @@ export const AgentNode = memo(({ data, selected }) => {
       <div className="agent-node-desc">{meta.desc}</div>
       <div className="agent-node-badge"
         style={{ background: `${meta.color}20`, color: meta.color }}>
-        agent
+        {t('node.agentBadge')}
       </div>
       {(data.model || (data.ragEnabled && data.ownRag)) && (
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
@@ -61,13 +63,15 @@ export const AgentNode = memo(({ data, selected }) => {
   );
 });
 
-export const ConditionNode = memo(({ data, selected }) => (
+export const ConditionNode = memo(({ data, selected }) => {
+  const { t } = useTranslation();
+  return (
   <div className={`condition-node${selected ? ' selected' : ''}`}>
     <Handle type="target" position={Position.Left} />
     <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 4 }}>
       <Zap size={16} style={{ color: 'var(--warning)' }} strokeWidth={1.5} />
     </div>
-    <div className="condition-node-label">{data.label || 'Condición'}</div>
+    <div className="condition-node-label">{data.label || t('node.condition')}</div>
     {data.expression && (
       <div className="condition-node-expr">{data.expression}</div>
     )}
@@ -76,7 +80,8 @@ export const ConditionNode = memo(({ data, selected }) => (
     <Handle type="source" position={Position.Right} id="false"
       style={{ top: '70%', background: 'var(--red-60)', border: '2px solid var(--red-60)' }} />
   </div>
-));
+  );
+});
 
 export const nodeTypes = {
   agent: AgentNode,

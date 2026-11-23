@@ -7,12 +7,13 @@ import { authApi } from '../api/auth';
 import { projectsApi } from '../api/projects';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '../store/authStore';
+import { useTranslation } from '../i18n';
 
 const ROLES = [
-  { value: 'admin',    label: 'Admin',    icon: <Shield size={13} />,   desc: 'Acceso total a la plataforma y gestión de usuarios' },
-  { value: 'redactor', label: 'Redactor', icon: <User size={13} />,     desc: 'Puede crear y editar artículos, ejecutar pipelines' },
-  { value: 'lector',   label: 'Lector',   icon: <BookOpen size={13} />, desc: 'Solo lectura de artículos publicados' },
-  { value: 'publico',  label: 'Público',  icon: <Globe size={13} />,    desc: 'Acceso únicamente a la revista pública' },
+  { value: 'admin',    labelKey: 'users.roles.admin.label',    icon: <Shield size={13} />,   descKey: 'users.roles.admin.desc' },
+  { value: 'redactor', labelKey: 'users.roles.redactor.label', icon: <User size={13} />,     descKey: 'users.roles.redactor.desc' },
+  { value: 'lector',   labelKey: 'users.roles.lector.label',   icon: <BookOpen size={13} />, descKey: 'users.roles.lector.desc' },
+  { value: 'publico',  labelKey: 'users.roles.publico.label',  icon: <Globe size={13} />,    descKey: 'users.roles.publico.desc' },
 ];
 
 const ROLE_BADGE = {
@@ -27,6 +28,7 @@ const ROLE_BADGE = {
  * Allows role assignment and project access management per user.
  */
 export default function UsersPage() {
+  const { t, formatDate } = useTranslation();
   const { user: me } = useAuthStore();
   const [users, setUsers] = useState([]);
   const [allProjects, setAllProjects] = useState([]);
@@ -43,7 +45,7 @@ export default function UsersPage() {
     setError(null);
     Promise.all([authApi.listUsers(), projectsApi.list()])
       .then(([us, ps]) => { setUsers(us); setAllProjects(ps); })
-      .catch(err => setError(mensajeDeCarga(err, 'No se pudieron cargar los usuarios')))
+      .catch(err => setError(mensajeDeCarga(err, t('users.loadError'))))
       .finally(() => setLoading(false));
   }, []);
 
@@ -54,9 +56,9 @@ export default function UsersPage() {
     try {
       const updated = await authApi.assignRole(userId, newRole);
       setUsers(prev => prev.map(u => u.id === userId ? { ...u, role: updated.role } : u));
-      toast.success(`Rol actualizado a "${newRole}"`);
+      toast.success(t('users.roleUpdated', { role: newRole }));
     } catch (err) {
-      toast.error(err?.response?.data?.detail || 'Error al actualizar rol');
+      toast.error(err?.response?.data?.detail || t('users.roleError'));
     } finally {
       setSaving(null);
     }
@@ -73,7 +75,7 @@ export default function UsersPage() {
       const projects = await authApi.getUserProjects(userId);
       setUserProjects(prev => ({ ...prev, [userId]: projects }));
     } catch {
-      toast.error('Error al cargar proyectos del usuario');
+      toast.error(t('users.projectsLoadError'));
     }
   }, [expandedUser, userProjects]);
 
@@ -83,9 +85,9 @@ export default function UsersPage() {
       await authApi.grantProject(userId, projectId);
       const projects = await authApi.getUserProjects(userId);
       setUserProjects(prev => ({ ...prev, [userId]: projects }));
-      toast.success('Acceso al proyecto concedido');
+      toast.success(t('users.grantOk'));
     } catch (err) {
-      toast.error(err?.response?.data?.detail || 'Error al conceder acceso');
+      toast.error(err?.response?.data?.detail || t('users.grantError'));
     } finally {
       setAddingProject(null);
     }
@@ -98,9 +100,9 @@ export default function UsersPage() {
         ...prev,
         [userId]: (prev[userId] || []).filter(p => p.id !== projectId),
       }));
-      toast.success('Acceso al proyecto revocado');
+      toast.success(t('users.revokeOk'));
     } catch (err) {
-      toast.error(err?.response?.data?.detail || 'Error al revocar acceso');
+      toast.error(err?.response?.data?.detail || t('users.revokeError'));
     }
   };
 
@@ -110,26 +112,26 @@ export default function UsersPage() {
       <div style={{ marginBottom: 'var(--space-6)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
           <Shield size={20} style={{ color: 'var(--brand-primary)' }} />
-          <h2 style={{ margin: 0, fontSize: 'var(--font-size-xl)' }}>Gestión de usuarios</h2>
+          <h2 style={{ margin: 0, fontSize: 'var(--font-size-xl)' }}>{t('users.title')}</h2>
         </div>
         <p style={{ color: 'var(--text-muted)', fontSize: 'var(--font-size-sm)', margin: 0 }}>
-          Asigna roles y acceso a proyectos para los usuarios de la plataforma.
+          {t('users.subtitle')}
         </p>
       </div>
 
       {/* Role legend */}
       <div className="card" style={{ padding: 'var(--space-4)', marginBottom: 'var(--space-5)' }}>
         <div style={{ fontWeight: 600, fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', marginBottom: 'var(--space-3)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-          Permisos por rol
+          {t('users.permissionsByRole')}
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: 'var(--space-3)' }}>
           {ROLES.map(r => (
             <div key={r.value} style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
               <span className={`badge ${ROLE_BADGE[r.value]}`} style={{ marginTop: 2, flexShrink: 0 }}>
-                {r.icon} {r.label}
+                {r.icon} {t(r.labelKey)}
               </span>
               <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', lineHeight: 1.5 }}>
-                {r.desc}
+                {t(r.descKey)}
               </span>
             </div>
           ))}
@@ -142,15 +144,15 @@ export default function UsersPage() {
         error={error}
         isEmpty={users.length === 0}
         onRetry={cargar}
-        loadingLabel="Cargando usuarios…"
-        empty={<EmptyState icon={<Shield size={28} />} title="No hay usuarios registrados" />}
+        loadingLabel={t('users.loadingList')}
+        empty={<EmptyState icon={<Shield size={28} />} title={t('users.empty')} />}
       >
       <div className="card" style={{ overflow: 'hidden' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ borderBottom: '1px solid var(--border-default)' }}>
-              {['Usuario', 'Email', 'Rol', 'Proyectos', ''].map(h => (
-                <th key={h} style={{ padding: '10px 16px', textAlign: 'left', fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              {[t('users.cols.user'), t('users.cols.email'), t('users.cols.role'), t('users.cols.projects'), ''].map((h, i) => (
+                <th key={i} style={{ padding: '10px 16px', textAlign: 'left', fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                   {h}
                 </th>
               ))}
@@ -170,10 +172,10 @@ export default function UsersPage() {
                       </div>
                       <div>
                         <div style={{ fontSize: 'var(--font-size-sm)', fontWeight: 600, color: 'var(--text-primary)' }}>
-                          {u.full_name} {isMe && <span style={{ color: 'var(--text-muted)', fontWeight: 400, fontSize: 'var(--font-size-xs)' }}>(tú)</span>}
+                          {u.full_name} {isMe && <span style={{ color: 'var(--text-muted)', fontWeight: 400, fontSize: 'var(--font-size-xs)' }}>{t('users.you')}</span>}
                         </div>
                         <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>
-                          {new Date(u.created_at).toLocaleDateString('es-ES')}
+                          {formatDate(u.created_at)}
                         </div>
                       </div>
                     </div>
@@ -200,10 +202,10 @@ export default function UsersPage() {
                         style={{ padding: '4px 10px', fontSize: 'var(--font-size-xs)', display: 'flex', alignItems: 'center', gap: 5 }}
                         onClick={() => toggleUserProjects(u.id)}
                         aria-expanded={expandedUser === u.id}
-                        aria-label={`Gestionar proyectos de ${u.full_name}`}
+                        aria-label={t('users.manageProjectsOf', { name: u.full_name })}
                       >
                         <FolderOpen size={13} />
-                        Proyectos
+                        {t('users.projects')}
                         {expandedUser === u.id ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
                       </button>
                     )}
@@ -213,7 +215,7 @@ export default function UsersPage() {
                   <td style={{ padding: '12px 16px', textAlign: 'right' }}>
                     {isMe ? (
                       <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>
-                        No puedes cambiar tu propio rol
+                        {t('users.cannotChangeOwnRole')}
                       </span>
                     ) : (
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end' }}>
@@ -224,10 +226,10 @@ export default function UsersPage() {
                           value={u.role}
                           disabled={saving === u.id}
                           onChange={e => handleRoleChange(u.id, e.target.value)}
-                          aria-label={`Rol de ${u.full_name}`}
+                          aria-label={t('users.roleOf', { name: u.full_name })}
                         >
                           {ROLES.map(r => (
-                            <option key={r.value} value={r.value}>{r.label}</option>
+                            <option key={r.value} value={r.value}>{t(r.labelKey)}</option>
                           ))}
                         </select>
                       </div>
@@ -241,14 +243,14 @@ export default function UsersPage() {
                     <td colSpan={5} style={{ padding: '0 16px 16px 56px', borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-sunken)' }}>
                       <div style={{ paddingTop: 12 }}>
                         <p style={{ fontSize: 'var(--font-size-xs)', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 10 }}>
-                          Acceso a proyectos
+                          {t('users.projectAccess')}
                         </p>
 
                         {/* Granted projects chips */}
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
                           {userProjects[u.id] === undefined && <div className="spinner" />}
                           {userProjects[u.id] !== undefined && userProjects[u.id].length === 0 && (
-                            <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>Sin proyectos asignados</span>
+                            <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>{t('users.noProjects')}</span>
                           )}
                           {userProjects[u.id] !== undefined && userProjects[u.id].length > 0 && userProjects[u.id].map(p => (
                               <span
@@ -264,7 +266,7 @@ export default function UsersPage() {
                                 <button
                                   onClick={() => handleRevoke(u.id, p.id)}
                                   style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0, display: 'flex', alignItems: 'center' }}
-                                  aria-label={`Revocar acceso a ${p.name}`}
+                                  aria-label={t('users.revokeAccessTo', { name: p.name })}
                                 >
                                   <X size={11} />
                                 </button>
@@ -279,7 +281,7 @@ export default function UsersPage() {
                             className="input"
                             style={{ padding: '4px 8px', fontSize: 'var(--font-size-xs)', maxWidth: 260 }}
                             defaultValue=""
-                            aria-label={`Añadir proyecto a ${u.full_name}`}
+                            aria-label={t('users.addProjectTo', { name: u.full_name })}
                             onChange={e => {
                               if (e.target.value) {
                                 handleGrant(u.id, e.target.value);
@@ -288,7 +290,7 @@ export default function UsersPage() {
                             }}
                             disabled={addingProject === u.id}
                           >
-                            <option value="" disabled>Añadir proyecto…</option>
+                            <option value="" disabled>{t('users.addProject')}</option>
                             {allProjects
                               .filter(p => !(userProjects[u.id] || []).some(up => up.id === p.id))
                               .map(p => (

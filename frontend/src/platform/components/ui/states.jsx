@@ -16,12 +16,14 @@
 // esperar, `role="alert"` para lo que interrumpe.
 import React from 'react';
 import { AlertTriangle, RotateCw } from 'lucide-react';
+import { useTranslation } from '../../i18n';
 
 /**
  * Cargando. `label` describe qué se está cargando: un lector de pantalla que
  * solo oye «cargando» no sabe si es la página o un panel dentro de ella.
  */
-export function LoadingState({ label = 'Cargando…', compact = false }) {
+export function LoadingState({ label, compact = false }) {
+  const { t } = useTranslation();
   return (
     <div
       className="empty-state"
@@ -30,7 +32,7 @@ export function LoadingState({ label = 'Cargando…', compact = false }) {
       style={compact ? { padding: 'var(--space-6)' } : undefined}
     >
       <div className={compact ? 'spinner' : 'spinner spinner-lg'} aria-hidden="true" />
-      <span className="sr-only">{label}</span>
+      <span className="sr-only">{label ?? t('states.loading')}</span>
     </div>
   );
 }
@@ -57,21 +59,22 @@ export function EmptyState({ icon, title, description, action }) {
  * página entera y perder el resto del estado.
  */
 export function ErrorState({
-  title = 'No se pudieron cargar los datos',
+  title,
   description,
   onRetry,
-  retryLabel = 'Reintentar',
+  retryLabel,
 }) {
+  const { t } = useTranslation();
   return (
     <div className="empty-state state-error" role="alert">
       <div className="empty-state-icon state-error-icon">
         <AlertTriangle size={28} />
       </div>
-      <h3>{title}</h3>
+      <h3>{title ?? t('states.loadError')}</h3>
       {description && <p>{description}</p>}
       {onRetry && (
         <button className="btn btn-secondary" onClick={onRetry}>
-          <RotateCw size={14} /> {retryLabel}
+          <RotateCw size={14} /> {retryLabel ?? t('states.retry')}
         </button>
       )}
     </div>

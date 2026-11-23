@@ -9,7 +9,13 @@ import React, { useCallback, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { FileText } from 'lucide-react';
 import { AsyncState, EmptyState } from '../src/platform/components/ui/states';
+import { registerMessages } from '../src/platform/i18n';
+import platformEs from '../src/platform/i18n/es.json';
 import '../src/index.css';
+
+// Los componentes del builder piden sus textos al catálogo (T29.7): sin esto el
+// banco enseñaría las claves.
+registerMessages('platform', { es: platformEs });
 
 /** Carga simulada: el resultado lo decide el banco, no la red. */
 function Banco() {

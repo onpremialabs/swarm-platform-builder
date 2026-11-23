@@ -22,7 +22,19 @@
     "andrIA": "marca AlejandrIA partida en el JSX: no se traduce",
     "Magazine": "marca: parte del nombre AlejandrIA Magazine, no se traduce",
     "agent_runs": "nombre de tabla de la base de datos: código, no se traduce",
-    "![pie](asset:…)": "sintaxis Markdown de ejemplo: código, no se traduce"
+    "![pie](asset:…)": "sintaxis Markdown de ejemplo: código, no se traduce",
+    "RAG": "sigla técnica: igual en todos los idiomas",
+    "Alexandria": "marca (alt del logotipo): no se traduce",
+    "rag_docs": "identificador técnico (nombre de la colección por defecto), no es texto de interfaz",
+    "×": "símbolo de cierre (×), no es texto",
+    ": tabItem.id === 'rag' ?": "falso positivo del detector: código JS entre etiquetas JSX (ternario)",
+    ") : runDocs.length === 0 ? (": "falso positivo del detector: código JS entre etiquetas JSX (ternario)",
+    ", custom:": "falso positivo del detector: claves de un objeto JS entre etiquetas JSX",
+    ", desarrollo:": "falso positivo del detector: claves de un objeto JS entre etiquetas JSX",
+    ", diseno:": "falso positivo del detector: claves de un objeto JS entre etiquetas JSX",
+    ", marketing:": "falso positivo del detector: claves de un objeto JS entre etiquetas JSX",
+    ", tiqueting:": "falso positivo del detector: claves de un objeto JS entre etiquetas JSX",
+    "@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }": "CSS dentro de <style>, no es texto de interfaz"
   },
   "ficheros": {}
 }

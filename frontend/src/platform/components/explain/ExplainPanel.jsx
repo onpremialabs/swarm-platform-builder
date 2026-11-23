@@ -22,29 +22,34 @@ import { agentMeta } from '../../agentCatalog';
 import { agentsApi } from '../../api/agents';
 import { mensajeDeCarga } from '../../api/errors';
 import { AsyncState, EmptyState } from '../ui/states';
+import { Trans, translate, useTranslation } from '../../i18n';
 
 /** Milisegundos → algo legible. 8452.7 no dice nada; «8,5 s» sí. */
-function formatoDuracion(ms) {
+function formatoDuracion(ms, t, formatNumber) {
   if (!ms) return '—';
-  if (ms < 1000) return `${Math.round(ms)} ms`;
+  if (ms < 1000) return t('explain.duration.ms', { value: Math.round(ms) });
   const segundos = ms / 1000;
-  if (segundos < 60) return `${segundos.toFixed(1).replace('.', ',')} s`;
-  return `${Math.floor(segundos / 60)} min ${Math.round(segundos % 60)} s`;
+  if (segundos < 60) {
+    const decimales = { minimumFractionDigits: 1, maximumFractionDigits: 1 };
+    return t('explain.duration.seconds', { value: formatNumber(segundos, decimales) });
+  }
+  return t('explain.duration.minutes', { minutes: Math.floor(segundos / 60), seconds: Math.round(segundos % 60) });
 }
 
-function formatoNumero(n) {
-  return (n ?? 0).toLocaleString('es-ES');
+/** Número con el formato del idioma activo (`Intl`). */
+function formatoNumero(n, formatNumber) {
+  return formatNumber(n ?? 0);
 }
 
 /** Similitud coseno (0–1) como porcentaje. Es otra escala que el score del revisor. */
-function porcentajeSimilitud(score) {
-  return `${Math.round((Number(score) || 0) * 100)} %`;
+function porcentajeSimilitud(score, formatNumber) {
+  return formatNumber(Math.round((Number(score) || 0) * 100) / 100, { style: 'percent', maximumFractionDigits: 0 });
 }
 
 const ESTADO_PASO = {
-  completed: { label: 'Completado', color: 'var(--status-success)' },
-  failed: { label: 'Falló', color: 'var(--status-error)' },
-  error: { label: 'Falló', color: 'var(--status-error)' },
+  completed: { labelKey: 'explain.status.completed', color: 'var(--status-success)' },
+  failed: { labelKey: 'explain.status.failed', color: 'var(--status-error)' },
+  error: { labelKey: 'explain.status.failed', color: 'var(--status-error)' },
 };
 
 function Metrica({ icon, label, valor }) {
@@ -63,6 +68,7 @@ function Metrica({ icon, label, valor }) {
  * escrito al lado porque el color por sí solo no comunica (T7.2).
  */
 function Fuente({ fuente }) {
+  const { t, formatNumber } = useTranslation();
   return (
     <li style={{
       display: 'flex', flexDirection: 'column', gap: 4,
@@ -77,7 +83,7 @@ function Fuente({ fuente }) {
           fontSize: 'var(--font-size-xs)', color: 'var(--text-secondary)',
           fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap',
         }}>
-          {porcentajeSimilitud(fuente.score)} de similitud
+          {t('explain.source.similarity', { percent: porcentajeSimilitud(fuente.score, formatNumber) })}
         </span>
       </div>
       <div
@@ -92,9 +98,9 @@ function Fuente({ fuente }) {
       <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>
         {fuente.authors && <span>{fuente.authors} · </span>}
         {(fuente.chunk_ids || []).length > 0 && (
-          <span>{fuente.chunk_ids.length} fragmento(s) · </span>
+          <span>{t('explain.source.fragments', { count: fuente.chunk_ids.length })} · </span>
         )}
-        <span>Recuperada por {(fuente.used_by || []).join(', ') || '—'}</span>
+        <span>{t('explain.source.retrievedBy', { agents: (fuente.used_by || []).join(', ') || '—' })}</span>
       </div>
     </li>
   );
@@ -102,6 +108,7 @@ function Fuente({ fuente }) {
 
 /** Un paso del pipeline: cabecera siempre visible, detalle desplegable. */
 function Paso({ paso, abierto, onToggle }) {
+  const { t, formatNumber } = useTranslation();
   const meta = agentMeta(paso.agent_name);
   const Icono = meta.icon;
   const estado = ESTADO_PASO[paso.status] || { label: paso.status, color: 'var(--text-muted)' };
@@ -144,7 +151,7 @@ function Paso({ paso, abierto, onToggle }) {
               marginLeft: 6, fontWeight: 400, fontSize: 'var(--font-size-xs)',
               color: 'var(--text-muted)',
             }}>
-              · vuelta {paso.iteration + 1}
+              {t('explain.step.round', { round: paso.iteration + 1 })}
             </span>
           )}
         </span>
@@ -153,11 +160,11 @@ function Paso({ paso, abierto, onToggle }) {
             fontSize: 'var(--font-size-xs)', fontVariantNumeric: 'tabular-nums',
             color: 'var(--text-secondary)',
           }}>
-            score {Math.round(decision.score)}/100
+            {t('explain.step.score', { score: Math.round(decision.score) })}
           </span>
         )}
         <span style={{ fontSize: 'var(--font-size-xs)', color: estado.color }}>
-          {estado.label}
+          {estado.labelKey ? t(estado.labelKey) : estado.label}
         </span>
       </button>
 
@@ -172,18 +179,18 @@ function Paso({ paso, abierto, onToggle }) {
         flexDirection: 'column', gap: 'var(--space-3)',
       }}>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-4)' }}>
-          <Metrica icon={<Sparkles size={13} />} label="Modelo" valor={paso.model || '—'} />
+          <Metrica icon={<Sparkles size={13} />} label={t('explain.metric.model')} valor={paso.model || '—'} />
           <Metrica
             icon={<Hash size={13} />}
-            label="Tokens"
-            valor={`${formatoNumero(paso.tokens_in)} ent. / ${formatoNumero(paso.tokens_out)} sal.`}
+            label={t('explain.metric.tokens')}
+            valor={t('explain.tokensInOut', { in: formatoNumero(paso.tokens_in, formatNumber), out: formatoNumero(paso.tokens_out, formatNumber) })}
           />
-          <Metrica icon={<Clock size={13} />} label="Duración" valor={formatoDuracion(paso.latency_ms)} />
+          <Metrica icon={<Clock size={13} />} label={t('explain.metric.duration')} valor={formatoDuracion(paso.latency_ms, t, formatNumber)} />
         </div>
 
         {params.length > 0 && (
           <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>
-            Parámetros: {params.map(([k, v]) => `${k}=${JSON.stringify(v)}`).join(' · ')}
+            {t('explain.params', { params: params.map(([k, v]) => `${k}=${JSON.stringify(v)}`).join(' · ') })}
           </div>
         )}
 
@@ -205,7 +212,7 @@ function Paso({ paso, abierto, onToggle }) {
               fontSize: 'var(--font-size-xs)', fontWeight: 600,
               color: 'var(--text-secondary)', marginBottom: 4,
             }}>
-              Con qué entró
+              {t('explain.input')}
             </div>
             <pre style={{
               margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
@@ -223,21 +230,23 @@ function Paso({ paso, abierto, onToggle }) {
             color: 'var(--text-secondary)',
           }}>
             <div style={{ fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 }}>
-              Qué decidió
+              {t('explain.decision.title')}
             </div>
             {decision.score != null && (
-              <div>Score de aprobación: <strong>{Math.round(decision.score)}/100</strong></div>
+              <div><Trans i18nKey="explain.decision.score" values={{ score: Math.round(decision.score) }} /></div>
             )}
             {decision.coherent != null && (
-              <div>Coherencia: <strong>{decision.coherent ? 'sí' : 'no'}</strong></div>
+              <div><Trans i18nKey="explain.decision.coherent" values={{ value: decision.coherent ? t('explain.decision.yes') : t('explain.decision.no') }} /></div>
             )}
             {decision.hitl_outcome && (
-              <div>Decisión humana: <strong>{decision.hitl_outcome}</strong></div>
+              <div><Trans i18nKey="explain.decision.human" values={{ outcome: decision.hitl_outcome }} /></div>
             )}
             {decision.abstained && (
               <div>
-                Se abstuvo: <strong>{decision.verified_sources ?? 0} de {decision.min_sources ?? '?'}</strong> fuentes
-                verificadas necesarias
+                <Trans
+                  i18nKey="explain.decision.abstained"
+                  values={{ verified: decision.verified_sources ?? 0, min: decision.min_sources ?? '?' }}
+                />
               </div>
             )}
             {paso.rationale && (
@@ -252,7 +261,7 @@ function Paso({ paso, abierto, onToggle }) {
               fontSize: 'var(--font-size-xs)', fontWeight: 600,
               color: 'var(--text-secondary)', marginBottom: 4,
             }}>
-              Qué recuperó ({paso.rag_sources.length})
+              {t('explain.retrieved', { count: paso.rag_sources.length })}
             </div>
             <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
               {paso.rag_sources.map((fuente, i) => (
@@ -276,6 +285,7 @@ function Paso({ paso, abierto, onToggle }) {
  *   se confunde con «no hay traza».
  */
 export default function ExplainPanel({ articleId, load = agentsApi.getExplain }) {
+  const { t, formatNumber } = useTranslation();
   const [traza, setTraza] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState(null);
@@ -291,7 +301,7 @@ export default function ExplainPanel({ articleId, load = agentsApi.getExplain })
     } catch (e) {
       // No se traga: sin esto el panel se quedaría en el estado vacío
       // diciendo «no hay traza» cuando lo que pasa es que no pudo preguntarla.
-      setError(mensajeDeCarga(e, 'No se pudo cargar la traza de la ejecución'));
+      setError(mensajeDeCarga(e, translate('explain.loadError')));
     } finally {
       setCargando(false);
     }
@@ -327,7 +337,7 @@ export default function ExplainPanel({ articleId, load = agentsApi.getExplain })
       }}>
         <FileSearch size={16} style={{ color: 'var(--brand)' }} aria-hidden="true" />
         <h3 id="explain-titulo" style={{ margin: 0, fontSize: 'var(--font-size-md)', flex: 1 }}>
-          Por qué este resultado
+          {t('explain.title')}
         </h3>
         {/* El control se decide con lo último que se sabe del artículo, no con
             lo que hay en pantalla: cuántas ejecuciones tiene no depende del
@@ -338,11 +348,11 @@ export default function ExplainPanel({ articleId, load = agentsApi.getExplain })
             className="btn btn-ghost btn-sm"
             onClick={() => setScope(scope === 'last' ? 'all' : 'last')}
             aria-label={scope === 'last'
-              ? `Ver las ${traza.executions} ejecuciones`
-              : 'Ver solo la última ejecución'}
+              ? t('explain.viewAll', { count: traza.executions })
+              : t('explain.viewLastOnly')}
           >
             <Layers size={13} />
-            {scope === 'last' ? `Ver las ${traza.executions} ejecuciones` : 'Ver solo la última'}
+            {scope === 'last' ? t('explain.viewAll', { count: traza.executions }) : t('explain.viewLast')}
           </button>
         )}
       </div>
@@ -354,8 +364,7 @@ export default function ExplainPanel({ articleId, load = agentsApi.getExplain })
           margin: '0 0 var(--space-4)', fontSize: 'var(--font-size-xs)',
           color: 'var(--text-muted)',
         }}>
-          Este artículo se ha ejecutado {vigente.executions} veces. Se explica la última,
-          que es la que produjo el texto actual.
+          {t('explain.multipleRuns', { count: vigente.executions })}
         </p>
       )}
 
@@ -364,15 +373,12 @@ export default function ExplainPanel({ articleId, load = agentsApi.getExplain })
         error={error}
         isEmpty={pasos.length === 0}
         onRetry={cargar}
-        loadingLabel="Cargando la traza de la ejecución…"
+        loadingLabel={t('explain.loading')}
         empty={(
           <EmptyState
             icon={<FileSearch size={28} />}
-            title="Sin traza que explicar"
-            description={
-              "Este artículo no tiene una ejecución registrada. La traza se guarda "
-              + "al ejecutar el pipeline, y se conserva 90 días."
-            }
+            title={t('explain.emptyTitle')}
+            description={t('explain.emptyDescription')}
           />
         )}
       >
@@ -382,24 +388,24 @@ export default function ExplainPanel({ articleId, load = agentsApi.getExplain })
             paddingBottom: 'var(--space-4)', marginBottom: 'var(--space-4)',
             borderBottom: '1px solid var(--border-subtle)',
           }}>
-            <Metrica icon={<Layers size={13} />} label="Pasos" valor={totales.steps ?? 0} />
+            <Metrica icon={<Layers size={13} />} label={t('explain.metric.steps')} valor={totales.steps ?? 0} />
             <Metrica
               icon={<Hash size={13} />}
-              label="Tokens"
-              valor={`${formatoNumero(totales.tokens_in)} / ${formatoNumero(totales.tokens_out)}`}
+              label={t('explain.metric.tokens')}
+              valor={`${formatoNumero(totales.tokens_in, formatNumber)} / ${formatoNumero(totales.tokens_out, formatNumber)}`}
             />
-            <Metrica icon={<Clock size={13} />} label="Duración" valor={formatoDuracion(totales.latency_ms)} />
+            <Metrica icon={<Clock size={13} />} label={t('explain.metric.duration')} valor={formatoDuracion(totales.latency_ms, t, formatNumber)} />
             {totales.loops > 0 && (
               <Metrica
                 icon={<Sparkles size={13} />}
-                label="Vueltas de revisión"
+                label={t('explain.metric.loops')}
                 valor={totales.loops}
               />
             )}
             {totales.failed_steps > 0 && (
               <Metrica
                 icon={<AlertTriangle size={13} />}
-                label="Pasos fallidos"
+                label={t('explain.metric.failedSteps')}
                 valor={totales.failed_steps}
               />
             )}
@@ -424,7 +430,7 @@ export default function ExplainPanel({ articleId, load = agentsApi.getExplain })
               <h4 style={{
                 margin: '0 0 var(--space-2)', fontSize: 'var(--font-size-sm)',
               }}>
-                En qué se apoya ({vigente.sources.length})
+                {t('explain.supports', { count: vigente.sources.length })}
               </h4>
               <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
                 {vigente.sources.map((fuente) => (

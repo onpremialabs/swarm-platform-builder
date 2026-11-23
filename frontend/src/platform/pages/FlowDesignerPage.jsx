@@ -21,6 +21,7 @@ import { useProjectStore } from '../store/projectStore';
 import { agentsApi } from '../api/agents';
 import { flowsApi } from '../api/flows';
 import toast from 'react-hot-toast';
+import { Trans, translate, useTranslation } from '../i18n';
 
 //: Agentes de serie: los del proyecto activo, más el orquestador, que no es
 //: un nodo del pipeline (T8.6).
@@ -30,6 +31,7 @@ let nodeId = 100;
 const newId = () => `node_${++nodeId}`;
 
 export default function FlowDesignerPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
   // When navigating from ArticleDetailPage, an existing article can be passed
@@ -91,12 +93,12 @@ export default function FlowDesignerPage() {
     }));
     const names = new Map(nodes.map((n) => [n.id, n.data?.label || n.data?.agentId || n.id]));
     return edges.map((e) => {
-      const withLabel = { ...e, ariaLabel: `conexión de ${names.get(e.source)} a ${names.get(e.target)}` };
+      const withLabel = { ...e, ariaLabel: t('flowDesigner.edgeAria', { from: names.get(e.source), to: names.get(e.target) }) };
       return marks.has(e.id)
         ? { ...withLabel, className: `flow-issue-${marks.get(e.id)}`, style: { ...e.style, stroke: `var(--${marks.get(e.id) === ERROR ? 'error' : 'warning'})` } }
         : withLabel;
     });
-  }, [nodes, edges, issues]);
+  }, [nodes, edges, issues, t]);
 
   const buildPaletteAgent = useCallback((agent) => {
     const meta = agentMeta(agent.slug) || agentMeta(agent.id) || {};
@@ -117,7 +119,7 @@ export default function FlowDesignerPage() {
       emoji: meta.emoji || '🤖',
       color: meta.color || 'var(--neutral-60)',
       label: meta.label || agent.name || agent.slug || agent.id,
-      desc: meta.desc || `Perfil ${agent.slug || agent.id}`,
+      desc: meta.desc || translate('flowDesigner.profileDesc', { slug: agent.slug || agent.id }),
       icon: meta.icon,
     };
   }, []);
@@ -152,18 +154,18 @@ export default function FlowDesignerPage() {
     if (!activeFlow) {
       const draft = loadLocalDraft();
       if (draft && draft.draftNodes?.length > 0) {
-        toast((t) => (
+        toast((aviso) => (
           <span style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            Tienes un borrador sin guardar
+            {t('flowDesigner.draftNotice')}
             <button className="btn btn-primary btn-sm" onClick={() => {
               setNodes(draft.draftNodes);
               setEdges(draft.draftEdges);
               setFlowName(draft.draftName);
-              toast.dismiss(t.id);
-            }}>Restaurar</button>
+              toast.dismiss(aviso.id);
+            }}>{t('flowDesigner.restore')}</button>
             <button className="btn btn-ghost btn-sm" onClick={() => {
-              clearLocalDraft(); toast.dismiss(t.id);
-            }}>Descartar</button>
+              clearLocalDraft(); toast.dismiss(aviso.id);
+            }}>{t('flowDesigner.discard')}</button>
           </span>
         ), { duration: 10000 });
       }
@@ -288,9 +290,9 @@ export default function FlowDesignerPage() {
     try {
       await saveFlow();
       clearLocalDraft();
-      toast.success('Flujo guardado');
+      toast.success(t('flowDesigner.saved'));
     } catch (err) {
-      toast.error(issueFromError(err) || 'Error al guardar');
+      toast.error(issueFromError(err) || t('flowDesigner.saveError'));
     } finally {
       setSaving(false);
     }
@@ -318,20 +320,20 @@ export default function FlowDesignerPage() {
     if (!file) return;
     setUploadingDoc(true);
     try {
-      // Upload to the investigador bucket so it's available as a source
+      // Upload to the investigador bucket so it is available as a source
       // A qué agente pertenecen las fuentes que se suben desde el lienzo lo
       // dice el proyecto: en AlejandrIA es el investigador (T8.6).
       const res = await agentsApi.uploadRagDocument(ragOwner(), file);
       toast.success(
         res?.title
-          ? `Añadido: "${res.title}"${res.authors ? ` — ${res.authors}` : ''}`
-          : `Documento añadido: ${file.name}`
+          ? t(res.authors ? 'flowDesigner.docAddedWithAuthors' : 'flowDesigner.docAdded', { title: res.title, authors: res.authors })
+          : t('flowDesigner.docAddedFile', { name: file.name })
       );
       const data = await agentsApi.getLibraryDocs();
       setRunDocs(flattenLibrary(data));
       if (res?.doc_id) setSelectedDocIds(ids => [...new Set([...ids, res.doc_id])]);
     } catch (err) {
-      toast.error(err?.response?.data?.detail || 'No se pudo subir el documento');
+      toast.error(err?.response?.data?.detail || t('flowDesigner.docUploadError'));
     } finally {
       setUploadingDoc(false);
     }
@@ -339,7 +341,7 @@ export default function FlowDesignerPage() {
 
   const handleRun = async () => {
     const titleValue = runTitle.trim();
-    if (!titleValue && !existingArticleId) { toast.error('Escribe un título para el artículo'); return; }
+    if (!titleValue && !existingArticleId) { toast.error(t('flowDesigner.titleRequired')); return; }
     if (errors.length > 0) { toast.error(errors[0].message); return; }
     try {
       let articleId;
@@ -369,7 +371,7 @@ export default function FlowDesignerPage() {
           };
         }
       });
-      // Inject selected RAG documents as the Investigador's sources
+      // Inject selected RAG documents as the sources of the Investigador
       if (selectedDocIds.length > 0) {
         const selected = runDocs.filter(d => selectedDocIds.includes(d.doc_id));
         const collection = selected[0]?.collection;
@@ -396,7 +398,7 @@ export default function FlowDesignerPage() {
       });
     } catch (err) {
       console.error('Error al iniciar pipeline', err);
-      toast.error(issueFromError(err) || err?.response?.data?.detail || 'Error al iniciar pipeline');
+      toast.error(issueFromError(err) || err?.response?.data?.detail || t('flowDesigner.runError'));
     }
   };
 
@@ -405,9 +407,9 @@ export default function FlowDesignerPage() {
       {/* Agent Palette */}
       <div className="flow-palette">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-2)', marginBottom: 'var(--space-3)' }}>
-          <div className="palette-title" style={{ marginBottom: 0 }}>Agentes</div>
+          <div className="palette-title" style={{ marginBottom: 0 }}>{t('flowDesigner.palette.title')}</div>
           <button className="btn btn-primary btn-sm" onClick={() => setShowNewAgent(true)}>
-            <Plus size={13} /> Nuevo
+            <Plus size={13} /> {t('flowDesigner.palette.new')}
           </button>
         </div>
         {paletteAgents.map(agent => (
@@ -438,7 +440,7 @@ export default function FlowDesignerPage() {
                   setEditAgent(agent);
                 }}
               >
-                <Pencil size={12} /> Editar
+                <Pencil size={12} /> {t('flowDesigner.palette.edit')}
               </button>
             </div>
           </div>
@@ -474,12 +476,12 @@ export default function FlowDesignerPage() {
 
           {issues.length > 0 && (
             <Panel position="bottom-left">
-              <ul className="flow-issues" aria-label="Problemas del flujo" role="status">
+              <ul className="flow-issues" aria-label={t('flowDesigner.issuesAria')} role="status">
                 {issues.map((issue, i) => (
                   <li key={`${issue.code}-${i}`} className={`flow-issue flow-issue-${issue.severity}`}>
                     <AlertTriangle size={14} aria-hidden="true" />
                     <span>
-                      <span className="sr-only">{issue.severity === ERROR ? 'Error: ' : 'Aviso: '}</span>
+                      <span className="sr-only">{issue.severity === ERROR ? t('flowDesigner.issueError') : t('flowDesigner.issueWarning')}</span>
                       {issue.message}
                     </span>
                   </li>
@@ -496,22 +498,22 @@ export default function FlowDesignerPage() {
                 style={{ width: 200, padding: '6px 10px' }}
                 value={flowName}
                 onChange={e => setFlowName(e.target.value)}
-                placeholder="Nombre del flujo"
+                placeholder={t('flowDesigner.flowNamePlaceholder')}
               />
               <div className="divider" style={{ width: 1, height: 24, margin: '0 4px' }} />
-              <button className="btn btn-ghost btn-sm btn-icon" title="Limpiar canvas"
+              <button className="btn btn-ghost btn-sm btn-icon" title={t('flowDesigner.clearCanvas')}
                 onClick={() => { setNodes([]); setEdges([]); }}>
                 <Trash2 size={15} />
               </button>
               <button className="btn btn-secondary btn-sm" onClick={handleSave} disabled={saving}>
                 <Save size={14} />
-                {saving ? 'Guardando…' : 'Guardar'}
+                {saving ? t('flowDesigner.saving') : t('flowDesigner.save')}
               </button>
               <button className="btn btn-primary btn-sm" onClick={() => setShowRunModal(true)}
                 disabled={nodes.filter(n => n.type === 'agent').length === 0 || errors.length > 0}
                 title={errors.length > 0 ? errors[0].message : undefined}>
                 <Play size={14} />
-                Ejecutar
+                {t('flowDesigner.run')}
               </button>
             </div>
           </Panel>
@@ -522,8 +524,8 @@ export default function FlowDesignerPage() {
           <div className="flow-empty">
             <EmptyState
               icon={<GitBranch size={28} />}
-              title="Diseña tu pipeline"
-              description="Arrastra agentes desde el panel izquierdo al canvas para crear tu flujo de trabajo."
+              title={t('flowDesigner.emptyTitle')}
+              description={t('flowDesigner.emptyDescription')}
             />
           </div>
         )}
@@ -531,27 +533,27 @@ export default function FlowDesignerPage() {
 
       {/* Run Modal */}
       {showRunModal && (
-        <Modal onClose={() => setShowRunModal(false)} title="Ejecutar pipeline">
+        <Modal onClose={() => setShowRunModal(false)} title={t('flowDesigner.runModal.title')}>
             <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
               {existingArticleId ? (
                 <p style={{ fontSize: 'var(--font-size-sm)', color: 'var(--text-muted)', margin: 0 }}>
-                  Re-ejecutando pipeline <strong style={{ color: 'var(--text-primary)' }}>{flowName}</strong> sobre el artículo existente. Puedes cambiar el título a continuación.
+                  <Trans i18nKey="flowDesigner.runModal.rerun" values={{ name: flowName }} components={{ strong: <strong style={{ color: 'var(--text-primary)' }} /> }} />
                 </p>
               ) : (
                 <p style={{ fontSize: 'var(--font-size-sm)', color: 'var(--text-muted)', margin: 0 }}>
-                  Se creará un nuevo artículo y se ejecutará el pipeline <strong style={{ color: 'var(--text-primary)' }}>{flowName}</strong> sobre él.
+                  <Trans i18nKey="flowDesigner.runModal.new" values={{ name: flowName }} components={{ strong: <strong style={{ color: 'var(--text-primary)' }} /> }} />
                 </p>
               )}
 
               <div className="input-group">
                 <label htmlFor="run-title" className="input-label">
-                  Título del artículo
-                  {existingArticleId && <span style={{ fontWeight: 400, color: 'var(--text-muted)', marginLeft: 6 }}>— opcional, deja igual para mantener el actual</span>}
+                  {t('flowDesigner.runModal.titleLabel')}
+                  {existingArticleId && <span style={{ fontWeight: 400, color: 'var(--text-muted)', marginLeft: 6 }}>{t('flowDesigner.runModal.titleKeep')}</span>}
                 </label>
                 <input
                   id="run-title"
                   className="input"
-                  placeholder={existingArticleId ? existingArticleTitle : 'Ej: El impacto del cambio climático en ecosistemas marinos'}
+                  placeholder={existingArticleId ? existingArticleTitle : t('flowDesigner.runModal.titlePlaceholder')}
                   value={runTitle}
                   onChange={e => setRunTitle(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && document.getElementById('kw-input')?.focus()}
@@ -561,20 +563,20 @@ export default function FlowDesignerPage() {
 
               <div className="input-group">
                 <label htmlFor="run-description" className="input-label">
-                  Descripción / enfoque
-                  <span style={{ fontWeight: 400, color: 'var(--text-muted)', marginLeft: 6 }}>— opcional</span>
+                  {t('flowDesigner.runModal.descriptionLabel')}
+                  <span style={{ fontWeight: 400, color: 'var(--text-muted)', marginLeft: 6 }}>{t('flowDesigner.runModal.optional')}</span>
                 </label>
                 <textarea
                   id="run-description"
                   className="input"
                   rows={3}
-                  placeholder="Ej: Enfocado en arrecifes de coral del Caribe, con énfasis en acidificación oceánica y pérdida de biodiversidad post-2010."
+                  placeholder={t('flowDesigner.runModal.descriptionPlaceholder')}
                   value={runDescription}
                   onChange={e => setRunDescription(e.target.value)}
                   style={{ resize: 'vertical', fontSize: 'var(--font-size-sm)' }}
                 />
                 <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', marginTop: 4 }}>
-                  El <strong>Investigador</strong> la usa para afinar la búsqueda semántica. El <strong>Redactor</strong> la recibe como instrucción de enfoque en el prompt.
+                  <Trans i18nKey="flowDesigner.runModal.descriptionHelp" />
                 </div>
               </div>
 
@@ -584,13 +586,13 @@ export default function FlowDesignerPage() {
                 onClick={() => setShowAdvanced(v => !v)}
                 style={{ alignSelf: 'flex-start', color: 'var(--text-muted)' }}
               >
-                {showAdvanced ? '▾' : '▸'} Opciones avanzadas (palabras clave, estructura)
+                {showAdvanced ? '▾' : '▸'} {t('flowDesigner.runModal.advanced')}
               </button>
               {showAdvanced && (<>
               <div className="input-group">
                 <label htmlFor="kw-input" className="input-label">
-                  Palabras clave
-                  <span style={{ fontWeight: 400, color: 'var(--text-muted)', marginLeft: 6 }}>— orientan la búsqueda del Investigador</span>
+                  {t('flowDesigner.runModal.keywordsLabel')}
+                  <span style={{ fontWeight: 400, color: 'var(--text-muted)', marginLeft: 6 }}>{t('flowDesigner.runModal.keywordsHint')}</span>
                 </label>
                 <div style={{
                   display: 'flex', flexWrap: 'wrap', gap: 6, padding: '6px 10px',
@@ -608,14 +610,14 @@ export default function FlowDesignerPage() {
                         type="button"
                         onClick={() => setRunKeywords(ks => ks.filter(k => k !== kw))}
                         style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--violet-40)', lineHeight: 1, padding: 0 }}
-                        aria-label={`Eliminar keyword ${kw}`}
+                        aria-label={t('flowDesigner.runModal.removeKeyword', { keyword: kw })}
                       >×</button>
                     </span>
                   ))}
                   <input
                     id="kw-input"
                     style={{ border: 'none', background: 'transparent', fontSize: 'var(--font-size-sm)', color: 'var(--text-primary)', minWidth: 120, flex: 1 }}
-                    placeholder={runKeywords.length === 0 ? 'Escribe y pulsa Enter o coma…' : ''}
+                    placeholder={runKeywords.length === 0 ? t('flowDesigner.runModal.keywordPlaceholder') : ''}
                     value={runKeywordInput}
                     onChange={e => setRunKeywordInput(e.target.value)}
                     onKeyDown={e => {
@@ -628,49 +630,49 @@ export default function FlowDesignerPage() {
                         setRunKeywords(ks => ks.slice(0, -1));
                       }
                     }}
-                    aria-label="Añadir palabra clave"
+                    aria-label={t('flowDesigner.runModal.addKeyword')}
                   />
                 </div>
                 <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', marginTop: 4 }}>
-                  Si no se proporcionan, se extraen automáticamente del título.
+                  {t('flowDesigner.runModal.keywordsHelp')}
                 </div>
               </div>
 
               <div className="input-group">
                 <label htmlFor="run-outline" className="input-label">
-                  Estructura / Esquema del artículo
-                  <span style={{ fontWeight: 400, color: 'var(--text-muted)', marginLeft: 6 }}>— opcional</span>
+                  {t('flowDesigner.runModal.outlineLabel')}
+                  <span style={{ fontWeight: 400, color: 'var(--text-muted)', marginLeft: 6 }}>{t('flowDesigner.runModal.optional')}</span>
                 </label>
                 <textarea
                   id="run-outline"
                   className="input"
                   rows={3}
-                  placeholder="Ej:&#10;- Introducción: Contexto del cambio climático&#10;- Sección 1: Acidificación oceánica&#10;- Sección 2: Consecuencias ecológicas&#10;- Conclusiones generales"
+                  placeholder={t('flowDesigner.runModal.outlinePlaceholder')}
                   value={runOutline}
                   onChange={e => setRunOutline(e.target.value)}
                   style={{ resize: 'vertical', fontSize: 'var(--font-size-sm)' }}
                 />
                 <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', marginTop: 4 }}>
-                  Define las secciones, subsecciones o títulos creativos que el <strong>Redactor</strong> debe seguir obligatoriamente.
+                  <Trans i18nKey="flowDesigner.runModal.outlineHelp" />
                 </div>
               </div>
               </>)}
 
               <div className="input-group">
                 <label className="input-label">
-                  Fuentes de información (RAG)
-                  <span style={{ fontWeight: 400, color: 'var(--text-muted)', marginLeft: 6 }}>— opcional</span>
+                  {t('flowDesigner.runModal.sourcesLabel')}
+                  <span style={{ fontWeight: 400, color: 'var(--text-muted)', marginLeft: 6 }}>{t('flowDesigner.runModal.optional')}</span>
                 </label>
                 <input ref={runFileRef} type="file" accept=".txt,.md,.pdf,.docx" style={{ display: 'none' }} onChange={onRunFileSelected} />
                 <button className="btn btn-ghost btn-sm" onClick={handleRunUpload} disabled={uploadingDoc} style={{ marginBottom: 8 }}>
-                  <Upload size={13} /> {uploadingDoc ? 'Subiendo…' : 'Subir documento'}
+                  <Upload size={13} /> {uploadingDoc ? t('flowDesigner.runModal.uploading') : t('flowDesigner.runModal.upload')}
                 </button>
                 <div style={{ maxHeight: 140, overflowY: 'auto', border: '1px solid var(--border-default)', borderRadius: 'var(--radius-sm)', padding: 6 }}>
                   {loadingDocs ? (
-                    <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', padding: 6 }}>Cargando documentos…</div>
+                    <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', padding: 6 }}>{t('flowDesigner.runModal.loadingDocs')}</div>
                   ) : runDocs.length === 0 ? (
                     <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', padding: 6 }}>
-                      No hay documentos. Sube uno o continúa sin fuentes.
+                      {t('flowDesigner.runModal.noDocs')}
                     </div>
                   ) : runDocs.map(d => (
                     <label key={d.doc_id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 6px', cursor: 'pointer', fontSize: 'var(--font-size-xs)' }}>
@@ -685,12 +687,12 @@ export default function FlowDesignerPage() {
                   ))}
                 </div>
                 <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', marginTop: 4 }}>
-                  Selecciona los documentos que el <strong>Investigador</strong> usará como fuentes. Si no seleccionas ninguno, buscará en toda la colección.
+                  <Trans i18nKey="flowDesigner.runModal.sourcesHelp" />
                 </div>
               </div>
 
               <div style={{ background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)', padding: 'var(--space-3)', fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>
-                <strong style={{ color: 'var(--text-secondary)' }}>Secuencia:</strong>{' '}
+                <strong style={{ color: 'var(--text-secondary)' }}>{t('flowDesigner.runModal.sequence')}</strong>{' '}
                 {nodes.filter(n => n.type === 'agent').map((n) => {
                   const meta = agentMeta(n.data?.agentId) || {};
                   return `${n.data?.emoji || meta.emoji || '🤖'} ${n.data?.label || meta.label || n.data?.agentId}`;
@@ -698,9 +700,9 @@ export default function FlowDesignerPage() {
               </div>
             </div>
             <div className="modal-footer">
-              <button className="btn btn-ghost" onClick={() => setShowRunModal(false)}>Cancelar</button>
+              <button className="btn btn-ghost" onClick={() => setShowRunModal(false)}>{t('flowDesigner.runModal.cancel')}</button>
               <button className="btn btn-primary" onClick={handleRun}>
-                <Play size={14} /> Ejecutar pipeline
+                <Play size={14} /> {t('flowDesigner.runModal.runPipeline')}
               </button>
             </div>
         </Modal>
@@ -730,7 +732,7 @@ export default function FlowDesignerPage() {
           onClose={() => setShowNewAgent(false)}
           onCreate={async (payload) => {
             await agentsApi.createClaudeDef(payload);
-            toast.success(`Agente "${payload.name}" creado`);
+            toast.success(t('flowDesigner.agentCreated', { name: payload.name }));
             await loadPaletteAgents();
           }}
         />

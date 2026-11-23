@@ -7,11 +7,13 @@
 import React from 'react';
 import { BaseEdge, EdgeLabelRenderer, getBezierPath, useReactFlow } from '@xyflow/react';
 import { X } from 'lucide-react';
+import { useTranslation } from '../../i18n';
 
 export function DeletableEdge({
   id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition,
   markerEnd, style, selected, interactionWidth, ariaLabel,
 }) {
+  const { t } = useTranslation();
   const { deleteElements } = useReactFlow();
   const [path, labelX, labelY] = getBezierPath({
     sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition,
@@ -32,8 +34,8 @@ export function DeletableEdge({
             type="button"
             className="flow-edge-delete nodrag nopan"
             style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)` }}
-            aria-label={ariaLabel ? `Eliminar ${ariaLabel}` : 'Eliminar conexión'}
-            title="Eliminar conexión"
+            aria-label={ariaLabel ? t('edge.deleteNamed', { name: ariaLabel }) : t('edge.delete')}
+            title={t('edge.delete')}
             onClick={() => deleteElements({ edges: [{ id }] })}
           >
             <X size={12} aria-hidden="true" />

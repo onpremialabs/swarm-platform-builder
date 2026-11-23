@@ -11,6 +11,7 @@ import { agentsApi } from '../api/agents';
 import { AgentCreateModal, AgentEditorModal } from '../components/agents/AgentEditorModal';
 import { useProjectStore } from '../store/projectStore';
 import toast from 'react-hot-toast';
+import { translate, useTranslation } from '../i18n';
 
 //: Agentes de serie de los **otros** tipos de proyecto que la plataforma siembra
 //: (desarrollo, marketing, tiqueting, diseño). Siguen aquí porque esos tipos
@@ -66,6 +67,7 @@ const builtinMeta = (slug) => ({ ...(RESIDUAL_META[slug] || {}), ...agentMeta(sl
 // ---------------------------------------------------------------------------
 
 function ModelSelector({ value, onChange, models }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -85,7 +87,7 @@ function ModelSelector({ value, onChange, models }) {
         aria-haspopup="listbox"
         aria-expanded={open}
       >
-        <span>{value || 'Selecciona modelo'}</span>
+        <span>{value || t('agentsPage.selectModel')}</span>
         <ChevronDown size={14} style={{ flexShrink: 0, color: 'var(--text-muted)' }} />
       </button>
       {open && (
@@ -117,9 +119,9 @@ function ModelSelector({ value, onChange, models }) {
           <li style={{ borderTop: '1px solid var(--border-subtle)', padding: '4px 8px' }}>
             <input
               className="input"
-              placeholder="Otro modelo…"
+              placeholder={t('agentsPage.otherModel')}
               style={{ fontSize: 'var(--font-size-xs)', padding: '4px 8px' }}
-              aria-label="Nombre de modelo personalizado"
+              aria-label={t('agentsPage.customModelName')}
               onKeyDown={e => {
                 if (e.key === 'Enter' && e.target.value.trim()) {
                   onChange(e.target.value.trim());
@@ -139,6 +141,7 @@ function ModelSelector({ value, onChange, models }) {
 // ---------------------------------------------------------------------------
 
 function AgentCard({ agent, isBuiltin, onEdit, onDelete }) {
+  const { t } = useTranslation();
   const meta = builtinMeta(agent.slug) || {};
   const color = meta.color || 'var(--text-muted)';
   const Icon = meta.icon || Bot;
@@ -159,31 +162,31 @@ function AgentCard({ agent, isBuiltin, onEdit, onDelete }) {
             {agent.name || agent.slug}
           </div>
           <div style={{ fontSize: 10, fontWeight: 600, color, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            {isBuiltin ? 'sistema' : 'personalizado'}
+            {isBuiltin ? t('agentsPage.kindSystem') : t('agentsPage.kindCustom')}
           </div>
         </div>
       </div>
       {agent.model && (
         <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>
-          Modelo: <strong style={{ color: 'var(--text-secondary)' }}>{agent.model}</strong>
+          {t('agentsPage.model')} <strong style={{ color: 'var(--text-secondary)' }}>{agent.model}</strong>
         </div>
       )}
       <button
         className="btn btn-ghost btn-sm"
         style={{ alignSelf: 'flex-start' }}
         onClick={() => onEdit(agent, isBuiltin)}
-        aria-label={`Editar agente ${agent.name || agent.slug}`}
+        aria-label={t('agentsPage.editNamed', { name: agent.name || agent.slug })}
       >
-        <Pencil size={13} /> Editar
+        <Pencil size={13} /> {t('agentsPage.edit')}
       </button>
       {!isBuiltin && (
         <button
           className="btn btn-ghost btn-sm"
           style={{ alignSelf: 'flex-start', color: 'var(--error)' }}
           onClick={() => onDelete(agent)}
-          aria-label={`Eliminar agente ${agent.name || agent.slug}`}
+          aria-label={t('agentsPage.deleteNamed', { name: agent.name || agent.slug })}
         >
-          <Trash2 size={13} /> Eliminar
+          <Trash2 size={13} /> {t('agentsPage.delete')}
         </button>
       )}
     </div>
@@ -195,6 +198,7 @@ function AgentCard({ agent, isBuiltin, onEdit, onDelete }) {
 // ---------------------------------------------------------------------------
 
 export default function AgentsPage() {
+  const { t } = useTranslation();
   const { activeProject } = useProjectStore();
   const [profiles, setProfiles] = useState([]);
   const [models, setModels] = useState(['llama3.2:1b']);
@@ -213,7 +217,7 @@ export default function AgentsPage() {
       setProfiles(defs);
     } catch (err) {
       setProfiles([]);
-      setError(mensajeDeCarga(err, 'No se pudieron cargar los perfiles de agente'));
+      setError(mensajeDeCarga(err, translate('agentsPage.loadError')));
     } finally {
       setLoading(false);
     }
@@ -230,13 +234,13 @@ export default function AgentsPage() {
   const custom = profiles.filter(p => !builtinSlugs().has(p.slug));
 
   const handleDelete = async (agent) => {
-    if (!globalThis.confirm(`¿Eliminar el agente "${agent.name || agent.slug}"? Esta acción no se puede deshacer.`)) return;
+    if (!globalThis.confirm(t('agentsPage.confirmDelete', { name: agent.name || agent.slug }))) return;
     try {
       await agentsApi.deleteClaudeDef(agent.id);
       setProfiles(p => p.filter(x => x.id !== agent.id));
-      toast.success(`Agente "${agent.name || agent.slug}" eliminado`);
+      toast.success(t('agentsPage.deleted', { name: agent.name || agent.slug }));
     } catch (err) {
-      toast.error(err?.response?.data?.detail || 'Error al eliminar el agente');
+      toast.error(err?.response?.data?.detail || t('agentsPage.deleteError'));
     }
   };
 
@@ -245,13 +249,13 @@ export default function AgentsPage() {
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 'var(--space-6)', gap: 'var(--space-4)', flexWrap: 'wrap' }}>
         <div>
-          <h2 style={{ marginBottom: 4 }}>Agentes</h2>
+          <h2 style={{ marginBottom: 4 }}>{t('agentsPage.title')}</h2>
           <p style={{ fontSize: 'var(--font-size-sm)', color: 'var(--text-muted)' }}>
-            Gestiona perfiles, modelos y bases de conocimiento de cada agente.
+            {t('agentsPage.subtitle')}
           </p>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowNew(true)} aria-label="Crear nuevo agente personalizado">
-          <Plus size={14} /> Nuevo agente
+        <button className="btn btn-primary" onClick={() => setShowNew(true)} aria-label={t('agentsPage.newAria')}>
+          <Plus size={14} /> {t('agentsPage.new')}
         </button>
       </div>
 
@@ -259,7 +263,7 @@ export default function AgentsPage() {
       {builtins.length > 0 && (
         <section aria-labelledby="section-builtin">
           <div id="section-builtin" style={{ marginBottom: 'var(--space-2)', fontSize: 'var(--font-size-xs)', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-            Agentes del sistema
+            {t('agentsPage.sectionSystem')}
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 'var(--space-3)', marginBottom: 'var(--space-6)' }}>
             {builtins.map(agent => (
@@ -273,7 +277,7 @@ export default function AgentsPage() {
       {custom.length > 0 && (
         <section aria-labelledby="section-custom">
           <div id="section-custom" style={{ marginBottom: 'var(--space-2)', fontSize: 'var(--font-size-xs)', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-            Agentes personalizados
+            {t('agentsPage.sectionCustom')}
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 'var(--space-3)' }}>
             {custom.map(agent => (
@@ -283,17 +287,17 @@ export default function AgentsPage() {
         </section>
       )}
 
-      {profiles.length === 0 && loading && <LoadingState label="Cargando perfiles de agente…" />}
+      {profiles.length === 0 && loading && <LoadingState label={t('agentsPage.loadingProfiles')} />}
       {profiles.length === 0 && !loading && error && (
         <ErrorState description={error} onRetry={loadProfiles} />
       )}
       {profiles.length === 0 && !loading && !error && (
         <EmptyState
           icon={<Bot size={28} />}
-          title="Sin perfiles de agente"
+          title={t('agentsPage.emptyTitle')}
           description={activeProject?.id
-            ? 'Crea un agente personalizado para empezar a componer pipelines.'
-            : 'Selecciona un proyecto para ver sus agentes.'}
+            ? t('agentsPage.emptyCreate')
+            : t('agentsPage.emptySelectProject')}
         />
       )}
 
@@ -303,7 +307,7 @@ export default function AgentsPage() {
           onClose={() => setShowNew(false)}
           onCreate={async (payload) => {
             await agentsApi.createClaudeDef({ ...payload, project_id: activeProject?.id });
-            toast.success(`Agente "${payload.name}" creado`);
+            toast.success(t('agentsPage.created', { name: payload.name }));
             await loadProfiles();
           }}
         />
