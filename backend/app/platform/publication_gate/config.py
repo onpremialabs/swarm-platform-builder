@@ -14,6 +14,7 @@ from app.platform.publication_gate.placeholders import (
     validate_marker,
 )
 from app.platform.publication_gate.reference_resolver import ResolverConfig
+from app.platform.publication_gate.retractions import SEVERITIES, RetractionConfig
 
 DEFAULT_SECTIONS = ("introduction", "methods", "results", "discussion", "references")
 
@@ -32,6 +33,8 @@ class GateConfig:
     #: fechas de metadatos fuera del rango de vida del artículo (SPEC-037 AC2).
     dates: DateRules = field(default_factory=DateRules)
     references: ResolverConfig = field(default_factory=ResolverConfig)
+    #: Retractaciones vía Crossref (SPEC-035 AC5). `None` = no declarado, no se evalúa.
+    retractions: RetractionConfig | None = None
     sections: tuple = DEFAULT_SECTIONS
     titles: Mapping[str, Mapping[str, tuple]] = field(default_factory=dict)
     pending: tuple = ()
@@ -113,6 +116,18 @@ def parse_gate(raw: Any) -> GateConfig:
             )
         valores[clave] = valor
 
+    retr = raw.get("retractions")
+    retracciones = None
+    if retr is not None:
+        _exigir(isinstance(retr, dict), "'gate.retractions' debe ser un mapa")
+        for clave, valor in retr.items():
+            _exigir(clave in ("retracted", "concern"), f"'gate.retractions.{clave}' no es un ajuste conocido")
+            _exigir(
+                valor in SEVERITIES,
+                f"'gate.retractions.{clave}' debe ser uno de {list(SEVERITIES)}, no {valor!r}",
+            )
+        retracciones = RetractionConfig(**retr)
+
     estructura = raw.get("structure") or {}
     _exigir(isinstance(estructura, dict), "'gate.structure' debe ser un mapa")
     secciones = tuple(estructura.get("sections") or DEFAULT_SECTIONS)
@@ -161,6 +176,7 @@ def parse_gate(raw: Any) -> GateConfig:
         placeholders=tuple(marcadores),
         dates=DateRules(labels=tuple(x.strip() for x in etiquetas), tolerance_days=tolerancia),
         references=ResolverConfig(**valores),
+        retractions=retracciones,
         sections=secciones,
         titles=titulos,
         pending=tuple(pendientes),

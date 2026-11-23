@@ -184,7 +184,8 @@ def test_manuscrito_valido_pasa_y_lista_lo_pendiente():
     r = gate(IMRAD_ES, [FUENTE])
     assert r.passed and r.blockers == []
     assert [c.criterion for c in r.criteria] == [
-        "reference_existence", "reference_structure", "placeholders", "imrad_structure"]
+        "reference_existence", "reference_structure", "placeholders", "imrad_structure",
+        "retractions"]
     assert {p["id"] for p in r.pending} >= {"V01", "V12"}  # AC5: pendientes visibles
     assert r.as_dict()["passed"] is True
 

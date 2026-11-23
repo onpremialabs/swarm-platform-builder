@@ -4,7 +4,7 @@ Se evalúa sobre el **texto final** (el que se publicaría) y no nombra agentes 
 disciplinas: lo que se aplica y con qué parámetros lo declara el proyecto.
 Orden (FW §20, los criterios sin LLM primero): 1) resolver y enriquecer las
 referencias, 2) validar su estructura, 3) marcadores, 4) estructura IMRaD,
-5) criterios `not_implemented`.
+5) retractaciones (si el proyecto las declara), 6) criterios `not_implemented`.
 """
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -19,6 +19,7 @@ from app.platform.publication_gate.explain import explain
 from app.platform.publication_gate.placeholders import check_placeholders
 from app.platform.publication_gate.reference_resolver import check_reference_existence
 from app.platform.publication_gate.references import check_reference_structure
+from app.platform.publication_gate.retractions import check_retractions
 from app.platform.publication_gate.structure import check_structure
 from app.platform.publication_gate.types import CriterionResult
 
@@ -90,6 +91,12 @@ async def evaluate_gate(
     if config.citation_support_min_overlap is not None:
         # `citations=None` (no se pudo leer el mapa) -> not_verified, no se omite.
         criteria.append(check_citation_support(text, citations, config.citation_support_min_overlap))
+    if config.retractions is not None:
+        # Sobre las fuentes ya resueltas (con DOI); sale por la misma puerta de egress.
+        criteria.append(await check_retractions(
+            enriched, config.retractions, config.references,
+            **{k: v for k, v in resolver_kwargs.items() if k in ("fetch", "sleep", "clock")},
+        ))
     pending = [{"id": p.id, "phase": p.phase} for p in config.pending]
     for c in criteria:
         observe_gate_criterion(c.criterion, c.status.value)
