@@ -19,6 +19,7 @@ export default defineConfig({
         estados: path.resolve(__dirname, 'states.html'),
         explicabilidad: path.resolve(__dirname, 'explain.html'),
         idioma: path.resolve(__dirname, 'language.html'),
+        traza: path.resolve(__dirname, 'trace.html'),
       },
     },
   },

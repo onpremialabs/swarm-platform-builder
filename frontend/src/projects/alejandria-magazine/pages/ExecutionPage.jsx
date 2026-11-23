@@ -9,6 +9,7 @@ import { useArticleStore } from '../store/articleStore';
 import toast from 'react-hot-toast';
 import { agentLabel, CRITERION_LABELS } from '../gate';
 import { tr, useT } from '../i18n/useT';
+import { isAbstainedEvent, isAbstainedDone, abstentionNotice, settleUnrunSteps } from '../pipelineEvents';
 
 
 const STATUS_ICON = {
@@ -84,9 +85,7 @@ export default function ExecutionPage() {
   // no corrieron tampoco deben quedarse «esperando».
   useEffect(() => {
     if (done && abstained) {
-      setSteps((current) => current.map((step) => (
-        step.status === 'waiting' ? { ...step, status: 'not_run' } : step
-      )));
+      setSteps(settleUnrunSteps);
     }
   }, [done, abstained]);
 
@@ -162,25 +161,23 @@ export default function ExecutionPage() {
           // SPEC-032/AC7: se agotaron las vueltas sin aprobar; solo una persona decide.
           setGateNotice({ kind: 'requires_human_review', score: data.score, feedback: data.feedback || [] });
           addLog(tr('execution.log.humanReview'), 'warn');
-        } else if (data.type === 'abstained') {
+        } else if (isAbstainedEvent(data)) {
           // SPEC-034/AC7: sin fuentes verificadas suficientes el Investigador se abstiene y el
           // pipeline se detiene; el mensaje dice qué falta y cómo resolverlo.
-          setGateNotice({ kind: 'abstained', message: data.message, verified: data.verified_sources, min: data.min_sources });
+          setGateNotice(abstentionNotice(data));
           setAbstained(true);
           markStepStatus(data.agent, 'abstained');
           addLog(tr('execution.log.abstained'), 'warn');
         } else if (data.type === 'log') {
           addLog(data.message, data.level || '');
-        } else if (data.type === 'done' && data.outcome === 'abstained') {
+        } else if (isAbstainedDone(data)) {
           // SPEC-034/AC13: el motor detuvo el flujo; no se muestra «completado» ni se ofrece
           // el artículo como si hubiera contenido. Los pasos sin ejecutar quedan «No ejecutado».
           setDone(true);
           setPipelineFailed(false);
           setAbstained(true);
-          setGateNotice({ kind: 'abstained', message: data.message, verified: data.verified_sources, min: data.min_sources });
-          setSteps((current) => current.map((step) => (
-            step.status === 'waiting' ? { ...step, status: 'not_run' } : step
-          )));
+          setGateNotice(abstentionNotice(data));
+          setSteps(settleUnrunSteps);
           addLog(tr('execution.log.stoppedAbstained'), 'warn');
           evtSource.close();
         } else if (data.type === 'done') {

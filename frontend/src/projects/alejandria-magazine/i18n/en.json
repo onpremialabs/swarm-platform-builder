@@ -635,7 +635,8 @@
     "badge": {
       "cancelled": "Cancelado",
       "failed": "Fallido",
-      "notRun": "Sin ejecutar"
+      "notRun": "Sin ejecutar",
+      "abstained": "Detenida por abstención"
     },
     "cancelError": "No se pudo cancelar",
     "col": {
@@ -710,6 +711,7 @@
     "startError": "Error al iniciar el pipeline",
     "status": {
       "abstained": "Se abstuvo",
+      "not_run": "No ejecutado",
       "completed": "Completado",
       "failed": "Error",
       "running": "En ejecución",

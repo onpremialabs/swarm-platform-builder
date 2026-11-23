@@ -14,6 +14,7 @@ import toast from 'react-hot-toast';
 import { agentLabel, CRITERION_LABELS } from '../gate';
 import ExplainPanel from '../../../platform/components/explain/ExplainPanel';
 import { tr, useT } from '../i18n/useT';
+import { isAbstainedEvent, isAbstainedDone, abstentionNotice, settleUnrunSteps } from '../pipelineEvents';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -32,7 +33,7 @@ function formatDurationLive(ms) {
   return `${Math.floor(s / 60)} min ${s % 60} s`;
 }
 
-const STATUS_KEYS = ['waiting', 'running', 'completed', 'abstained', 'failed'];
+const STATUS_KEYS = ['waiting', 'running', 'completed', 'abstained', 'not_run', 'failed'];
 
 /** Color del agente según el catálogo del proyecto; el de marca si no está. */
 const agentColor = (name) => agentMeta(name)?.color || 'var(--brand)';
@@ -121,6 +122,8 @@ function LiveTraceabilityPage() {
   const [pipelineFailed, setPipelineFailed] = useState(false);
   const [canResume, setCanResume]           = useState(false);
   const [cancelled, setCancelled]           = useState(false);
+  // SPEC-034/AC13: el Investigador se abstuvo y el motor detuvo el flujo. No es completada.
+  const [abstained, setAbstained]           = useState(false);
   const [cancelling, setCancelling]         = useState(false);
   const [runCount, setRunCount]             = useState(0);
   const [hasPublicador]                     = useState(flowSequence.includes('publicador'));
@@ -174,6 +177,12 @@ function LiveTraceabilityPage() {
   }, [startTimeMs, done]);
 
   useEffect(() => { logsEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [logs]);
+
+  // Si el stream se corta tras `abstained` sin llegar el `done`, los pasos que no corrieron
+  // tampoco deben quedarse «pendientes».
+  useEffect(() => {
+    if (done && abstained) setSteps(settleUnrunSteps);
+  }, [done, abstained]);
 
   // ── Carga de trazas ──
   const loadTrace = useCallback(async () => {
@@ -322,8 +331,27 @@ function LiveTraceabilityPage() {
             setGateNotice({ kind: 'requires_human_review', score: data.score, feedback: data.feedback || [] });
             addLog(tr('traceability.log.humanReview'), 'warn', null);
 
+          } else if (isAbstainedEvent(data)) {
+            // SPEC-034/AC7: sin fuentes verificadas suficientes el Investigador se abstiene
+            // y el pipeline se detiene; el aviso dice qué falta y cómo resolverlo.
+            setGateNotice(abstentionNotice(data));
+            setAbstained(true);
+            markStepStatus(data.agent, 'abstained');
+            addLog(tr('execution.log.abstained'), 'warn', data.agent);
+
           } else if (data.type === 'log') {
             addLog(data.message, data.level || 'info', currentAgentRef.current);
+
+          } else if (isAbstainedDone(data)) {
+            // SPEC-034/AC13: el motor detuvo el flujo; ni «completado» ni «Ver artículo».
+            setDone(true);
+            setPipelineFailed(false);
+            setAbstained(true);
+            setGateNotice(abstentionNotice(data));
+            setSteps(settleUnrunSteps);
+            setElapsed(formatDurationLive(Date.now() - (startTimeMsRef.current || Date.now())));
+            addLog(tr('execution.log.stoppedAbstained'), 'warn', null);
+            evtSource.close();
 
           } else if (data.type === 'done') {
             setDone(true);
@@ -395,6 +423,7 @@ function LiveTraceabilityPage() {
     setSteps(flowSequence.map(id => ({ id, status: 'waiting', output: '' })));
     setLogs([]); setPreview(''); setDone(false); setPipelineFailed(false);
     setCanResume(false); setCancelled(false); setCancelling(false);
+    setAbstained(false); setGateNotice(null);
     setAgentTimings({}); setStartTimeMs(null); setElapsed('—');
     setTraceData(null); startTimeMsRef.current = null;
     resumeRef.current = false; pipelineStarted.current = false;
@@ -405,7 +434,7 @@ function LiveTraceabilityPage() {
     setSteps(cur => cur.map(s => s.status === 'completed' ? s : { ...s, status: 'waiting', output: '' }));
     setPreview(cur => cur.startsWith('Error:') ? '' : cur);
     setDone(false); setPipelineFailed(false); setCanResume(false);
-    setCancelled(false); setCancelling(false);
+    setCancelled(false); setCancelling(false); setAbstained(false);
     resumeRef.current = true; pipelineStarted.current = false;
     setRunCount(c => c + 1);
   };
@@ -473,6 +502,7 @@ function LiveTraceabilityPage() {
 
   const statusBadge = done && cancelled ? { label: t('traceability.badge.cancelled'), cls: 'badge-pending' }
     : done && pipelineFailed            ? { label: t('traceability.badge.failed'),    cls: 'badge-error' }
+    : done && abstained                 ? { label: t('traceability.badge.abstained'), cls: 'badge-pending' }
     : done                              ? { label: t('traceability.status.completed'), cls: 'badge-approved' }
     : flowSequence.length > 0           ? { label: t('traceability.status.running'), cls: 'badge-running' }
     : { label: t('traceability.badge.notRun'), cls: 'badge-draft' };
@@ -544,8 +574,16 @@ function LiveTraceabilityPage() {
             </div>
 
             {/* Aviso compuerta */}
-            {gateNotice && (
-              <div className="trace-notice trace-notice-warning">
+            {gateNotice?.kind === 'abstained' && (
+              <div className="trace-notice trace-notice-warning" role="alert">
+                <strong>{t('execution.abstained.title')}</strong>
+                {' '}{t('execution.abstained.body')}
+                {typeof gateNotice.verified === 'number' && <>{' '}{t('execution.abstained.verified', { verified: gateNotice.verified, min: gateNotice.min })}</>}
+                <div style={{ marginTop: 6 }}>{gateNotice.message}</div>
+              </div>
+            )}
+            {gateNotice && gateNotice.kind !== 'abstained' && (
+              <div className="trace-notice trace-notice-warning" role="status">
                 {gateNotice.kind === 'gate_failed' ? (
                   <>
                     <strong>{t('execution.gate.blocksTitle')}</strong> {t('execution.gate.backToDraft')}
@@ -635,7 +673,7 @@ function LiveTraceabilityPage() {
                           <Clock size={11} /> {formatDuration(timing.durationMs)}
                         </span>
                       )}
-                      <span className={`badge ${step.status === 'completed' ? 'badge-approved' : step.status === 'failed' ? 'badge-error' : step.status === 'running' ? 'badge-running' : 'badge-draft'}`}>
+                      <span className={`badge ${step.status === 'completed' ? 'badge-approved' : step.status === 'failed' ? 'badge-error' : step.status === 'running' ? 'badge-running' : step.status === 'abstained' ? 'badge-pending' : 'badge-draft'}`}>
                         {stepStatusLabel(step.status)}
                       </span>
                     </div>
@@ -651,7 +689,7 @@ function LiveTraceabilityPage() {
             </div>
 
             {/* Asignar revisor */}
-            {done && !hasPublicador && (
+            {done && !hasPublicador && !abstained && (
               <div className="trace-notice trace-notice-info" style={{ marginTop: 'var(--space-4)' }}>
                 <div style={{ fontWeight: 600, fontSize: 'var(--font-size-sm)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
                   <UserPlus size={14} /> {t('execution.assignReviewer')}
@@ -672,8 +710,13 @@ function LiveTraceabilityPage() {
             {done && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)', marginTop: 'var(--space-4)' }}>
                 <button className="btn btn-secondary w-full" onClick={() => navigate(`/dashboard/articles/${articleId}`)}>
-                  <FileText size={14} /> {t('execution.viewArticle')}
+                  <FileText size={14} /> {abstained ? t('execution.viewDraft') : t('execution.viewArticle')}
                 </button>
+                {abstained && (
+                  <button className="btn btn-ghost w-full" onClick={() => navigate('/dashboard/flow-designer')}>
+                    <ArrowLeft size={14} /> {t('execution.backToDesigner')}
+                  </button>
+                )}
                 {pipelineFailed && canResume && (
                   <button className="btn btn-primary w-full" onClick={handleResume}>
                     <Play size={14} /> {t('execution.resume')}
@@ -923,7 +966,8 @@ function LiveTraceabilityPage() {
             <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
               {hasFailedSteps && <span className="badge badge-rejected">{t('execution.preview.error')}</span>}
               {!hasFailedSteps && isGeneratingPreview && <span className="badge badge-running animate-pulse">{t('execution.preview.generating')}</span>}
-              {!hasFailedSteps && done && preview && <span className="badge badge-approved">{t('traceability.draftBadge')}</span>}
+              {!hasFailedSteps && done && !abstained && preview && <span className="badge badge-approved">{t('traceability.draftBadge')}</span>}
+              {done && abstained && <span className="badge badge-draft">{t('execution.preview.stopped')}</span>}
             </div>
           </div>
           <div className="trace-preview-body">

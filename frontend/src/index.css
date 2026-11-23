@@ -1492,6 +1492,8 @@ textarea.input { resize: vertical; min-height: 80px; line-height: var(--leading-
 .trace-step-running  { border-color: var(--info); background: var(--info-bg); }
 .trace-step-completed { border-color: rgba(46,132,74,0.3); background: var(--success-bg); }
 .trace-step-failed   { border-color: rgba(186,5,23,0.3); background: var(--error-bg); }
+.trace-step-not_run  { opacity: 0.65; }
+.trace-step-abstained { border-color: var(--status-warning); background: var(--status-warning-bg); }
 
 .trace-step-left {
   display: flex;
