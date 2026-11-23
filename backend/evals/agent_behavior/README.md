@@ -61,6 +61,7 @@ dataset crece por líneas, y así el diff de una PR enseña qué caso se añadi�
 | `<agente>-regressions` | **Falla a propósito**: un caso por regresión detectable. Documentación ejecutable de qué se mide, no un gate. |
 | `redactor-smoke` | El mínimo de extremo a extremo, de T9.3. |
 | `investigador-cobertura` / `investigador-cobertura-regressions` | Cobertura bibliográfica sobre papers de acceso abierto con DOI real (SPEC-034/T22.9, AC5/AC7): exactamente N verificadas, N-1, documento interno sin verificar, DOI aportado por el autor, fuente bajo el umbral de similitud, biblioteca vacía. El primero pasa entero y el segundo falla a propósito. **No terminan en `-golden`, así que el gate (T9.5) no los recoge** y no necesitan umbral; `handwritten`, como el resto. |
+| `redactor-citation-support` / `redactor-citation-support-regressions` | Soporte de las citas `[F#]` por su fragmento (SPEC-035/T23.7, AC8): cita respaldada, multiple, solape justo; y, a proposito, cita fuera de tema, marcador inventado, fragmento sin texto, texto sin citas y una de dos sin respaldo. El `corpus` son los fragmentos y `input.citation_map` fija sus alias `F#` para `live`. **No terminan en `-golden`, asi que el gate no los recoge**; `handwritten`. |
 
 El publicador no tiene conjunto: publica, no genera texto ni decide, así que no
 hay comportamiento probabilístico que medir.
@@ -118,6 +119,7 @@ naturalezas distintas y permite declarar umbrales (T9.5) sin traducir unidades.
 | `citation_fidelity` | Que cada `[Fuente: X]` exista en el corpus del caso. | El caso no trae corpus. |
 | `format_compliance` | Que aparezca el estilo de cita pedido y las secciones exigidas. | El caso no declara ninguno. |
 | `reference_completeness` | Que cada referencia impresa lleve año e identificador resoluble (SPEC-032/AC2). | El caso no declara `complete_references`. |
+| `citation_support` | Que cada `[F#]` apunte a un fragmento cuyo texto respalda la frase (criterio de la compuerta, SPEC-035/T23.3: solape determinista, falla cerrada). | El caso no declara `expect.citation_support`. |
 | `budget` | Margen frente al presupuesto de tokens y latencia. | El caso no declara presupuesto. |
 | `reviewer_calibration` | Distancia del score del revisor a una referencia humana, **y si cae del mismo lado del umbral de 80**. | El caso no declara `reference_score`. |
 | `coherence` | Coherencia interna del texto, según un juez con rúbrica fija. | El caso no declara `min_coherence`, o no hay veredicto. |
