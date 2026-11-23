@@ -8,6 +8,7 @@ import ReactMarkdown from 'react-markdown';
 import { agentsApi } from '../../../platform/api/agents';
 import { agentMeta } from '../../../platform/agentCatalog';
 import { useProjectStore } from '../../../platform/store/projectStore';
+import ArticleCitations from '../components/ArticleCitations';
 import './article-trace-history.css';
 
 const tabs = [['summary','Resumen',Activity],['steps','Trazas por agente',Layers],['logs','Logs',List],['metrics','Métricas',BarChart3],['sources','Fuentes',Database],['integrity','Integridad',ShieldCheck]];
@@ -201,6 +202,7 @@ export default function ArticleTraceHistoryPage() {
           </Card>
         </div>
       )}
+      {tab==='sources' && <ArticleCitations articleId={id} projectId={projectId} />}
       {tab==='sources' && <Card title={`Fuentes recuperadas (${sources.length})`}><p className="ath-muted">Recuperación RAG registrada; no demuestra que el artículo final cite estas fuentes. No se guardó el texto completo de los fragmentos en estas trazas.</p>{sources.length ? sources.map(s=><article className="ath-source" key={s.doc_id}><h3><FileText size={16}/>{s.title||s.doc_id}</h3><p>{s.authors||'Autoría no registrada'} · Colección: {s.collection||'—'}</p><p>Similitud registrada: {Number(s.score||0).toFixed(2)} · Recuperada por: {(s.used_by||[]).map(name).join(', ')}</p><details><summary>{s.chunk_ids?.length||0} fragmentos registrados · Ver identificadores</summary><Json value={{doc_id:s.doc_id,chunk_ids:s.chunk_ids}}/></details></article>) : <p>No hay fuentes recuperadas registradas para esta ejecución.</p>}</Card>}
       {tab==='sources' && <Card title={`Búsquedas bibliográficas (${searches.length})`}><p className="ath-muted">Registro reproducible de cada búsqueda: bases consultadas, cadena, filtros y fecha (UTC). Solo se guarda la cadena de búsqueda y recuentos, no el texto del manuscrito. Incluye todas las búsquedas del artículo y se exporta en el JSONL.</p>{searches.length ? searches.map(b=><article className="ath-source" key={b.id}><h3><Database size={16}/>{b.query}</h3><p>Fecha: {date(b.searched_at)} · Estado: {b.status} · Bases: {(b.sources||[]).join(', ')||'—'}</p><p>Resultados: {b.result_count} · Verificados: {b.verified_count}{Object.keys(b.discarded||{}).length ? ` · Descartados: ${Object.entries(b.discarded).map(([k,v])=>`${k} ${v}`).join(', ')}` : ''}</p><details><summary>Filtros y detalle por base</summary><Json value={{filters:b.filters,per_source:b.per_source}}/></details></article>) : <p>No hay búsquedas bibliográficas registradas para este artículo.</p>}</Card>}
       {tab==='integrity' && <Card title="Integridad de los pasos"><p>{data.integrity.status === 'intacta'
