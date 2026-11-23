@@ -2,32 +2,35 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { CheckCircle, CircleAlert, FileText, Info, UserCheck } from 'lucide-react';
 import { articlesApi } from '../api/articles';
+import { useT } from '../i18n/useT';
 
 // Estado automático de cada cita (SPEC-035). El texto lleva el significado: el color solo acompaña.
 const STATUS = {
-  supported: { label: 'Respaldada', cls: 'ath-completed', Icon: CheckCircle },
-  partial: { label: 'Parcialmente respaldada', cls: 'ath-badge', Icon: Info },
-  unsupported: { label: 'No respaldada', cls: 'ath-error', Icon: CircleAlert },
-  not_verified: { label: 'No verificada', cls: 'ath-badge', Icon: Info },
+  supported: { label: 'citations.status.supported', cls: 'ath-completed', Icon: CheckCircle },
+  partial: { label: 'citations.status.partial', cls: 'ath-badge', Icon: Info },
+  unsupported: { label: 'citations.status.unsupported', cls: 'ath-error', Icon: CircleAlert },
+  not_verified: { label: 'citations.status.not_verified', cls: 'ath-badge', Icon: Info },
 };
 const when = v => v ? new Date(/Z$|[+-]\d\d:\d\d$/.test(v) ? v : `${v}Z`).toLocaleString('es-CL') : '';
 
 function Row({ link, onConfirm, pending }) {
+  const { t } = useT();
   const st = STATUS[link.status] || STATUS.not_verified;
   const { Icon } = st;
   const place = link.doc_id
-    ? `Documento ${link.doc_id}${link.page ? `, página ${link.page}` : link.section ? `, sección ${link.section}` : ', página desconocida'}`
+    ? t(link.page ? 'citations.place.page' : link.section ? 'citations.place.section' : 'citations.place.unknown',
+      { doc: link.doc_id, page: link.page, section: link.section })
     : null;
   return (
     <li className="ath-source ath-citation">
       <p>
         <strong>[{link.citation_key}]</strong>{' '}
-        <span className={`ath-badge ${st.cls}`}><Icon size={14} strokeWidth={1.5} aria-hidden="true" />{st.label}</span>
+        <span className={`ath-badge ${st.cls}`}><Icon size={14} strokeWidth={1.5} aria-hidden="true" />{t(st.label)}</span>
       </p>
-      {link.claim && <p>Afirmación: «{link.claim}»</p>}
+      {link.claim && <p>{t('citations.claim', { claim: link.claim })}</p>}
       {link.excerpt
         ? <blockquote className="ath-muted">{link.excerpt}</blockquote>
-        : <p className="ath-muted">Sin extracto: la cita no apunta a un fragmento de la biblioteca.</p>}
+        : <p className="ath-muted">{t('citations.noExcerpt')}</p>}
       {link.rationale && <p className="ath-muted">{link.rationale}</p>}
       {place && (
         <p>
@@ -38,12 +41,12 @@ function Row({ link, onConfirm, pending }) {
         </p>
       )}
       {link.confirmed_at
-        ? <p><span className="ath-badge ath-completed"><UserCheck size={14} aria-hidden="true" />Confirmada manualmente el {when(link.confirmed_at)}</span></p>
+        ? <p><span className="ath-badge ath-completed"><UserCheck size={14} aria-hidden="true" />{t('citations.confirmedOn', { when: when(link.confirmed_at) })}</span></p>
         : (
           <button className="btn btn-secondary btn-sm" disabled={pending}
-            aria-label={`Confirmar manualmente la cita ${link.citation_key}`}
+            aria-label={t('citations.confirmAria', { key: link.citation_key })}
             onClick={() => onConfirm(link.id)}>
-            {pending ? 'Confirmando…' : 'Confirmar manualmente'}
+            {pending ? t('citations.confirming') : t('citations.confirm')}
           </button>
         )}
     </li>
@@ -51,6 +54,7 @@ function Row({ link, onConfirm, pending }) {
 }
 
 export default function ArticleCitations({ articleId, projectId }) {
+  const { t } = useT();
   const [links, setLinks] = useState(null);
   const [error, setError] = useState('');
   const [actionError, setActionError] = useState('');
@@ -62,7 +66,7 @@ export default function ArticleCitations({ articleId, projectId }) {
     let live = true;
     articlesApi.citations(articleId)
       .then(r => { if (live) setLinks(r.citations || []); })
-      .catch(e => { if (live) setError(e.response?.status === 403 ? 'No tienes permiso para consultar las citas de este artículo.' : 'No se pudieron cargar las citas.'); });
+      .catch(e => { if (live) setError(e.response?.status === 403 ? 'citations.errorForbidden' : 'citations.errorLoad'); });
     return () => { live = false; };
   }, [articleId, projectId]);
   useEffect(() => load(), [load]);
@@ -74,8 +78,8 @@ export default function ArticleCitations({ articleId, projectId }) {
       setLinks(ls => ls.map(l => l.id === linkId ? updated : l));
     } catch (e) {
       setActionError(e.response?.status === 403
-        ? 'Solo la persona autora puede confirmar una cita.'
-        : 'No se pudo confirmar la cita. Inténtalo de nuevo.');
+        ? 'citations.confirmForbidden'
+        : 'citations.confirmFailed');
     } finally {
       setPending(null);
     }
@@ -83,18 +87,18 @@ export default function ArticleCitations({ articleId, projectId }) {
 
   return (
     <section className="ath-card" aria-labelledby="ath-citations-title" aria-busy={links === null && !error}>
-      <h2 id="ath-citations-title" ref={headingRef} tabIndex={-1}>Citas del artículo{links ? ` (${links.length})` : ''}</h2>
-      <p className="ath-muted">Cada cita del texto actual con su estado, el extracto en que se apoya y el documento. La confirmación manual queda registrada con quién y cuándo, y no cambia el veredicto automático.</p>
+      <h2 id="ath-citations-title" ref={headingRef} tabIndex={-1}>{links ? t('citations.titleCount', { count: links.length }) : t('citations.title')}</h2>
+      <p className="ath-muted">{t('citations.intro')}</p>
       {error && (
         <div role="alert" className="ath-alert">
-          <CircleAlert size={16} aria-hidden="true" /><span>{error}</span>
-          <button className="btn btn-secondary btn-sm" onClick={load}>Reintentar</button>
+          <CircleAlert size={16} aria-hidden="true" /><span>{t(error)}</span>
+          <button className="btn btn-secondary btn-sm" onClick={load}>{t('common.retry')}</button>
         </div>
       )}
-      {actionError && <div role="alert" className="ath-alert"><CircleAlert size={16} aria-hidden="true" /><span>{actionError}</span></div>}
-      {links === null && !error && <p role="status">Cargando citas…</p>}
+      {actionError && <div role="alert" className="ath-alert"><CircleAlert size={16} aria-hidden="true" /><span>{t(actionError)}</span></div>}
+      {links === null && !error && <p role="status">{t('citations.loading')}</p>}
       {links && links.length === 0 && (
-        <p role="status">No hay citas evaluadas para la versión actual del texto. Aparecerán aquí cuando se evalúen las citas de esta versión.</p>
+        <p role="status">{t('citations.empty')}</p>
       )}
       {links && links.length > 0 && (
         <ul className="ath-citation-list" style={{ listStyle: 'none', padding: 0 }}>

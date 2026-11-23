@@ -8,6 +8,7 @@ import { agentsApi } from '../../../platform/api/agents';
 import { useArticleStore } from '../store/articleStore';
 import toast from 'react-hot-toast';
 import { agentLabel, CRITERION_LABELS } from '../gate';
+import { tr, useT } from '../i18n/useT';
 
 
 const STATUS_ICON = {
@@ -22,6 +23,7 @@ const STATUS_ICON = {
 };
 
 export default function ExecutionPage() {
+  const { t } = useT();
   const { articleId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
@@ -59,12 +61,12 @@ export default function ExecutionPage() {
   const isGeneratingPreview = !done && steps.some((step) => step.status === 'running');
 
   const getStepStatusLabel = (status) => {
-    if (status === 'waiting') return 'Esperando...';
-    if (status === 'running') return 'Ejecutando...';
-    if (status === 'completed') return 'Completado';
-    if (status === 'abstained') return 'Se abstuvo';
-    if (status === 'not_run') return 'No ejecutado';
-    return 'Error';
+    if (status === 'waiting') return t('execution.step.waiting');
+    if (status === 'running') return t('execution.step.running');
+    if (status === 'completed') return t('execution.step.completed');
+    if (status === 'abstained') return t('execution.step.abstained');
+    if (status === 'not_run') return t('execution.step.not_run');
+    return t('execution.step.error');
   };
 
   const markStepStatus = (agentId, status, output = undefined) => {
@@ -114,7 +116,7 @@ export default function ExecutionPage() {
         const res = await agentsApi.getStreamTicket(articleId);
         ticket = res?.ticket;
       } catch {
-        addLog('No se pudo autenticar el stream en tiempo real', 'error');
+        addLog(tr('execution.log.authFailed'), 'error');
         return;
       }
       if (cancelled || !ticket) return;
@@ -127,7 +129,7 @@ export default function ExecutionPage() {
         const data = JSON.parse(e.data);
         if (data.type === 'agent_start') {
           markStepStatus(data.agent, 'running');
-          addLog(`▶ ${data.agent} iniciado`, 'info');
+          addLog(tr('execution.log.started', { agent: data.agent }), 'info');
           if (data.agent === 'redactor' || data.agent === 'formateador') {
             setPreview('');
           }
@@ -135,7 +137,7 @@ export default function ExecutionPage() {
           setPreview((current) => current + data.token);
         } else if (data.type === 'agent_end') {
           markStepStatus(data.agent, 'completed', data.output);
-          addLog(`✓ ${data.agent} completado`, 'success');
+          addLog(tr('execution.log.completed', { agent: data.agent }), 'success');
           const draftText = data.draft_text || data.output?.draft_text;
           const fmtText = data.formatted_text || data.output?.formatted_text;
           if (draftText) setPreview(draftText);
@@ -146,27 +148,27 @@ export default function ExecutionPage() {
           setPreview((current) => current || `Error: ${data.error}`);
         } else if (data.type === 'await_decision') {
           setPendingDecision(data);
-          addLog('⏸️ El pipeline espera tu decisión (coherencia)', 'warn');
+          addLog(tr('execution.log.awaitDecision'), 'warn');
         } else if (data.type === 'decision_resolved') {
           setPendingDecision(null);
           setDecisionBusy(false);
-          addLog(`▶️ Decisión: ${data.decision === 'add_source' ? 'nueva fuente añadida' : 'continuar'}`, 'info');
+          addLog(tr('execution.log.decision', { decision: tr(data.decision === 'add_source' ? 'execution.log.decisionAddSource' : 'execution.log.decisionContinue') }), 'info');
         } else if (data.type === 'gate_failed') {
           // SPEC-032/AC14: la compuerta bloqueó el texto final; el artículo vuelve a borrador.
           const lista = (data.blockers || []).map((b) => b.criterion).join(', ');
           setGateNotice({ kind: 'gate_failed', blockers: data.blockers || [] });
-          addLog(`⛔ La compuerta bloquea la publicación (${lista}). El artículo vuelve a borrador.`, 'error');
+          addLog(tr('execution.log.gateFailed', { list: lista }), 'error');
         } else if (data.type === 'requires_human_review') {
           // SPEC-032/AC7: se agotaron las vueltas sin aprobar; solo una persona decide.
           setGateNotice({ kind: 'requires_human_review', score: data.score, feedback: data.feedback || [] });
-          addLog('⏸️ El Revisor no aprobó tras agotar las vueltas: el artículo requiere revisión humana', 'warn');
+          addLog(tr('execution.log.humanReview'), 'warn');
         } else if (data.type === 'abstained') {
           // SPEC-034/AC7: sin fuentes verificadas suficientes el Investigador se abstiene y el
           // pipeline se detiene; el mensaje dice qué falta y cómo resolverlo.
           setGateNotice({ kind: 'abstained', message: data.message, verified: data.verified_sources, min: data.min_sources });
           setAbstained(true);
           markStepStatus(data.agent, 'abstained');
-          addLog('⛔ El Investigador se abstuvo: faltan fuentes verificadas. El artículo sigue en borrador.', 'warn');
+          addLog(tr('execution.log.abstained'), 'warn');
         } else if (data.type === 'log') {
           addLog(data.message, data.level || '');
         } else if (data.type === 'done' && data.outcome === 'abstained') {
@@ -179,12 +181,12 @@ export default function ExecutionPage() {
           setSteps((current) => current.map((step) => (
             step.status === 'waiting' ? { ...step, status: 'not_run' } : step
           )));
-          addLog('Pipeline detenido por abstención del Investigador', 'warn');
+          addLog(tr('execution.log.stoppedAbstained'), 'warn');
           evtSource.close();
         } else if (data.type === 'done') {
           setDone(true);
           setPipelineFailed(false);
-          addLog('Pipeline completado', 'success');
+          addLog(tr('execution.log.pipelineDone'), 'success');
           // Always fetch the final article body from the server — this is the
           // authoritative source after publicador commits, and acts as a fallback
           // when SSE draft_text/formatted_text events were missed or empty.
@@ -198,12 +200,12 @@ export default function ExecutionPage() {
           setDone(true);
           setPipelineFailed(true);
           setCanResume(data.can_resume !== false);
-          addLog(`Pipeline fallido: ${data.error || 'error desconocido'}`, 'error');
+          addLog(tr('execution.log.pipelineFailed', { error: data.error || tr('execution.log.unknownError') }), 'error');
           evtSource.close();
         } else if (data.type === 'cancelled') {
           setDone(true);
           setCancelled(true);
-          addLog('Pipeline cancelado por el usuario — artículo en borrador', 'warn');
+          addLog(tr('execution.log.cancelled'), 'warn');
           evtSource.close();
         }
       // mejor-esfuerzo: un evento SSE ilegible se descarta; el siguiente
@@ -250,7 +252,7 @@ export default function ExecutionPage() {
         ? agentsApi.resume(articleId, payload)
         : agentsApi.run(articleId, payload);
       request.catch(() => {
-        toast.error(isResume ? 'Error al reanudar el pipeline' : 'Error al iniciar el pipeline');
+        toast.error(tr(isResume ? 'execution.resumeError' : 'execution.startError'));
       });
     }
   }, [runCount]);
@@ -265,7 +267,7 @@ export default function ExecutionPage() {
       await agentsApi.cancel(articleId);
     } catch (err) {
       if (err?.response?.status !== 409) {
-        toast.error('No se pudo cancelar el pipeline');
+        toast.error(t('execution.cancelError'));
       }
     } finally {
       setCancelling(false);
@@ -313,7 +315,7 @@ export default function ExecutionPage() {
       await agentsApi.submitDecision(articleId, 'continue');
       setPendingDecision(null);
     } catch {
-      toast.error('No se pudo enviar la decisión');
+      toast.error(t('execution.decisionError'));
       setDecisionBusy(false);
     }
   };
@@ -328,23 +330,23 @@ export default function ExecutionPage() {
     try {
       // Upload to the investigador bucket so the re-run finds it as a source
       await agentsApi.uploadRagDocument('investigador', file);
-      toast.success(`Fuente añadida: ${file.name}`);
+      toast.success(t('execution.sourceAdded', { name: file.name }));
       await agentsApi.submitDecision(articleId, 'add_source');
       setPendingDecision(null);
     } catch (err) {
-      toast.error(err?.response?.data?.detail || 'No se pudo subir la fuente');
+      toast.error(err?.response?.data?.detail || t('execution.sourceError'));
       setDecisionBusy(false);
     }
   };
 
   const handleAssignReviewer = async () => {
-    if (!reviewerEmail.trim()) { toast.error('Escribe el email del revisor'); return; }
+    if (!reviewerEmail.trim()) { toast.error(t('execution.reviewerEmailRequired')); return; }
     setAssigning(true);
     try {
       await assignReviewer(articleId, reviewerEmail);
-      toast.success(`Revisor asignado: ${reviewerEmail}`);
+      toast.success(t('execution.reviewerAssigned', { email: reviewerEmail }));
       setReviewerEmail('');
-    } catch { toast.error('Error al asignar revisor'); }
+    } catch { toast.error(t('execution.reviewerError')); }
     finally { setAssigning(false); }
   };
 
@@ -357,9 +359,9 @@ export default function ExecutionPage() {
             className="btn btn-ghost btn-sm"
             onClick={() => navigate('/dashboard/flow-designer')}
             style={{ alignSelf: 'flex-start', marginBottom: 'var(--space-2)', display: 'flex', alignItems: 'center', gap: 4, fontSize: 'var(--font-size-xs)' }}
-            aria-label="Volver al Flow Designer"
+            aria-label={t('execution.backToDesignerAria')}
           >
-            <ArrowLeft size={13} /> Volver al diseñador
+            <ArrowLeft size={13} /> {t('execution.backToDesigner')}
           </button>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -374,7 +376,7 @@ export default function ExecutionPage() {
                 : <Loader size={16} style={{ color: 'var(--brand-primary)', animation: 'spin 1s linear infinite' }} />
               }
               <span style={{ fontWeight: 600, fontSize: 'var(--font-size-sm)' }}>
-                {done && cancelled ? 'Pipeline cancelado' : done && pipelineFailed ? 'Pipeline fallido' : done && abstained ? 'Pipeline detenido por abstención' : done ? 'Pipeline completado' : 'Ejecutando pipeline…'}
+                {done && cancelled ? t('execution.header.cancelled') : done && pipelineFailed ? t('execution.header.failed') : done && abstained ? t('execution.header.abstained') : done ? t('execution.header.done') : t('execution.header.running')}
               </span>
             </div>
             {!done && (
@@ -383,9 +385,9 @@ export default function ExecutionPage() {
                 style={{ color: 'var(--status-error)', border: '1px solid var(--status-error)', background: 'transparent', display: 'flex', alignItems: 'center', gap: 4, padding: '2px 8px', fontSize: 'var(--font-size-xs)', cursor: 'pointer' }}
                 onClick={handleCancel}
                 disabled={cancelling}
-                aria-label="Cancelar ejecución del pipeline"
+                aria-label={t('execution.cancelAria')}
               >
-                <Square size={11} /> {cancelling ? 'Cancelando…' : 'Cancelar'}
+                <Square size={11} /> {cancelling ? t('execution.cancelling') : t('execution.cancel')}
               </button>
             )}
           </div>
@@ -403,27 +405,29 @@ export default function ExecutionPage() {
           }}>
             {gateNotice.kind === 'gate_failed' ? (
               <>
-                <strong>La compuerta bloquea la publicación.</strong> El artículo vuelve a borrador.
+                <strong>{t('execution.gate.blocksTitle')}</strong> {t('execution.gate.backToDraft')}
                 <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
                   {gateNotice.blockers.map((b) => (
                     <li key={b.criterion}>
                       {CRITERION_LABELS[b.criterion] || b.criterion}
-                      {b.responsible_agent && <> — corresponde a <strong>{agentLabel(b.responsible_agent)}</strong></>}
+                      {b.responsible_agent && <>{' '}{t('execution.gate.responsibleTo')}{' '}<strong>{agentLabel(b.responsible_agent)}</strong></>}
                     </li>
                   ))}
                 </ul>
               </>
             ) : gateNotice.kind === 'abstained' ? (
               <>
-                <strong>El Investigador se abstuvo.</strong>
-                {' '}La ejecución se detuvo: no se generó contenido y el artículo sigue en borrador.
-                {typeof gateNotice.verified === 'number' && <> Fuentes verificadas: {gateNotice.verified}/{gateNotice.min}.</>}
+                <strong>{t('execution.abstained.title')}</strong>
+                {' '}{t('execution.abstained.body')}
+                {typeof gateNotice.verified === 'number' && <>{' '}{t('execution.abstained.verified', { verified: gateNotice.verified, min: gateNotice.min })}</>}
                 <div style={{ marginTop: 6 }}>{gateNotice.message}</div>
               </>
             ) : (
               <>
-                <strong>Requiere revisión humana.</strong> El Revisor no aprobó el texto tras agotar las vueltas
-                {typeof gateNotice.score === 'number' && <> (puntuación {gateNotice.score}/100)</>}; no se ha formateado ni publicado.
+                <strong>{t('execution.humanReview.title')}</strong>{' '}
+                {typeof gateNotice.score === 'number'
+                  ? t('execution.humanReview.bodyScore', { score: gateNotice.score })
+                  : t('execution.humanReview.body')}
                 {gateNotice.feedback.length > 0 && (
                   <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
                     {gateNotice.feedback.slice(0, 4).map((f, i) => <li key={i}>{f}</li>)}
@@ -444,13 +448,13 @@ export default function ExecutionPage() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
               <AlertTriangle size={16} style={{ color: 'var(--status-warning)' }} />
               <span style={{ fontWeight: 600, fontSize: 'var(--font-size-sm)', color: 'var(--status-warning)' }}>
-                Coherencia insuficiente
+                {t('execution.coherenceTitle')}
               </span>
             </div>
             <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-secondary)', marginBottom: 8 }}>
-              {pendingDecision.message || 'El revisor considera que la redacción no es suficientemente coherente.'}
+              {pendingDecision.message || t('execution.coherenceDefault')}
               {typeof pendingDecision.approval_score === 'number' && (
-                <span> (puntuación: {pendingDecision.approval_score}/100)</span>
+                <span> {t('execution.scoreParen', { score: pendingDecision.approval_score })}</span>
               )}
             </div>
             {Array.isArray(pendingDecision.feedback) && pendingDecision.feedback.length > 0 && (
@@ -467,10 +471,10 @@ export default function ExecutionPage() {
             />
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <button className="btn btn-primary btn-sm w-full" onClick={handleUploadSourceClick} disabled={decisionBusy}>
-                <Upload size={13} /> {decisionBusy ? 'Procesando…' : 'Subir otra fuente y reintentar'}
+                <Upload size={13} /> {decisionBusy ? t('execution.processing') : t('execution.uploadSource')}
               </button>
               <button className="btn btn-ghost btn-sm w-full" onClick={handleContinueDecision} disabled={decisionBusy}>
-                <Play size={13} /> Continuar con el borrador actual
+                <Play size={13} /> {t('execution.continueDraft')}
               </button>
             </div>
           </div>
@@ -501,20 +505,20 @@ export default function ExecutionPage() {
           {done && !hasPublicador && !abstained && (
             <div style={{ marginTop: 'var(--space-4)', padding: 'var(--space-4)', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)' }}>
               <div style={{ fontSize: 'var(--font-size-sm)', fontWeight: 600, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
-                <UserPlus size={14} /> Asignar revisor
+                <UserPlus size={14} /> {t('execution.assignReviewer')}
               </div>
               <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', marginBottom: 10 }}>
-                El pipeline no incluye un publicador. Asigna un revisor para validar el artículo.
+                {t('execution.noPublisher')}
               </div>
               <div style={{ display: 'flex', gap: 6 }}>
                 <input className="input" style={{ flex: 1, padding: '6px 10px', fontSize: 'var(--font-size-xs)' }}
-                  placeholder="@email del revisor"
+                  placeholder={t('execution.reviewerPlaceholder')}
                   value={reviewerEmail}
                   onChange={e => setReviewerEmail(e.target.value.replace('@', ''))}
                   onKeyDown={e => e.key === 'Enter' && handleAssignReviewer()}
                 />
                 <button className="btn btn-primary btn-sm" onClick={handleAssignReviewer} disabled={assigning}>
-                  {assigning ? '…' : 'Asignar'}
+                  {assigning ? '…' : t('execution.assign')}
                 </button>
               </div>
             </div>
@@ -523,19 +527,19 @@ export default function ExecutionPage() {
           {done && cancelled && (
             <div style={{ marginTop: 'var(--space-4)', padding: 'var(--space-4)', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)', border: '1px solid var(--status-warning)' }}>
               <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', marginBottom: 10 }}>
-                Artículo guardado como borrador. Puedes re-ejecutar el pipeline desde aquí o revisarlo en el editor.
+                {t('execution.savedAsDraft')}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
                 <button
                   className="btn btn-primary btn-sm w-full"
                   onClick={handleRerun}
-                  aria-label="Re-ejecutar el pipeline desde el principio"
+                  aria-label={t('execution.rerunAria')}
                 >
-                  ▶ Re-ejecutar pipeline
+                  {t('execution.rerun')}
                 </button>
                 <button className="btn btn-secondary btn-sm w-full"
                   onClick={() => navigate(`/dashboard/articles/${articleId}`)}>
-                  <FileText size={13} /> Ver borrador
+                  <FileText size={13} /> {t('execution.viewDraft')}
                 </button>
               </div>
             </div>
@@ -545,11 +549,11 @@ export default function ExecutionPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)', marginTop: 'var(--space-3)' }}>
               <button className="btn btn-secondary w-full"
                 onClick={() => navigate(`/dashboard/articles/${articleId}`)}>
-                <FileText size={14} /> Ver borrador
+                <FileText size={14} /> {t('execution.viewDraft')}
               </button>
               <button className="btn btn-ghost w-full"
                 onClick={() => navigate('/dashboard/flow-designer')}>
-                <ArrowLeft size={14} /> Volver al diseñador
+                <ArrowLeft size={14} /> {t('execution.backToDesigner')}
               </button>
             </div>
           )}
@@ -558,19 +562,19 @@ export default function ExecutionPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)', marginTop: 'var(--space-3)' }}>
               <button className="btn btn-secondary w-full"
                 onClick={() => navigate(`/dashboard/articles/${articleId}`)}>
-                <FileText size={14} /> Ver artículo
+                <FileText size={14} /> {t('execution.viewArticle')}
               </button>
               {pipelineFailed && canResume && (
                 <button className="btn btn-primary w-full"
                   onClick={handleResume}
-                  aria-label="Reanudar el pipeline desde el último checkpoint">
-                  <Play size={14} /> Reanudar desde el último checkpoint
+                  aria-label={t('execution.resumeAria')}>
+                  <Play size={14} /> {t('execution.resume')}
                 </button>
               )}
               {pipelineFailed && (
                 <button className="btn btn-ghost w-full"
                   onClick={() => navigate('/dashboard/flow-designer')}>
-                  <ArrowLeft size={14} /> Reintentar en el diseñador
+                  <ArrowLeft size={14} /> {t('execution.retryInDesigner')}
                 </button>
               )}
             </div>
@@ -591,11 +595,11 @@ export default function ExecutionPage() {
       {/* Right preview */}
       <div className="execution-preview">
         <div className="execution-preview-header">
-          <span style={{ fontWeight: 600, fontSize: 'var(--font-size-sm)' }}>Vista previa del artículo</span>
-          {hasFailedSteps && <span className="badge badge-rejected">Error</span>}
-          {!hasFailedSteps && isGeneratingPreview && <span className="badge badge-running animate-pulse">Generando…</span>}
-          {!hasFailedSteps && done && !abstained && preview && <span className="badge badge-approved">Completo</span>}
-          {done && abstained && <span className="badge badge-draft">Detenido</span>}
+          <span style={{ fontWeight: 600, fontSize: 'var(--font-size-sm)' }}>{t('execution.preview.title')}</span>
+          {hasFailedSteps && <span className="badge badge-rejected">{t('execution.preview.error')}</span>}
+          {!hasFailedSteps && isGeneratingPreview && <span className="badge badge-running animate-pulse">{t('execution.preview.generating')}</span>}
+          {!hasFailedSteps && done && !abstained && preview && <span className="badge badge-approved">{t('execution.preview.complete')}</span>}
+          {done && abstained && <span className="badge badge-draft">{t('execution.preview.stopped')}</span>}
         </div>
         <div className="execution-preview-body">
           {preview ? (
@@ -605,8 +609,8 @@ export default function ExecutionPage() {
           ) : (
             <EmptyState
               icon={<FileText size={28} />}
-              title="Esperando contenido"
-              description="El artículo aparecerá aquí conforme los agentes generen contenido."
+              title={t('execution.preview.waitingTitle')}
+              description={t('execution.preview.waitingDescription')}
             />
           )}
         </div>

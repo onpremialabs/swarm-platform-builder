@@ -4,6 +4,7 @@ import { agentMeta } from '../catalog';
 import { dashboardApi } from '../../../platform/api/dashboard';
 import { useArticleStore } from '../store/articleStore';
 import { LoadingState } from '../../../platform/components/ui/states';
+import { tr, useT } from '../i18n/useT';
 import {
   Activity, BarChart2, Clock, FileText, RefreshCw,
   XCircle, CheckCircle, Zap,
@@ -55,6 +56,7 @@ const agentColor = (name) => agentMeta(name)?.color || 'var(--text-muted)';
  * principio que el «0 de 4 comprobaciones» de las anomalías.
  */
 function StatTile({ icon, label, value, sub, color, unavailable, reason }) {
+  const { t } = useT();
   return (
     <div className="metrics-stat-tile" data-unavailable={unavailable || undefined}>
       <span className="metrics-stat-icon"
@@ -64,11 +66,11 @@ function StatTile({ icon, label, value, sub, color, unavailable, reason }) {
       <div>
         <div className="metrics-stat-value"
           style={unavailable ? { color: 'var(--text-muted)' } : undefined}>
-          {unavailable ? 'No disponible' : value}
+          {unavailable ? t('metrics.unavailable') : value}
         </div>
         <div className="metrics-stat-label">{label}</div>
         {unavailable
-          ? <div className="metrics-stat-sub">No se pudo consultar{reason ? ` (${reason})` : ''}</div>
+          ? <div className="metrics-stat-sub">{reason ? t('metrics.queryFailedReason', { reason }) : t('metrics.queryFailed')}</div>
           : sub && <div className="metrics-stat-sub">{sub}</div>}
       </div>
     </div>
@@ -77,13 +79,14 @@ function StatTile({ icon, label, value, sub, color, unavailable, reason }) {
 
 /** Estado del enjambre (AC4): cada agente, su estado y el criterio que lo decide. */
 const SWARM_STYLE = {
-  ejecutando:     { label: 'Ejecutando',     color: 'var(--info)' },
-  incierto:       { label: 'Incierto',       color: 'var(--warning)' },
-  disponible:     { label: 'Disponible',     color: 'var(--success)' },
-  no_configurado: { label: 'Sin perfil',     color: 'var(--text-muted)' },
+  ejecutando:     { label: 'metrics.swarm.state.ejecutando',     color: 'var(--info)' },
+  incierto:       { label: 'metrics.swarm.state.incierto',       color: 'var(--warning)' },
+  disponible:     { label: 'metrics.swarm.state.disponible',     color: 'var(--success)' },
+  no_configurado: { label: 'metrics.swarm.state.no_configurado', color: 'var(--text-muted)' },
 };
 
 function SwarmAgent({ agent }) {
+  const { t } = useT();
   const meta  = agentMeta(agent.name) || {};
   const Icono = meta.icon;
   const estilo = SWARM_STYLE[agent.state] || SWARM_STYLE.no_configurado;
@@ -105,7 +108,7 @@ function SwarmAgent({ agent }) {
           <span className="metrics-swarm-pulse" style={{ background: estilo.color }} />
         )}
         <span style={{ fontSize: 'var(--font-size-xs)', fontWeight: 600, color: estilo.color }}>
-          {estilo.label}
+          {t(estilo.label)}
         </span>
       </span>
     </div>
@@ -115,6 +118,7 @@ function SwarmAgent({ agent }) {
 // ─── Tarjeta de agente ────────────────────────────────────────────────────────
 
 function AgentCard({ data }) {
+  const { t } = useT();
   const meta   = agentMeta(data.name) || {};
   const Icono  = meta.icon;
   const color  = agentColor(data.name);
@@ -132,25 +136,25 @@ function AgentCard({ data }) {
           </span>
         </span>
         {data.errors > 0
-          ? <span className="badge badge-error" style={{ fontSize: 10 }}>{data.errors} error{data.errors !== 1 ? 'es' : ''}</span>
+          ? <span className="badge badge-error" style={{ fontSize: 10 }}>{t('metrics.errors', { count: data.errors })}</span>
           : <CheckCircle size={14} style={{ color: 'var(--success)' }} />}
       </div>
 
       <div className="metrics-agent-card-stats">
         <div className="metrics-agent-stat">
-          <span className="metrics-agent-stat-label">Ejecuciones</span>
+          <span className="metrics-agent-stat-label">{t('metrics.agent.runs')}</span>
           <span className="metrics-agent-stat-val">{fmtNum(data.runs)}</span>
         </div>
         <div className="metrics-agent-stat">
-          <span className="metrics-agent-stat-label">Tokens totales</span>
+          <span className="metrics-agent-stat-label">{t('metrics.agent.tokens')}</span>
           <span className="metrics-agent-stat-val">{fmtNum(data.tokens)}</span>
         </div>
         <div className="metrics-agent-stat">
-          <span className="metrics-agent-stat-label">Latencia media</span>
+          <span className="metrics-agent-stat-label">{t('metrics.agent.avgLatency')}</span>
           <span className="metrics-agent-stat-val">{fmtSeg(avgLat)}</span>
         </div>
         <div className="metrics-agent-stat">
-          <span className="metrics-agent-stat-label">Latencia total</span>
+          <span className="metrics-agent-stat-label">{t('metrics.agent.totalLatency')}</span>
           <span className="metrics-agent-stat-val">{fmtSeg(data.latencyMs)}</span>
         </div>
       </div>
@@ -161,6 +165,7 @@ function AgentCard({ data }) {
 // ─── Página ───────────────────────────────────────────────────────────────────
 
 export default function MetricsDashboardPage() {
+  const { t } = useT();
   const navigate = useNavigate();
   const { articles, fetchArticles } = useArticleStore();
 
@@ -176,7 +181,7 @@ export default function MetricsDashboardPage() {
       const data = await dashboardApi.getSummary();
       setSummary(data);
     } catch (e) {
-      setError(e?.response?.data?.detail || 'Error al cargar métricas');
+      setError(e?.response?.data?.detail || tr('metrics.loadError'));
     } finally {
       setLoading(false);
     }
@@ -216,7 +221,7 @@ export default function MetricsDashboardPage() {
   const executionRows = (summary?.executions ?? []).map(ex => ({
     ...ex,
     title: articleById[ex.article_id]?.title
-      || `Artículo ${String(ex.article_id).slice(0, 8)}`,
+      || t('metrics.articleFallback', { id: String(ex.article_id).slice(0, 8) }),
   }));
 
   // ── RENDER ───────────────────────────────────────────────────────────────────
@@ -226,15 +231,15 @@ export default function MetricsDashboardPage() {
       {/* CABECERA */}
       <div className="metrics-header">
         <div>
-          <h2 className="metrics-title">Trazabilidad del proyecto</h2>
+          <h2 className="metrics-title">{t('metrics.title')}</h2>
           <p className="metrics-subtitle">
-            Consumo, latencia y trazas de todos los artículos generados.
+            {t('metrics.subtitle')}
           </p>
         </div>
         <button className="btn btn-secondary btn-sm" onClick={loadSummary} disabled={loading}
           style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <RefreshCw size={14} style={loading ? { animation: 'spin 1s linear infinite' } : undefined} />
-          {loading ? 'Cargando…' : 'Actualizar métricas'}
+          {loading ? t('metrics.loading') : t('metrics.refresh')}
         </button>
       </div>
 
@@ -251,33 +256,33 @@ export default function MetricsDashboardPage() {
 
       {/* TILES GLOBALES (AC2 — cada tile dice qué cuenta y de dónde sale) */}
       <div className="metrics-tiles-grid">
-        <StatTile icon={<Activity size={20} />}    label="Tokens totales (7 días)"
+        <StatTile icon={<Activity size={20} />}    label={t('metrics.tiles.tokens')}
           value={fmtNum(globalTokensIn + globalTokensOut)}
-          sub={`↑ ${fmtNum(globalTokensIn)} entrada  ·  ↓ ${fmtNum(globalTokensOut)} salida`}
+          sub={t('metrics.tiles.tokensSub', { in: fmtNum(globalTokensIn), out: fmtNum(globalTokensOut) })}
           color="var(--brand)"
           unavailable={!seccion('metrics').available} reason={seccion('metrics').reason} />
-        <StatTile icon={<Clock size={20} />}        label="Latencia p50 por paso de agente"
+        <StatTile icon={<Clock size={20} />}        label={t('metrics.tiles.latency')}
           value={fmt(latencyP50)}
-          sub="Mediana de agent_run_steps (no HTTP)"
+          sub={t('metrics.tiles.latencySub')}
           color="var(--agent-write)"
           unavailable={!seccion('metrics').available} reason={seccion('metrics').reason} />
-        <StatTile icon={<FileText size={20} />}     label="Artículos con ejecución"
+        <StatTile icon={<FileText size={20} />}     label={t('metrics.tiles.articles')}
           value={summary?.articles_analyzed ?? 0}
-          sub={`en los últimos ${summary?.window_days ?? 7} días`}
+          sub={t('metrics.tiles.articlesSub', { count: summary?.window_days ?? 7 })}
           color="var(--agent-format)"
           unavailable={!seccion('metrics').available} reason={seccion('metrics').reason} />
-        <StatTile icon={<Zap size={20} />}          label="Ejecuciones de pipeline"
+        <StatTile icon={<Zap size={20} />}          label={t('metrics.tiles.executions')}
           value={fmtNum(summary?.executions_total ?? 0)}
-          sub="pasadas completas, no pasos"
+          sub={t('metrics.tiles.executionsSub')}
           color="var(--agent-review)"
           unavailable={!seccion('metrics').available} reason={seccion('metrics').reason} />
-        <StatTile icon={<XCircle size={20} />}      label="Pasos con error"
+        <StatTile icon={<XCircle size={20} />}      label={t('metrics.tiles.failedSteps')}
           value={globalErrors}
           color={globalErrors > 0 ? 'var(--error)' : 'var(--success)'}
           unavailable={!seccion('metrics').available} reason={seccion('metrics').reason} />
-        <StatTile icon={<AlertTriangle size={20} />} label="Anomalías detectadas"
+        <StatTile icon={<AlertTriangle size={20} />} label={t('metrics.tiles.anomalies')}
           value={anomalies.total ?? 0}
-          sub={anomalies.total === 0 ? `${(anomalies.checks_applied || []).length} condiciones verificadas` : undefined}
+          sub={anomalies.total === 0 ? t('metrics.conditionsChecked', { count: (anomalies.checks_applied || []).length }) : undefined}
           color={anomalies.total > 0 ? 'var(--warning)' : 'var(--success)'}
           unavailable={!seccion('metrics').available} reason={seccion('metrics').reason} />
       </div>
@@ -285,15 +290,16 @@ export default function MetricsDashboardPage() {
       {/* ESTADO DEL ENJAMBRE (AC4 — derivado de los pasos abiertos, no almacenado) */}
       <section>
         <h3 className="metrics-section-title">
-          <Bot size={16} /> Estado del enjambre
+          <Bot size={16} /> {t('metrics.swarm.title')}
         </h3>
         {!seccion('swarm').available ? (
           <div className="metrics-card" style={{ padding: 'var(--space-5)', textAlign: 'center',
             color: 'var(--text-muted)', fontSize: 'var(--font-size-sm)',
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
             <CloudOff size={16} />
-            No se pudo consultar el estado de los agentes
-            {seccion('swarm').reason ? ` (${seccion('swarm').reason})` : ''}.
+            {seccion('swarm').reason
+              ? t('metrics.swarm.unavailableReason', { reason: seccion('swarm').reason })
+              : t('metrics.swarm.unavailable')}
           </div>
         ) : (
           <>
@@ -302,10 +308,7 @@ export default function MetricsDashboardPage() {
             </div>
             <p style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)',
               marginTop: 'var(--space-2)' }}>
-              Derivado de los pasos abiertos en <code>agent_runs</code>, no de un registro aparte.
-              Un paso que lleva más de {Math.round((summary?.swarm?.stale_after_s ?? 900) / 60)} min
-              sin cerrar pasa a «incierto»: un proceso que muere deja el paso abierto para siempre,
-              y seguir diciendo «ejecutando» sería mentir. Pasa el ratón por cada agente para ver su criterio.
+              {t('metrics.swarm.noteBefore')} <code>agent_runs</code>{t('metrics.swarm.noteAfter', { min: Math.round((summary?.swarm?.stale_after_s ?? 900) / 60) })}
             </p>
           </>
         )}
@@ -315,14 +318,14 @@ export default function MetricsDashboardPage() {
       {anomalies.checks_applied && (
         <section>
           <h3 className="metrics-section-title">
-            <AlertTriangle size={16} /> Anomalías — {anomalies.checks_applied.length} condiciones verificadas
+            <AlertTriangle size={16} /> {t('metrics.anomaliesTitle', { count: anomalies.checks_applied.length })}
           </h3>
           <div style={{ display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
             {[
-              { key: 'failed_step',      label: 'Pasos fallidos',           desc: 'status ≠ completed' },
-              { key: 'loop_exhausted',   label: 'Bucles agotados',          desc: `iteration ≥ ${summary?.budgets?.max_review_loops ?? 3}` },
-              { key: 'latency_exceeded', label: 'Latencia excedida',        desc: `> ${((summary?.budgets?.latency_budget_ms ?? 60000)/1000).toFixed(0)} s por paso` },
-              { key: 'rag_empty',        label: 'Pasos sin recuperación RAG', desc: 'rag_sources vacío' },
+              { key: 'failed_step',      label: t('metrics.anomaly.failed_step'),    desc: t('metrics.anomaly.failed_step_desc') },
+              { key: 'loop_exhausted',   label: t('metrics.anomaly.loop_exhausted'), desc: t('metrics.anomaly.loop_exhausted_desc', { max: summary?.budgets?.max_review_loops ?? 3 }) },
+              { key: 'latency_exceeded', label: t('metrics.anomaly.latency_exceeded'), desc: t('metrics.anomaly.latency_exceeded_desc', { seconds: ((summary?.budgets?.latency_budget_ms ?? 60000)/1000).toFixed(0) }) },
+              { key: 'rag_empty',        label: t('metrics.anomaly.rag_empty'),      desc: t('metrics.anomaly.rag_empty_desc') },
             ].map(({ key, label, desc }) => (
               <div key={key} style={{
                 padding: 'var(--space-3) var(--space-4)',
@@ -341,7 +344,7 @@ export default function MetricsDashboardPage() {
             ))}
           </div>
           <p style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', marginTop: 'var(--space-2)' }}>
-            Un contador en 0 significa «se comprobó esta condición en los últimos {summary?.window_days ?? 7} días y no se encontró ningún caso».
+            {t('metrics.zeroMeaning', { count: summary?.window_days ?? 7 })}
           </p>
         </section>
       )}
@@ -350,7 +353,7 @@ export default function MetricsDashboardPage() {
       {agentAgg.length > 0 && (
         <section>
           <h3 className="metrics-section-title">
-            <BarChart2 size={16} /> Consumo acumulado por agente
+            <BarChart2 size={16} /> {t('metrics.consumption')}
           </h3>
           <div className="metrics-agent-cards">
             {agentAgg.map(a => <AgentCard key={a.name} data={a} />)}
@@ -361,17 +364,17 @@ export default function MetricsDashboardPage() {
       {/* EJECUCIONES DEL PROYECTO (T17.1 / AC1) — una fila por pasada */}
       <section>
         <h3 className="metrics-section-title">
-          <Activity size={16} /> Métricas por artículo
+          <Activity size={16} /> {t('metrics.perArticle')}
         </h3>
         <div className="metrics-card">
           <div className="metrics-exec-thead">
-            <span>Ejecución</span>
-            <span>Cuándo</span>
-            <span>Agentes</span>
-            <span>Pasos</span>
-            <span>Tokens</span>
-            <span>Latencia</span>
-            <span className="metrics-exec-state-heading">Estado</span>
+            <span>{t('metrics.col.execution')}</span>
+            <span>{t('metrics.col.when')}</span>
+            <span>{t('metrics.col.agents')}</span>
+            <span>{t('metrics.col.steps')}</span>
+            <span>{t('metrics.col.tokens')}</span>
+            <span>{t('metrics.col.latency')}</span>
+            <span className="metrics-exec-state-heading">{t('metrics.col.state')}</span>
             <span aria-hidden="true" />
           </div>
 
@@ -380,13 +383,14 @@ export default function MetricsDashboardPage() {
               color: 'var(--text-muted)', fontSize: 'var(--font-size-sm)',
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
               <CloudOff size={16} />
-              No se pudieron consultar las ejecuciones
-              {seccion('executions').reason ? ` (${seccion('executions').reason})` : ''}.
+              {seccion('executions').reason
+                ? t('metrics.executionsUnavailableReason', { reason: seccion('executions').reason })
+                : t('metrics.executionsUnavailable')}
             </div>
           ) : executionRows.length === 0 ? (
             <div style={{ padding: 'var(--space-5)', textAlign: 'center',
               color: 'var(--text-muted)', fontSize: 'var(--font-size-sm)' }}>
-              Sin ejecuciones en los últimos {summary?.window_days ?? 7} días.
+              {t('metrics.noExecutions', { count: summary?.window_days ?? 7 })}
             </div>
           ) : executionRows.map(ex => (
             <div key={ex.execution_id} className="metrics-exec-row">
@@ -399,7 +403,7 @@ export default function MetricsDashboardPage() {
                 {/* «2 de 3» distingue una reejecución de un retroceso inexplicado */}
                 {ex.runs_total > 1 && (
                   <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--agent-write)' }}>
-                    pasada {ex.run_number} de {ex.runs_total}
+                    {t('metrics.passOf', { n: ex.run_number, total: ex.runs_total })}
                   </span>
                 )}
               </div>
@@ -422,7 +426,7 @@ export default function MetricsDashboardPage() {
               <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--font-size-xs)' }}>
                 {ex.steps}
                 {ex.loops > 0 && (
-                  <span style={{ color: 'var(--agent-write)' }}> · {ex.loops} bucle{ex.loops !== 1 ? 's' : ''}</span>
+                  <span style={{ color: 'var(--agent-write)' }}> · {t('metrics.loops', { count: ex.loops })}</span>
                 )}
               </span>
 
@@ -437,23 +441,23 @@ export default function MetricsDashboardPage() {
               <div className="metrics-exec-state">
                 {ex.status === 'failed' ? (
                   <span className="metrics-exec-status metrics-exec-status-failed"
-                    role="img" aria-label="Fallida" title="Fallida">
+                    role="img" aria-label={t('metrics.status.failed')} title={t('metrics.status.failed')}>
                     <XCircle size={16} strokeWidth={1.5} aria-hidden="true" />
                   </span>
                 ) : ex.status === 'running' ? (
-                  <span className="metrics-exec-status metrics-exec-status-running" title="En curso">
+                  <span className="metrics-exec-status metrics-exec-status-running" title={t('metrics.status.running')}>
                     <Clock size={15} strokeWidth={1.5} aria-hidden="true" />
-                    <span>En curso</span>
+                    <span>{t('metrics.status.running')}</span>
                   </span>
                 ) : (
                   <>
                     <span className="metrics-exec-status metrics-exec-status-complete"
-                      role="img" aria-label="Completada" title="Completada">
+                      role="img" aria-label={t('metrics.status.completed')} title={t('metrics.status.completed')}>
                       <CheckCircle size={16} strokeWidth={1.5} aria-hidden="true" />
                     </span>
                     {ex.recovered_failures > 0 && (
                       <small className="metrics-exec-recovered">
-                        {ex.recovered_failures} {ex.recovered_failures === 1 ? 'recuperado' : 'recuperados'}
+                        {t('metrics.recovered', { count: ex.recovered_failures })}
                       </small>
                     )}
                   </>
@@ -461,9 +465,9 @@ export default function MetricsDashboardPage() {
               </div>
               <span className="metrics-exec-actions">
                 <button className="btn btn-secondary btn-sm"
-                  aria-label={`Ver trazas de ${ex.title}, ejecución ${ex.run_number}`}
+                  aria-label={t('metrics.viewTracesAria', { title: ex.title, n: ex.run_number })}
                   onClick={() => navigate(`/dashboard/articles/${ex.article_id}/observability${ex.trace_id ? `?execution=${ex.trace_id}` : ''}`)}>
-                  Trazas
+                  {t('metrics.traces')}
                 </button>
               </span>
             </div>
@@ -473,7 +477,7 @@ export default function MetricsDashboardPage() {
 
       {loading && !summary && (
         <div style={{ display: 'grid', placeItems: 'center', padding: 'var(--space-8)' }}>
-          <LoadingState label="Cargando métricas…" />
+          <LoadingState label={t('metrics.loadingMetrics')} />
         </div>
       )}
 

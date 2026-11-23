@@ -13,6 +13,7 @@ import { useArticleStore } from '../store/articleStore';
 import toast from 'react-hot-toast';
 import { agentLabel, CRITERION_LABELS } from '../gate';
 import ExplainPanel from '../../../platform/components/explain/ExplainPanel';
+import { tr, useT } from '../i18n/useT';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -31,7 +32,7 @@ function formatDurationLive(ms) {
   return `${Math.floor(s / 60)} min ${s % 60} s`;
 }
 
-const STATUS_LABEL = { waiting: 'Pendiente', running: 'En ejecución', completed: 'Completado', abstained: 'Se abstuvo', failed: 'Error' };
+const STATUS_KEYS = ['waiting', 'running', 'completed', 'abstained', 'failed'];
 
 /** Color del agente según el catálogo del proyecto; el de marca si no está. */
 const agentColor = (name) => agentMeta(name)?.color || 'var(--brand)';
@@ -39,8 +40,9 @@ const agentColor = (name) => agentMeta(name)?.color || 'var(--brand)';
 // ─── Gráfico de barras SVG ───────────────────────────────────────────────────
 
 function BarChart({ data, unit }) {
+  const { t } = useT();
   if (!data || data.length === 0) return (
-    <div style={{ color: 'var(--text-muted)', fontSize: 'var(--font-size-xs)', padding: '12px 0' }}>Sin datos</div>
+    <div style={{ color: 'var(--text-muted)', fontSize: 'var(--font-size-xs)', padding: '12px 0' }}>{t('traceability.noData')}</div>
   );
   const max = Math.max(...data.map(d => d.value), 1);
   const barH = 22, gap = 10, labelW = 90, chartW = 180;
@@ -93,6 +95,8 @@ export default function TraceabilityPage() {
 }
 
 function LiveTraceabilityPage() {
+  const { t } = useT();
+  const stepStatusLabel = (status) => (STATUS_KEYS.includes(status) ? t(`traceability.status.${status}`) : status);
   const { articleId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
@@ -205,7 +209,7 @@ function LiveTraceabilityPage() {
       // No es mejor-esfuerzo: si la verificación no se pudo hacer hay que
       // decirlo. Enseñar «sin problemas» cuando no se comprobó nada sería la
       // confianza infundada que T17.6 existe para evitar.
-      setIntegrityError(e?.response?.data?.detail || 'No se pudo verificar la cadena');
+      setIntegrityError(e?.response?.data?.detail || tr('traceability.integrity.verifyFailed'));
     } finally {
       setIntegrityLoading(false);
     }
@@ -214,7 +218,7 @@ function LiveTraceabilityPage() {
   const handleExport = async () => {
     setExporting(true);
     try { await agentsApi.downloadExport(articleId, 'last'); }
-    catch { toast.error('No se pudo exportar la traza'); }
+    catch { toast.error(t('traceability.exportError')); }
     finally { setExporting(false); }
   };
 
@@ -240,7 +244,7 @@ function LiveTraceabilityPage() {
     (async () => {
       let ticket;
       try { const res = await agentsApi.getStreamTicket(articleId); ticket = res?.ticket; }
-      catch { addLog('No se pudo autenticar el stream', 'error'); return; }
+      catch { addLog(tr('traceability.log.authFailed'), 'error'); return; }
       if (isCancelled || !ticket) return;
 
       evtSource = new EventSource(agentsApi.getStreamUrl(articleId, ticket));
@@ -266,9 +270,9 @@ function LiveTraceabilityPage() {
               const count = (prev[data.agent] || 0) + 1;
               if (data.agent === 'redactor' && count > 1) {
                 // Segunda vuelta o más: informar explícitamente al usuario (AC4)
-                addLog(`Redactor: pasada ${count} del bucle revisor→redactor`, 'warn', data.agent);
+                addLog(tr('traceability.log.writerPass', { count }), 'warn', data.agent);
               } else {
-                addLog(`${data.agent} iniciado`, 'info', data.agent);
+                addLog(tr('traceability.log.started', { agent: data.agent }), 'info', data.agent);
               }
               return { ...prev, [data.agent]: count };
             });
@@ -286,7 +290,7 @@ function LiveTraceabilityPage() {
             });
             currentAgentRef.current = null;
             markStepStatus(data.agent, 'completed', data.output);
-            addLog(`${data.agent} completado`, 'success', data.agent);
+            addLog(tr('traceability.log.completed', { agent: data.agent }), 'success', data.agent);
             const draftText = data.draft_text || data.output?.draft_text;
             const fmtText   = data.formatted_text || data.output?.formatted_text;
             if (draftText) setPreview(draftText);
@@ -303,20 +307,20 @@ function LiveTraceabilityPage() {
 
           } else if (data.type === 'await_decision') {
             setPendingDecision(data);
-            addLog('El pipeline espera tu decisión (coherencia)', 'warn', currentAgentRef.current);
+            addLog(tr('traceability.log.awaitDecision'), 'warn', currentAgentRef.current);
 
           } else if (data.type === 'decision_resolved') {
             setPendingDecision(null);
             setDecisionBusy(false);
-            addLog('Decisión enviada — reanudando pipeline', 'info', null);
+            addLog(tr('traceability.log.decisionSent'), 'info', null);
 
           } else if (data.type === 'gate_failed') {
             setGateNotice({ kind: 'gate_failed', blockers: data.blockers || [] });
-            addLog(`Compuerta bloquea la publicación`, 'error', null);
+            addLog(tr('traceability.log.gateBlocks'), 'error', null);
 
           } else if (data.type === 'requires_human_review') {
             setGateNotice({ kind: 'requires_human_review', score: data.score, feedback: data.feedback || [] });
-            addLog('Revisor no aprobó: requiere revisión humana', 'warn', null);
+            addLog(tr('traceability.log.humanReview'), 'warn', null);
 
           } else if (data.type === 'log') {
             addLog(data.message, data.level || 'info', currentAgentRef.current);
@@ -325,7 +329,7 @@ function LiveTraceabilityPage() {
             setDone(true);
             setPipelineFailed(false);
             setElapsed(formatDurationLive(Date.now() - (startTimeMsRef.current || Date.now())));
-            addLog('Pipeline completado', 'success', null);
+            addLog(tr('traceability.log.pipelineDone'), 'success', null);
             // mejor-esfuerzo: preview post-ejecución; si falla, el texto se carga al reabrir el artículo
             fetchArticle(articleId).then(art => { if (art?.body) setPreview(art.body); }).catch(() => {});
             evtSource.close();
@@ -335,13 +339,13 @@ function LiveTraceabilityPage() {
             setPipelineFailed(true);
             setCanResume(data.can_resume !== false);
             setElapsed(formatDurationLive(Date.now() - (startTimeMsRef.current || Date.now())));
-            addLog(`Pipeline fallido: ${data.error || 'error desconocido'}`, 'error', null);
+            addLog(tr('traceability.log.pipelineFailed', { error: data.error || tr('traceability.log.unknownError') }), 'error', null);
             evtSource.close();
 
           } else if (data.type === 'cancelled') {
             setDone(true);
             setCancelled(true);
-            addLog('Pipeline cancelado — artículo guardado como borrador', 'warn', null);
+            addLog(tr('traceability.log.cancelled'), 'warn', null);
             evtSource.close();
           }
         // mejor-esfuerzo: evento SSE malformado, descartado sin interrumpir el stream
@@ -375,7 +379,7 @@ function LiveTraceabilityPage() {
         article_outline: articleOutline,
       };
       const request = isResume ? agentsApi.resume(articleId, payload) : agentsApi.run(articleId, payload);
-      request.catch(() => toast.error(isResume ? 'Error al reanudar' : 'Error al iniciar el pipeline'));
+      request.catch(() => toast.error(tr(isResume ? 'traceability.resumeError' : 'traceability.startError')));
     }
   }, [runCount]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -383,7 +387,7 @@ function LiveTraceabilityPage() {
   const handleCancel = async () => {
     setCancelling(true);
     try { await agentsApi.cancel(articleId); }
-    catch (err) { if (err?.response?.status !== 409) toast.error('No se pudo cancelar'); }
+    catch (err) { if (err?.response?.status !== 409) toast.error(t('traceability.cancelError')); }
     finally { setCancelling(false); }
   };
 
@@ -409,7 +413,7 @@ function LiveTraceabilityPage() {
   const handleContinueDecision = async () => {
     setDecisionBusy(true);
     try { await agentsApi.submitDecision(articleId, 'continue'); setPendingDecision(null); }
-    catch { toast.error('No se pudo enviar la decisión'); setDecisionBusy(false); }
+    catch { toast.error(t('execution.decisionError')); setDecisionBusy(false); }
   };
 
   const handleUploadSourceClick = () => sourceInputRef.current?.click();
@@ -420,11 +424,11 @@ function LiveTraceabilityPage() {
     setDecisionBusy(true);
     try {
       await agentsApi.uploadRagDocument('investigador', file);
-      toast.success(`Fuente añadida: ${file.name}`);
+      toast.success(t('execution.sourceAdded', { name: file.name }));
       await agentsApi.submitDecision(articleId, 'add_source');
       setPendingDecision(null);
     } catch (err) {
-      toast.error(err?.response?.data?.detail || 'No se pudo subir la fuente');
+      toast.error(err?.response?.data?.detail || t('execution.sourceError'));
       setDecisionBusy(false);
     }
   };
@@ -444,9 +448,9 @@ function LiveTraceabilityPage() {
       }
       return Object.values(map);
     }
-    return Object.entries(agentTimings).map(([name, t]) => ({
+    return Object.entries(agentTimings).map(([name, timing]) => ({
       name, label: agentMeta(name)?.label || name,
-      latencyMs: t.durationMs || 0, tokens: 0,
+      latencyMs: timing.durationMs || 0, tokens: 0,
       status: steps.find(s => s.id === name)?.status || 'waiting',
     }));
   })();
@@ -459,19 +463,19 @@ function LiveTraceabilityPage() {
   const completedCnt  = metricsAgents.filter(a => a.status === 'completed').length;
   // AC5: no derivar porcentaje de tokens ni de tiempo — mostrar agentes completados / total (hechos reales).
   const progressLabel = done
-    ? `${completedCnt} de ${metricsAgents.length || flowSequence.length} agentes`
+    ? t('traceability.progressDone', { done: completedCnt, total: metricsAgents.length || flowSequence.length })
     : metricsAgents.length > 0
-      ? `${completedCnt} / ${metricsAgents.length} agentes`
-      : 'Indeterminado';
+      ? t('traceability.progressRunning', { done: completedCnt, total: metricsAgents.length })
+      : t('traceability.indeterminate');
   const latencyChart  = metricsAgents.map(a => ({ name: a.name, label: a.label, value: a.latencyMs }));
   const tokensChart   = metricsAgents.map(a => ({ name: a.name, label: a.label, value: a.tokens }));
   const hasMetrics    = metricsAgents.length > 0 || traceData?.available;
 
-  const statusBadge = done && cancelled ? { label: 'Cancelado',    cls: 'badge-pending' }
-    : done && pipelineFailed            ? { label: 'Fallido',      cls: 'badge-error' }
-    : done                              ? { label: 'Completado',   cls: 'badge-approved' }
-    : flowSequence.length > 0           ? { label: 'En ejecución', cls: 'badge-running' }
-    : { label: 'Sin ejecutar', cls: 'badge-draft' };
+  const statusBadge = done && cancelled ? { label: t('traceability.badge.cancelled'), cls: 'badge-pending' }
+    : done && pipelineFailed            ? { label: t('traceability.badge.failed'),    cls: 'badge-error' }
+    : done                              ? { label: t('traceability.status.completed'), cls: 'badge-approved' }
+    : flowSequence.length > 0           ? { label: t('traceability.status.running'), cls: 'badge-running' }
+    : { label: t('traceability.badge.notRun'), cls: 'badge-draft' };
 
   // ════════════════════════════════════════════════════════════════════════════
   // RENDER — todos los paneles siempre montados, visibles con display:none/block
@@ -484,12 +488,12 @@ function LiveTraceabilityPage() {
         <button className="btn btn-ghost btn-sm"
           onClick={() => navigate(returnToTraceability ? '/dashboard/traceability' : '/dashboard/flow-designer')}
           style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 4 }}>
-          <ArrowLeft size={13} /> {returnToTraceability ? 'Volver a trazabilidad' : 'Volver al diseñador'}
+          <ArrowLeft size={13} /> {returnToTraceability ? t('history.backToTraceability') : t('execution.backToDesigner')}
         </button>
         <div style={{ flex: 1 }}>
-          <h2 className="trace-title">Trazabilidad y observabilidad</h2>
+          <h2 className="trace-title">{t('traceability.title')}</h2>
           <p className="trace-subtitle">
-            Sigue la ejecución en tiempo real con trazas, métricas y eventos de los agentes.
+            {t('traceability.subtitle')}
           </p>
         </div>
         <div className="trace-meta-row">
@@ -505,10 +509,10 @@ function LiveTraceabilityPage() {
       {/* PESTAÑAS — 3 en lugar de 4, sin Logs */}
       <div className="trace-tabs" role="tablist">
         {[
-          { id: 'realtime', icon: <Play size={13} />,        label: 'Ejecución en tiempo real' },
-          { id: 'traces',   icon: <GitBranch size={13} />,   label: 'Trazas por agente' },
-          { id: 'metrics',  icon: <BarChart2 size={13} />,   label: 'Métricas' },
-          { id: 'integrity', icon: <ShieldCheck size={13} />, label: 'Integridad' },
+          { id: 'realtime', icon: <Play size={13} />,        label: t('traceability.tabs.realtime') },
+          { id: 'traces',   icon: <GitBranch size={13} />,   label: t('history.tabs.steps') },
+          { id: 'metrics',  icon: <BarChart2 size={13} />,   label: t('history.tabs.metrics') },
+          { id: 'integrity', icon: <ShieldCheck size={13} />, label: t('history.tabs.integrity') },
         ].map(tab => (
           <button key={tab.id} role="tab" aria-selected={activeTab === tab.id}
             className={`trace-tab${activeTab === tab.id ? ' active' : ''}`}
@@ -528,13 +532,13 @@ function LiveTraceabilityPage() {
           <div style={{ display: activeTab === 'realtime' ? undefined : 'none' }}>
             <div className="trace-section-header">
               <div>
-                <div className="trace-section-title">Estado de ejecución del flujo</div>
-                <div className="trace-section-sub">Sigue el progreso de cada agente en tiempo real.</div>
+                <div className="trace-section-title">{t('traceability.flowStatus')}</div>
+                <div className="trace-section-sub">{t('traceability.flowStatusSub')}</div>
               </div>
               {!done && (
                 <button className="btn btn-sm btn-secondary" onClick={handleCancel} disabled={cancelling}
                   style={{ color: 'var(--status-error)', borderColor: 'var(--status-error)' }}>
-                  <Square size={12} /> {cancelling ? 'Cancelando…' : 'Detener ejecución'}
+                  <Square size={12} /> {cancelling ? t('execution.cancelling') : t('traceability.stop')}
                 </button>
               )}
             </div>
@@ -544,7 +548,7 @@ function LiveTraceabilityPage() {
               <div className="trace-notice trace-notice-warning">
                 {gateNotice.kind === 'gate_failed' ? (
                   <>
-                    <strong>La compuerta bloquea la publicación.</strong> El artículo vuelve a borrador.
+                    <strong>{t('execution.gate.blocksTitle')}</strong> {t('execution.gate.backToDraft')}
                     <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
                       {gateNotice.blockers.map(b => (
                         <li key={b.criterion}>
@@ -556,8 +560,8 @@ function LiveTraceabilityPage() {
                   </>
                 ) : (
                   <>
-                    <strong>Requiere revisión humana.</strong>
-                    {typeof gateNotice.score === 'number' && ` Puntuación: ${gateNotice.score}/100.`}
+                    <strong>{t('execution.humanReview.title')}</strong>
+                    {typeof gateNotice.score === 'number' && <>{' '}{t('traceability.score', { score: gateNotice.score })}</>}
                     {gateNotice.feedback.length > 0 && (
                       <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
                         {gateNotice.feedback.slice(0, 4).map((f, i) => <li key={i}>{f}</li>)}
@@ -574,11 +578,11 @@ function LiveTraceabilityPage() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                   <AlertTriangle size={15} style={{ color: 'var(--status-warning)' }} />
                   <span style={{ fontWeight: 600, fontSize: 'var(--font-size-sm)', color: 'var(--status-warning)' }}>
-                    Coherencia insuficiente
+                    {t('execution.coherenceTitle')}
                   </span>
                 </div>
                 <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-secondary)', marginBottom: 8 }}>
-                  {pendingDecision.message || 'El revisor solicita más contexto o fuentes.'}
+                  {pendingDecision.message || t('traceability.contextRequested')}
                   {typeof pendingDecision.approval_score === 'number' && ` (${pendingDecision.approval_score}/100)`}
                 </div>
                 {Array.isArray(pendingDecision.feedback) && pendingDecision.feedback.length > 0 && (
@@ -589,10 +593,10 @@ function LiveTraceabilityPage() {
                 <input ref={sourceInputRef} type="file" accept=".txt,.md,.pdf,.docx" style={{ display: 'none' }} onChange={onSourceFileSelected} />
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <button className="btn btn-primary btn-sm w-full" onClick={handleUploadSourceClick} disabled={decisionBusy}>
-                    <Upload size={13} /> {decisionBusy ? 'Procesando…' : 'Subir otra fuente y reintentar'}
+                    <Upload size={13} /> {decisionBusy ? t('execution.processing') : t('execution.uploadSource')}
                   </button>
                   <button className="btn btn-ghost btn-sm w-full" onClick={handleContinueDecision} disabled={decisionBusy}>
-                    <Play size={13} /> Continuar con el borrador actual
+                    <Play size={13} /> {t('execution.continueDraft')}
                   </button>
                 </div>
               </div>
@@ -619,7 +623,7 @@ function LiveTraceabilityPage() {
                         <div className="trace-step-name">{meta.label || step.id}</div>
                         {showLoop
                           ? <div className="trace-step-desc" style={{ color: 'var(--warning)', fontWeight: 500 }}>
-                              Pasada {loopIter} del bucle revisor→redactor
+                              {t('traceability.loopPass', { n: loopIter })}
                             </div>
                           : <div className="trace-step-desc">{meta.desc || ''}</div>
                         }
@@ -632,7 +636,7 @@ function LiveTraceabilityPage() {
                         </span>
                       )}
                       <span className={`badge ${step.status === 'completed' ? 'badge-approved' : step.status === 'failed' ? 'badge-error' : step.status === 'running' ? 'badge-running' : 'badge-draft'}`}>
-                        {STATUS_LABEL[step.status] || step.status}
+                        {stepStatusLabel(step.status)}
                       </span>
                     </div>
                     {/* Barra indeterminada — no se deriva un % de tokens ni de tiempo (T18.6 AC5) */}
@@ -650,15 +654,15 @@ function LiveTraceabilityPage() {
             {done && !hasPublicador && (
               <div className="trace-notice trace-notice-info" style={{ marginTop: 'var(--space-4)' }}>
                 <div style={{ fontWeight: 600, fontSize: 'var(--font-size-sm)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <UserPlus size={14} /> Asignar revisor
+                  <UserPlus size={14} /> {t('execution.assignReviewer')}
                 </div>
                 <div style={{ display: 'flex', gap: 6 }}>
                   <input className="input" style={{ flex: 1, padding: '6px 10px', fontSize: 'var(--font-size-xs)' }}
-                    placeholder="@email del revisor" value={reviewerEmail}
+                    placeholder={t('execution.reviewerPlaceholder')} value={reviewerEmail}
                     onChange={e => setReviewerEmail(e.target.value.replace('@', ''))}
                     onKeyDown={e => e.key === 'Enter' && handleAssignReviewer()} />
                   <button className="btn btn-primary btn-sm" onClick={handleAssignReviewer} disabled={assigning}>
-                    {assigning ? '…' : 'Asignar'}
+                    {assigning ? '…' : t('execution.assign')}
                   </button>
                 </div>
               </div>
@@ -668,16 +672,16 @@ function LiveTraceabilityPage() {
             {done && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)', marginTop: 'var(--space-4)' }}>
                 <button className="btn btn-secondary w-full" onClick={() => navigate(`/dashboard/articles/${articleId}`)}>
-                  <FileText size={14} /> Ver artículo
+                  <FileText size={14} /> {t('execution.viewArticle')}
                 </button>
                 {pipelineFailed && canResume && (
                   <button className="btn btn-primary w-full" onClick={handleResume}>
-                    <Play size={14} /> Reanudar desde el último checkpoint
+                    <Play size={14} /> {t('execution.resume')}
                   </button>
                 )}
                 {cancelled && (
                   <button className="btn btn-primary w-full" onClick={handleRerun}>
-                    <Play size={14} /> Re-ejecutar pipeline
+                    <Play size={14} /> {t('traceability.rerun')}
                   </button>
                 )}
               </div>
@@ -685,13 +689,13 @@ function LiveTraceabilityPage() {
 
             {/* Terminal de eventos en tiempo real */}
             <div className="trace-section-header" style={{ marginTop: 'var(--space-5)' }}>
-              <div className="trace-section-title">Eventos en tiempo real</div>
+              <div className="trace-section-title">{t('traceability.eventsTitle')}</div>
               <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>
-                {logs.length} eventos
+                {t('traceability.eventsCount', { count: logs.length })}
               </span>
             </div>
             <div className="trace-terminal">
-              {logs.length === 0 && <span style={{ opacity: 0.5 }}>Esperando eventos del pipeline…</span>}
+              {logs.length === 0 && <span style={{ opacity: 0.5 }}>{t('traceability.waitingEvents')}</span>}
               {logs.slice(-60).map((l, i) => (
                 <div key={`${l.tsMs}-${i}`} className={`log-line ${l.type}`}>
                   <span style={{ opacity: 0.5 }}>{l.ts} </span>
@@ -708,12 +712,12 @@ function LiveTraceabilityPage() {
           <div style={{ display: activeTab === 'traces' ? undefined : 'none' }}>
             <div className="trace-section-header">
               <div>
-                <div className="trace-section-title">Trazas por agente</div>
-                <div className="trace-section-sub">Detalle de cada paso: modelo, tokens, fuentes RAG y decisiones.</div>
+                <div className="trace-section-title">{t('history.tabs.steps')}</div>
+                <div className="trace-section-sub">{t('traceability.stepsSub')}</div>
               </div>
               <button className="btn btn-ghost btn-sm" onClick={() => setTraceRefreshKey(k => k + 1)}
                 style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <Loader size={13} /> Actualizar
+                <Loader size={13} /> {t('history.refresh')}
               </button>
             </div>
             <ExplainPanel key={traceRefreshKey} articleId={articleId} />
@@ -722,45 +726,45 @@ function LiveTraceabilityPage() {
           {/* ══ TAB 3: MÉTRICAS ══ */}
           <div style={{ display: activeTab === 'metrics' ? undefined : 'none' }}>
             <div className="trace-section-header">
-              <div className="trace-section-title">Métricas de ejecución</div>
+              <div className="trace-section-title">{t('traceability.metricsTitle')}</div>
               {traceLoading && (
                 <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>
-                  <Loader size={12} style={{ animation: 'spin 1s linear infinite' }} /> Cargando…
+                  <Loader size={12} style={{ animation: 'spin 1s linear infinite' }} /> {t('metrics.loading')}
                 </span>
               )}
             </div>
 
             {!hasMetrics && !traceLoading ? (
               <EmptyState icon={<BarChart2 size={28} />}
-                title="Sin datos de métricas"
-                description={done ? "No se encontró traza para este artículo." : "Las métricas se irán completando durante la ejecución."} />
+                title={t('traceability.noMetricsTitle')}
+                description={done ? t('traceability.noTrace') : t('traceability.metricsFilling')} />
             ) : (
               <>
                 <div className="trace-metric-row">
-                  <MetricTile icon={<Clock size={18} />}        label="Duración total"   value={formatDuration(totalMs)}                 color="var(--brand)" />
-                  <MetricTile icon={<Activity size={18} />}     label="Tokens totales"   value={totalTokens.toLocaleString('es-ES')}     color="var(--agent-write)" />
-                  <MetricTile icon={<XCircle size={18} />}      label="Errores"          value={totalErrors}
+                  <MetricTile icon={<Clock size={18} />}        label={t('traceability.tiles.duration')}   value={formatDuration(totalMs)}                 color="var(--brand)" />
+                  <MetricTile icon={<Activity size={18} />}     label={t('history.stats.tokens')}   value={totalTokens.toLocaleString('es-ES')}     color="var(--agent-write)" />
+                  <MetricTile icon={<XCircle size={18} />}      label={t('traceability.tiles.errors')}          value={totalErrors}
                     color={totalErrors > 0 ? 'var(--error)' : 'var(--success)'} />
-                  <MetricTile icon={<CheckCircle size={18} />}  label="Agentes completados"  value={progressLabel}  color="var(--success)" />
+                  <MetricTile icon={<CheckCircle size={18} />}  label={t('traceability.tiles.completed')}  value={progressLabel}  color="var(--success)" />
                 </div>
 
                 <div className="trace-charts-grid">
                   <div className="trace-chart-card">
-                    <div className="trace-chart-title"><Clock size={14} /> Latencia por agente</div>
+                    <div className="trace-chart-title"><Clock size={14} /> {t('traceability.latencyByAgent')}</div>
                     <BarChart data={latencyChart} unit="ms" />
                   </div>
                   <div className="trace-chart-card">
-                    <div className="trace-chart-title"><Activity size={14} /> Tokens por agente</div>
+                    <div className="trace-chart-title"><Activity size={14} /> {t('history.tokensByAgent')}</div>
                     <BarChart data={tokensChart} unit="tokens" />
                   </div>
                 </div>
 
                 <div className="trace-section-title" style={{ marginBottom: 'var(--space-3)' }}>
-                  Métricas por agente
+                  {t('traceability.metricsByAgent')}
                 </div>
                 <table className="trace-log-table">
                   <thead>
-                    <tr><th>Agente</th><th>Duración</th><th>Tokens</th><th>Estado</th></tr>
+                    <tr><th>{t('history.agent')}</th><th>{t('traceability.col.duration')}</th><th>{t('metrics.col.tokens')}</th><th>{t('metrics.col.state')}</th></tr>
                   </thead>
                   <tbody>
                     {metricsAgents.map(a => (
@@ -779,7 +783,7 @@ function LiveTraceabilityPage() {
                         </td>
                         <td>
                           <span className={`badge ${a.status === 'completed' ? 'badge-approved' : a.status === 'failed' || a.status === 'error' ? 'badge-error' : a.status === 'running' ? 'badge-running' : 'badge-pending'}`}>
-                            {a.status === 'completed' ? 'Completado' : a.status === 'abstained' ? 'Se abstuvo' : a.status === 'failed' ? 'Error' : a.status === 'running' ? 'En ejecución' : 'Pendiente'}
+                            {a.status === 'completed' ? t('traceability.status.completed') : a.status === 'abstained' ? t('traceability.status.abstained') : a.status === 'failed' ? t('traceability.status.failed') : a.status === 'running' ? t('traceability.status.running') : t('traceability.status.waiting')}
                           </span>
                         </td>
                       </tr>
@@ -794,45 +798,44 @@ function LiveTraceabilityPage() {
           <div style={{ display: activeTab === 'integrity' ? undefined : 'none' }}>
             <div className="trace-section-header">
               <div>
-                <div className="trace-section-title">Integridad de la traza</div>
+                <div className="trace-section-title">{t('traceability.integrity.title')}</div>
                 <div className="trace-section-sub">
-                  Cada paso lleva un SHA-256 encadenado al anterior de su ejecución.
+                  {t('traceability.integrity.sub')}
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 6 }}>
                 <button className="btn btn-ghost btn-sm" onClick={handleExport} disabled={exporting}
                   style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <Download size={13} /> {exporting ? 'Exportando…' : 'Exportar JSONL'}
+                  <Download size={13} /> {exporting ? t('traceability.exporting') : t('history.exportJsonl')}
                 </button>
                 <button className="btn btn-secondary btn-sm" onClick={loadIntegrity}
                   disabled={integrityLoading}
                   style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                   <Loader size={13} style={integrityLoading ? { animation: 'spin 1s linear infinite' } : undefined} />
-                  {integrityLoading ? 'Verificando…' : 'Verificar'}
+                  {integrityLoading ? t('traceability.integrity.verifying') : t('traceability.integrity.verify')}
                 </button>
               </div>
             </div>
 
             {integrityError && (
               <div className="trace-notice trace-notice-warning">
-                <strong>No se pudo verificar.</strong> {integrityError}
+                <strong>{t('traceability.integrity.couldNotVerify')}</strong> {integrityError}
                 <div style={{ marginTop: 4, fontSize: 'var(--font-size-xs)' }}>
-                  Que no se haya podido comprobar no significa que la traza esté bien
-                  ni que esté mal: significa que no se sabe.
+                  {t('traceability.integrity.unknownNote')}
                 </div>
               </div>
             )}
 
             {!integrity && !integrityLoading && !integrityError && (
               <EmptyState icon={<ShieldCheck size={28} />}
-                title="Sin verificar"
-                description="Pulsa «Verificar» para comprobar la cadena de esta traza." />
+                title={t('traceability.integrity.unverifiedTitle')}
+                description={t('traceability.integrity.unverifiedDescription')} />
             )}
 
             {integrity && !integrity.available && (
               <EmptyState icon={<ShieldAlert size={28} />}
-                title="Sin traza que verificar"
-                description="Este artículo no tiene pasos registrados: puede no haberse ejecutado nunca, o su traza haberse purgado por retención." />
+                title={t('traceability.integrity.noTraceTitle')}
+                description={t('traceability.integrity.noTraceDescription')} />
             )}
 
             {integrity?.available && (
@@ -852,24 +855,21 @@ function LiveTraceabilityPage() {
                           ? <Info size={16} style={{ color: 'var(--text-muted)' }} />
                           : <ShieldCheck size={16} style={{ color: 'var(--status-success)' }} />}
                       <strong>
-                        {ej.runs_total > 1 ? `Pasada ${ej.run_number} de ${ej.runs_total}` : 'Ejecución'}
+                        {ej.runs_total > 1 ? t('traceability.integrity.passOf', { n: ej.run_number, total: ej.runs_total }) : t('history.execution')}
                         {' — '}
-                        {rota ? 'cadena rota' : sinCadena ? 'sin cadena que verificar' : 'cadena íntegra'}
+                        {rota ? t('traceability.integrity.broken') : sinCadena ? t('traceability.integrity.noChain') : t('traceability.integrity.intact')}
                       </strong>
                     </div>
                     <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-secondary)' }}>
                       {sinCadena ? (
                         <>
-                          Sus {ej.steps} paso{ej.steps !== 1 ? 's son anteriores' : ' es anterior'} a la
-                          cadena de integridad, así que no llevan hash. Eso no dice que la traza esté bien
-                          ni que esté mal: dice que no hay con qué comprobarlo. Las ejecuciones nuevas sí
-                          se sellan.
+                          {t('traceability.integrity.beforeChain', { count: ej.steps })}
                         </>
                       ) : (
                         <>
-                          {ej.verified} de {ej.steps} paso{ej.steps !== 1 ? 's' : ''} verificado{ej.verified !== 1 ? 's' : ''}
+                          {t('traceability.integrity.verifiedOf', { verified: ej.verified, count: ej.steps })}
                           {ej.unchained > 0 && (
-                            <> · {ej.unchained} sin cadena (anteriores a esta función; no es señal de manipulación)</>
+                            <> · {t('traceability.integrity.unchained', { count: ej.unchained })}</>
                           )}
                         </>
                       )}
@@ -878,9 +878,9 @@ function LiveTraceabilityPage() {
                       <ul style={{ margin: '8px 0 0 16px', padding: 0, fontSize: 'var(--font-size-xs)' }}>
                         {ej.issues.map((p, i) => (
                           <li key={i} style={{ marginBottom: 2 }}>
-                            <strong>Paso {p.position}</strong>
+                            <strong>{t('traceability.integrity.step', { n: p.position })}</strong>
                             {p.agent_name ? ` (${agentLabel(p.agent_name)})` : ''}:{' '}
-                            {p.problem === 'contenido_alterado' ? 'contenido alterado' : 'enlace roto'}
+                            {p.problem === 'contenido_alterado' ? t('traceability.integrity.tampered') : t('traceability.integrity.brokenLink')}
                             {' — '}{p.detail}
                           </li>
                         ))}
@@ -895,15 +895,15 @@ function LiveTraceabilityPage() {
                 <div className="trace-notice trace-notice-info" style={{ marginTop: 12 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                     <Info size={15} />
-                    <strong>Qué garantiza esto, y qué no</strong>
+                    <strong>{t('traceability.integrity.scopeTitle')}</strong>
                   </div>
                   <div style={{ fontSize: 'var(--font-size-xs)', lineHeight: 1.7 }}>
                     <p style={{ margin: '0 0 6px' }}>
-                      <strong style={{ color: 'var(--status-success)' }}>Garantiza: </strong>
+                      <strong style={{ color: 'var(--status-success)' }}>{t('traceability.integrity.guarantees')} </strong>
                       {integrity.scope?.guarantees}
                     </p>
                     <p style={{ margin: 0 }}>
-                      <strong style={{ color: 'var(--status-warning)' }}>No garantiza: </strong>
+                      <strong style={{ color: 'var(--status-warning)' }}>{t('traceability.integrity.doesNotGuarantee')} </strong>
                       {integrity.scope?.does_not_guarantee}
                     </p>
                   </div>
@@ -918,12 +918,12 @@ function LiveTraceabilityPage() {
         <div className="trace-right-panel">
           <div className="trace-preview-header">
             <span style={{ fontWeight: 600, fontSize: 'var(--font-size-sm)' }}>
-              Vista previa del artículo en tiempo real
+              {t('traceability.previewTitle')}
             </span>
             <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-              {hasFailedSteps && <span className="badge badge-rejected">Error</span>}
-              {!hasFailedSteps && isGeneratingPreview && <span className="badge badge-running animate-pulse">Generando…</span>}
-              {!hasFailedSteps && done && preview && <span className="badge badge-approved">Borrador</span>}
+              {hasFailedSteps && <span className="badge badge-rejected">{t('execution.preview.error')}</span>}
+              {!hasFailedSteps && isGeneratingPreview && <span className="badge badge-running animate-pulse">{t('execution.preview.generating')}</span>}
+              {!hasFailedSteps && done && preview && <span className="badge badge-approved">{t('traceability.draftBadge')}</span>}
             </div>
           </div>
           <div className="trace-preview-body">
@@ -931,8 +931,8 @@ function LiveTraceabilityPage() {
               <div className="markdown-body"><ReactMarkdown>{preview}</ReactMarkdown></div>
             ) : (
               <EmptyState icon={<FileText size={28} />}
-                title="Esperando contenido"
-                description="El artículo aparecerá aquí conforme los agentes generen contenido." />
+                title={t('execution.preview.waitingTitle')}
+                description={t('execution.preview.waitingDescription')} />
             )}
           </div>
         </div>

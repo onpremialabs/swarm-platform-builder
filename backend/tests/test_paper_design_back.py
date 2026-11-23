@@ -20,7 +20,7 @@ def test_volver_no_depende_del_historial():
 
 
 def test_el_boton_volver_usa_el_manejador_con_aviso_de_cambios_sin_guardar():
-    assert re.search(r'onClick=\{handleBack\}\s+aria-label="Volver"', PAGINA)
+    assert re.search(r"onClick=\{handleBack\}\s+aria-label=\{t\('common\.back'\)\}", PAGINA)
     assert "if (dirty && !globalThis.confirm(" in PAGINA
 
 
