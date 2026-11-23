@@ -60,6 +60,7 @@ dataset crece por líneas, y así el diff de una PR enseña qué caso se añadi�
 | `<agente>-golden` | **Línea base.** Pasa entero, así que sirve de gate (T9.5). Uno por agente evaluable: investigador, redactor, revisor y formateador. |
 | `<agente>-regressions` | **Falla a propósito**: un caso por regresión detectable. Documentación ejecutable de qué se mide, no un gate. |
 | `redactor-smoke` | El mínimo de extremo a extremo, de T9.3. |
+| `investigador-cobertura` / `investigador-cobertura-regressions` | Cobertura bibliográfica sobre papers de acceso abierto con DOI real (SPEC-034/T22.9, AC5/AC7): exactamente N verificadas, N-1, documento interno sin verificar, DOI aportado por el autor, fuente bajo el umbral de similitud, biblioteca vacía. El primero pasa entero y el segundo falla a propósito. **No terminan en `-golden`, así que el gate (T9.5) no los recoge** y no necesitan umbral; `handwritten`, como el resto. |
 
 El publicador no tiene conjunto: publica, no genera texto ni decide, así que no
 hay comportamiento probabilístico que medir.
