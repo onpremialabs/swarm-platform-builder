@@ -858,5 +858,11 @@
       "creating": "Creando...",
       "create": "Crear agente"
     }
+  },
+  "language": {
+    "label": "Idioma",
+    "es": "Español",
+    "en": "English",
+    "changed": "Idioma cambiado a {language}"
   }
 }

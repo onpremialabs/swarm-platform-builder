@@ -7,8 +7,11 @@
 - `en.json` — **provisional (T29.7)**: copia de `es.json` con los mismos textos en
   español. Existe para que el control de paridad de `scripts/check_i18n.py` (T29.13)
   siga activo: un `en.json` ausente cuenta como catálogo vacío y haría fallar la CI en
-  cuanto `es.json` tiene claves. **T29.9 lo sustituye por la traducción** y T29.10
-  lo registra desde `main.jsx`; hasta entonces no se carga.
+  cuanto `es.json` tiene claves. **T29.9 lo sustituye por la traducción**. T29.10 ya lo registra
+  en los dos puntos de entrada (`main.jsx` y la revista pública) y añade el selector
+  de idioma (`components/ui/LanguageSelector.jsx`): hasta T29.9, elegir inglés cambia
+  `<html lang>`, el formato de fechas/números y las cadenas del selector, pero el
+  resto del texto sigue en español porque `en.json` es esa copia.
 - `rich.js` / `Trans` — mensajes con marcas simples (`<strong>`, `<em>`, `<code>`).
   Se traduce la frase entera, no tres trozos.
 

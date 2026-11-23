@@ -58,7 +58,7 @@ function agentBadge(agentId) {
 
 
 export default function ArticleDetailPage() {
-  const { t } = useT();
+  const { t, formatDate } = useT();
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuthStore();
@@ -339,7 +339,7 @@ export default function ArticleDetailPage() {
             {st && <span className={`badge ${st.cls}`}>{st.icon} {t(st.label)}</span>}
           </div>
           <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', marginTop: 4 }}>
-            {t('detail.created', { date: new Date(article.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' }) })}
+            {t('detail.created', { date: formatDate(article.created_at, { day: '2-digit', month: 'long', year: 'numeric' }) })}
             {article.scientific_format && article.scientific_format !== 'none' && <>{' · '}{t('detail.format', { format: article.scientific_format.toUpperCase() })}</>}
           </div>
         </div>
@@ -693,8 +693,8 @@ export default function ArticleDetailPage() {
                 { label: t('detail.fields.status'), value: st && t(st.label) },
                 { label: t('detail.fields.format'), value: (article.scientific_format && article.scientific_format !== 'none') ? article.scientific_format.toUpperCase() : '—' },
                 { label: t('detail.fields.words'), value: article.body ? article.body.split(/\s+/).length : 0 },
-                { label: t('detail.fields.created'), value: new Date(article.created_at).toLocaleDateString('es-ES') },
-                { label: t('detail.fields.updated'), value: new Date(article.updated_at).toLocaleDateString('es-ES') },
+                { label: t('detail.fields.created'), value: formatDate(article.created_at) },
+                { label: t('detail.fields.updated'), value: formatDate(article.updated_at) },
               ].map(item => (
                 <div key={item.label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 'var(--font-size-xs)' }}>
                   <span style={{ color: 'var(--text-muted)' }}>{item.label}</span>

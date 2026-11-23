@@ -15,7 +15,7 @@ import { tr, useT } from '../i18n/useT';
  * Shows published articles as a full-screen slideshow with notification bell.
  */
 export default function LectorPage() {
-  const { t } = useT();
+  const { t, formatDate } = useT();
   const { user, logout } = useAuthStore();
   const navigate = useNavigate();
 
@@ -234,7 +234,7 @@ export default function LectorPage() {
                   {article.title}
                 </h1>
                 <div style={{ fontSize: 'var(--font-size-sm)', color: 'var(--text-muted)' }}>
-                  {t('magazine.publishedOn', { date: new Date(article.published_at || article.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' }) })}
+                  {t('magazine.publishedOn', { date: formatDate(article.published_at || article.created_at, { day: '2-digit', month: 'long', year: 'numeric' }) })}
                   {article.author_name && <span style={{ marginLeft: 12 }}>· {article.author_name}</span>}
                 </div>
               </div>
