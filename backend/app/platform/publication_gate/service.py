@@ -48,16 +48,19 @@ async def evaluate_and_store(
     run_id: Optional[UUID] = None,
     created_by: Optional[UUID] = None,
     review: Optional[dict] = None,
+    citation_map_unavailable: bool = False,
     **resolver_kwargs: Any,
 ) -> tuple[PublicationGateReportModel, GateReport]:
     """Evalúa el texto actual del artículo y guarda el informe (sin hacer commit)."""
     citations = None
     if config.citation_support_min_overlap is not None:
         from app.platform.citations import current_citation_map
-        citations = await current_citation_map(session, article)
+        # Si el guardado del mapa falló, `None` -> `map_unavailable` (not_verified), no se omite.
+        citations = None if citation_map_unavailable else await current_citation_map(session, article)
     report = await evaluate_gate(
         article.body or "", sources or [], config,
-        created_at=getattr(article, "created_at", None), citations=citations, **resolver_kwargs,
+        created_at=getattr(article, "created_at", None), citations=citations,
+        **resolver_kwargs,
     )
     if not sources:
         # Sin fuentes estructuradas no hay nada que resolver, y un manuscrito sin

@@ -128,7 +128,9 @@ def _criterio(row):
 
 
 @pytest.mark.asyncio
-async def test_la_compuerta_lee_el_mapa_vigente_y_lo_incluye_en_el_informe(article):
+async def test_la_compuerta_lee_el_mapa_vigente_y_lo_incluye_en_el_informe(article, monkeypatch):
+    from app.core.config import settings
+    monkeypatch.setattr(settings, "CITATION_SUPPORT_ENFORCE", True)  # aquí se prueba el bloqueo
     cfg = parse_gate({"citation_support": {"min_overlap": 0.25}})
     async with AsyncSessionLocal() as s:
         art = await s.get(ArticleModel, article)

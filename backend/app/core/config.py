@@ -69,6 +69,11 @@ class Settings(BaseModel):
     # avisan pero no impiden llegar a la aprobación humana, que sigue siendo
     # obligatoria. Es el modo de despliegue gradual, no el diseño.
     PUBLICATION_GATE_ENFORCE: bool = True
+    # Criterio `citation_support` (SPEC-035/T23.8). Apagado (por defecto) = modo aviso: el
+    # informe lo marca `not_verified` y lo dice, pero no bloquea la publicación mientras se
+    # miden los falsos positivos. Encendido = bloquea como el resto de la compuerta. Solo
+    # tiene efecto si el proyecto declara `gate.citation_support` en su `template.yaml`.
+    CITATION_SUPPORT_ENFORCE: bool = False
     #: Correo de contacto que se envía a Crossref/OpenAlex en el `User-Agent` (su «polite
     #: pool»). Va en configuración, no en el repositorio; vacío = sin identificar.
     PUBLICATION_GATE_CONTACT_EMAIL: str = ""
@@ -344,6 +349,7 @@ def _build_settings() -> Settings:
         "EGRESS_MAX_REDIRECTS": egress.get("max_redirects", 3),
         # Compuerta de publicación (SPEC-032)
         "PUBLICATION_GATE_ENFORCE": publication.get("gate_enforce", True),
+        "CITATION_SUPPORT_ENFORCE": publication.get("citation_support_enforce", False),
         "PUBLICATION_GATE_CONTACT_EMAIL": publication.get("gate_contact_email", ""),
         "PUBLICATION_ALLOW_SELF_APPROVAL": publication.get("allow_self_approval", False),
         # Descubrimiento de literatura (SPEC-034). Las claves de API solo por entorno.

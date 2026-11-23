@@ -203,7 +203,10 @@
     "emptyDescription": "Sube documentos con el botón de arriba para vectorizarlos y ponerlos a disposición de los agentes.",
     "collectionEmpty": "Colección vacía.",
     "uploadedBy": "· subido por {name}",
-    "deleteNamed": "Eliminar {name}"
+    "deleteNamed": "Eliminar {name}",
+    "citedTarget": "Documento citado: {filename}. Página citada: {page}. La biblioteca no muestra el contenido por páginas; abre el archivo en esa página.",
+    "citedTargetNoPage": "Documento citado: {filename}.",
+    "citedNotFound": "El documento citado ({doc}) no está en esta biblioteca o proyecto. Puede haberse eliminado."
   },
   "dashboard": {
     "useCase": {

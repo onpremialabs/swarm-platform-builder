@@ -149,6 +149,12 @@ gate:
   retractions:
     retracted: block
     concern: warn
+  # Soporte de cada cita por su fragmento (SPEC-035 AC2/AC4, T23.8). Lee el mapa
+  # cita→fragmento que guarda el Publicador sobre el texto final. En MODO AVISO mientras
+  # `CITATION_SUPPORT_ENFORCE` esté apagado (por defecto): el informe lo marca y lo explica
+  # (`not_verified`, `advisory`), pero no bloquea. Pasar a bloqueo es decisión posterior.
+  citation_support:
+    min_overlap: 0.25
   structure:
     sections: [introduction, methods, results, discussion, references]
     titles:
@@ -181,4 +187,5 @@ gate:
     reference_structure: investigador
     retractions: investigador
     placeholders: redactor
+    citation_support: redactor
     imrad_structure: redactor
