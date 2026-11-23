@@ -4,7 +4,7 @@
 - **Autor:** Equipo de plataforma (borrador asistido)
 - **Fecha:** 2026-10-21 · paso a `Ready` tras `/speckit-clarify`, `/speckit-checklist` (33/43) y `/speckit-analyze`
 - **Épica:** E20 (GitHub Project)
-- **ADR relacionado:** [ADR-0011](../adr/0011-publication-gate-fail-closed.md)
+- **ADR relacionado:** [ADR-0011](../adr/0011-publication-gate-fail-closed.md) · enmendado en parte por [ADR-0013](../adr/0013-author-supplied-sources-and-deferred-verification.md) (V09 y AC8)
 - **Severidad:** 🔴
 
 > **Origen.** Plan de implementación de mejoras del pipeline, Fase 1 (tareas 1.1–1.9), a
@@ -60,6 +60,10 @@ final tras el Formateador**, (3) aprobación humana explícita (FW §3, regla de
   (metadato `doi` del documento, con registro de quién y cuándo), que entra por el mismo
   camino de verificación. *Se descartan* la excepción para «documento interno» (FW §2.4, §7
   nivel 1) y la entrada solo por búsqueda externa (es la Fase 4).
+  **Enmienda 2026-11-23 (ADR-0013):** la excepción deja de descartarse sin más. Una persona puede
+  declarar un documento «aportado por el autor» (sin identificador); V09 lo etiqueta y su severidad
+  es `gate.references.author_supplied` (`block` por defecto; un proyecto puede declarar `warn`).
+  Un DOI declarado que no resuelve o no coincide **sigue bloqueando** (AC17).
 - **No-objetivos**
   - Salida del Revisor **por criterio** y cambio de modelo (Fase 3). Aquí solo se corrige que
     falle abierto y se define cómo cuenta su resultado en la decisión (AC15).
@@ -139,7 +143,8 @@ final tras el Formateador**, (3) aprobación humana explícita (FW §3, regla de
   artículo no tiene autor responsable declarado, y con 403 si quien aprueba es el propietario
   del artículo (quien lanzó el pipeline) o no es el revisor asignado ni un administrador. Solo
   con `DEBUG` activo y `PUBLICATION_ALLOW_SELF_APPROVAL=true` se permite la autoaprobación,
-  para entornos de un solo usuario; nunca en producción.
+  para entornos de un solo usuario; nunca en producción **salvo que el proyecto declare
+  `approval.allow_self_approval: true` en su plantilla (ADR-0013, AC18)**.
 - [ ] **AC9** — *Publicador sin LLM* *Given* una ejecución completa · *When* corre el Publicador ·
   *Then* no llama al LLM (0 tokens) y su traza no registra modelo (`model` nulo), a diferencia
   de hoy. Un agente declara que no usa LLM al no pedir las capacidades `llm`/`llm_stream` en
@@ -184,6 +189,26 @@ final tras el Formateador**, (3) aprobación humana explícita (FW §3, regla de
   solo se envían **metadatos de referencias** (nunca el texto del manuscrito) y por la puerta
   `platform/egress.py`; si `EGRESS_ALLOWED_DOMAINS` está definida, `api.crossref.org`,
   `api.openalex.org` y `api.datacite.org` (DOI de arXiv) se añaden a ella.
+- [ ] **AC17** — *Fuentes aportadas por el autor (ADR-0013)* *Given* una referencia cuyo documento
+  la persona autora ha declarado «aportado por el autor» (sin identificador), con registro de
+  quién y cuándo · *When* corre V09 · *Then* **no** se consulta Crossref/OpenAlex/DataCite por ella
+  y su estado es `author_supplied`, con la severidad de `gate.references.author_supplied`:
+  `block` (por defecto: bloquea, como hoy) o `warn` (no bloquea, el informe la lista una a una,
+  Referencias la etiqueta «documento aportado por el autor, sin identificador» y el informe dice que
+  su retractación no se pudo comprobar). Su estructura mínima exige autores, año, título o nombre
+  del documento y tipo de documento, en lugar del identificador. *And* un documento con **DOI
+  declarado** que no resuelve o no coincide es bloqueante en ambos casos (no pasa a esta clase), y
+  solo una persona puede declarar la clase: ni el sistema ni el modelo. *And* un proyecto que no
+  declara `author_supplied` se comporta exactamente como antes. El valor se valida al cargar la
+  plantilla.
+- [ ] **AC18** — *Autoaprobación por proyecto (ADR-0013)* *Given* un proyecto con
+  `approval.allow_self_approval: true` · *When* quien lanzó el pipeline aprueba su artículo *Then*
+  se permite, **sin** relajar el resto: el Revisor, la compuerta, `requires_human_review`, el 409
+  por texto cambiado o con bloqueantes y la exigencia de autor responsable declarado se aplican
+  igual; el registro de aprobación guarda `self_approved=true` y el informe de compuerta lo dice
+  («sin revisión independiente»). *And* sin esa declaración (valor por defecto `false`) rige el 403
+  de AC8. El valor se valida al cargar la plantilla y no lo cambia la persona autora por artículo.
+  El interruptor global `PUBLICATION_ALLOW_SELF_APPROVAL` (solo con `DEBUG`) no cambia.
 
 ## 4. Diseño propuesto
 
@@ -423,4 +448,14 @@ tasks:
     sev: high
     depends_on: [T20.7, T20.11]
     acceptance: [AC12]
+  - id: T20.16
+    title: "V09: clase «aportada por el autor» con severidad configurable (gate.references.author_supplied), estructura mínima y etiqueta en Referencias"
+    sev: high
+    depends_on: [T20.3]
+    acceptance: [AC17]
+  - id: T20.17
+    title: "Autoaprobación por proyecto (approval.allow_self_approval) con registro self_approved y aviso en el informe"
+    sev: medium
+    depends_on: [T20.10]
+    acceptance: [AC18]
 ```

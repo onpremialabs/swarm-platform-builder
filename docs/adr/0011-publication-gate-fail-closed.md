@@ -5,6 +5,7 @@
 - **Decisores:** Equipo de plataforma
 - **Specs relacionadas:** [SPEC-032](../specs/SPEC-032-publication-gate-framework.md)
 - **Origen:** *Framework de redacción y validación de papers* v0.1 (29/09/2026), §3, §7, §10 y §20
+- **Enmendado parcialmente por:** [ADR-0013](0013-author-supplied-sources-and-deferred-verification.md) (2026-11-23): las decisiones 3 y 5 y la alternativa «excepción para documentos aportados por el autor» cambian; léanse con esa enmienda
 
 ## Contexto
 
@@ -86,3 +87,13 @@ Se añade `api.datacite.org` como tercer proveedor, **solo para el prefijo `10.4
 - Es **un host más en el camino crítico de publicar**, con las mismas garantías que los otros dos: sale por `platform/egress.py` con `quien="publication_gate"`,
   solo viajan metadatos de referencias y, con `EGRESS_ALLOWED_DOMAINS`, se añade solo para la compuerta.
 - Resultado medido: **20/20 con DOI (100 %)** y 6/6 negativos bloqueados (antes 18/20).
+
+## Enmienda 2026-11-23 — fuentes aportadas por el autor y autoaprobación por proyecto
+
+[ADR-0013](0013-author-supplied-sources-and-deferred-verification.md) revisa tres puntos de este ADR, que **dejan de ser absolutos**:
+
+- **Decisión 3 («sin excepción para documento interno»):** una persona puede declarar un documento «aportado por el autor» (sin identificador). V09 lo etiqueta y su severidad la fija `gate.references.author_supplied` (`block` por defecto, `warn` si el proyecto lo declara). Un DOI declarado que no resuelve **sigue bloqueando**.
+- **Alternativa «excepción para documentos aportados por el autor»:** ya no se descarta sin más; se admite en esa forma acotada, explícita y configurable.
+- **Decisión 5 («aprueba una persona distinta»):** es el valor por defecto; un proyecto puede declarar `approval.allow_self_approval: true`, y el registro marca `self_approved`.
+
+El resto (compuerta determinista, falla cerrada, `can_publish`, informe persistido, umbrales de coincidencia) **no cambia**.
