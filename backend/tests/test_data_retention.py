@@ -48,6 +48,7 @@ EXPIRING = {
     "audit_log": "RETENTION_AUDIT_LOG_DAYS",
     "agent_runs": "RETENTION_AGENT_RUNS_DAYS",
     "publication_gate_reports": "RETENTION_GATE_REPORTS_DAYS",
+    "citation_links": "RETENTION_CITATION_LINKS_DAYS",
     "flow_checkpoints": "RETENTION_CHECKPOINTS_DAYS",
     "notifications": "RETENTION_NOTIFICATIONS_DAYS",
     "orphan_assets": "RETENTION_ORPHAN_ASSETS_DAYS",

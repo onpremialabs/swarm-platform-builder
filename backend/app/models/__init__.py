@@ -69,6 +69,11 @@ from app.models.library_document import (
     normalize_doi,
 )
 from app.models.search_log import SearchLogModel
+from app.models.citation_link import (
+    CITATION_STATUSES,
+    CitationLinkModel,
+    CitationLinkResponse,
+)
 from app.models.publication_gate_report import (
     GateReportResponse,
     PublicationGateReportModel,
@@ -144,6 +149,9 @@ __all__ = [
     # Biblioteca y registro de búsqueda (SPEC-034)
     "LibraryDocumentModel",
     "SearchLogModel",
+    "CitationLinkModel",
+    "CitationLinkResponse",
+    "CITATION_STATUSES",
     "SourceDB",
     "TextStatus",
     "CurationStatus",
