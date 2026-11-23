@@ -16,6 +16,17 @@ Hook `PreToolUse` sobre `Bash`. Bloquea (`permissionDecision: deny`):
   (`develop`/`main`/`master`). El trabajo va en ramas `feat|fix|sec|docs|chore/…`.
 - `git push --force`/`-f` hacia una rama protegida.
 
+**Qué rama se evalúa.** La del directorio **al que apunta cada `git commit`/`git push`**:
+`git -C <dir> …` o el último `cd <dir>` previo en el mismo comando; no solo la del
+directorio de la sesión. Con *git worktrees* la sesión puede estar en `develop` mientras el
+comando opera en un worktree con rama `feat/…` (se permite), o al revés: sesión en una rama
+con prefijo y `cd` al repo que está en `develop` (se deniega). Si el comando toca varios
+directorios, basta con que **uno** esté en una rama protegida para denegar. Ante cualquier
+duda sobre el destino (ruta que no existe, `--git-dir`/`--work-tree`, comillas mal
+cerradas) se evalúa la rama de la sesión, como antes. Límite conocido: no se interpretan
+construcciones como `bash -c "cd x && git commit"` ni variables de shell en la ruta; en
+esos casos manda la rama de la sesión. Tests: `backend/tests/test_guard_git_hook.py`.
+
 Es **fail-open**: ante cualquier error o duda permite, para no estorbar (la CI +
 branch protection son el control duro).
 
