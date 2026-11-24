@@ -610,7 +610,11 @@
       "no": "no",
       "human": "Decisión humana: <strong>{outcome}</strong>",
       "abstained": "Se abstuvo: <strong>{verified} de {min}</strong> fuentes verificadas necesarias",
-      "abstainedContent": "Se abstuvo: <strong>{found} de {min}</strong> fragmentos con contenido recuperable necesarios"
+      "abstainedContent": "Se abstuvo: <strong>{found} de {min}</strong> fragmentos con contenido recuperable necesarios",
+      "subqueries": "Sub-preguntas de sección: <strong>{count}</strong>",
+      "subquery": "{section}: {fragments} fragmento(s) — {question}",
+      "uncovered": "Sin cobertura (sin evidencia sustantiva): <strong>{sections}</strong>",
+      "fullCoverage": "Todas las secciones tienen evidencia sustantiva"
     },
     "retrieved": "Qué recuperó ({count})",
     "title": "Por qué este resultado",

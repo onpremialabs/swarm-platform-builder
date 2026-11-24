@@ -221,6 +221,17 @@ def decision_of(salida: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             "min_substantive_fragments": abstencion.get("min_substantive_fragments"),
             "similarity_threshold": abstencion.get("similarity_threshold"),
             "context_only_documents": abstencion.get("context_only_documents"),
+            "subqueries": abstencion.get("subqueries"),
+        }
+    # Recuperación por sub-preguntas de sección (SPEC-034 / T22.17 / AC18): qué se preguntó, qué
+    # llegó por cada sub-pregunta y qué secciones quedaron «sin cobertura». Es una decisión del
+    # Investigador y va en la misma columna que las demás, sin esquema nuevo.
+    cobertura = salida.get("research_coverage")
+    if isinstance(cobertura, dict) and cobertura.get("subqueries") is not None:
+        return {
+            "subqueries": cobertura.get("subqueries"),
+            "coverage": cobertura.get("coverage"),
+            "uncovered_sections": cobertura.get("uncovered_sections") or [],
         }
     claves = ("approval_score", "coherent", "user_decision", "review_status")
     if not any(clave in salida for clave in claves):

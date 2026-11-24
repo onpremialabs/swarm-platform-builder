@@ -83,7 +83,9 @@ def _hit(n, score=0.8, text=None):
 @pytest.fixture
 def entorno(monkeypatch):
     """RAG y LLM de mentira. Devuelve el estado de lo que se pidió."""
-    visto = {"rag": [], "llm": []}
+    # `llm`: solo la síntesis (lo que no debe ocurrir sin evidencia). Las sub-preguntas de
+    # sección (T22.17) piden al modelo solo título y enfoque y se anotan aparte.
+    visto = {"rag": [], "llm": [], "llm_subpreguntas": []}
     resultados = {"hits": []}
 
     async def rag(**kw):
@@ -94,6 +96,9 @@ def entorno(monkeypatch):
         return "test"
 
     async def llm(prompt, **kw):
+        if prompt.startswith("Eres un bibliotecario"):
+            visto["llm_subpreguntas"].append(prompt)
+            return "no es json"
         visto["llm"].append(prompt)
         return "resumen " + "palabra " * 40
 

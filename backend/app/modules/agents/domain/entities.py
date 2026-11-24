@@ -37,6 +37,8 @@ class AgentState(TypedDict):
     # detiene el flujo tras ese nodo. `abstention` lleva el motivo y el mensaje al autor.
     abstained: bool
     abstention: Dict[str, Any]
+    # Sub-preguntas de sección y cobertura por sección del Investigador (SPEC-034/T22.17/AC18).
+    research_coverage: Dict[str, Any]
     # La compuerta de publicación bloqueó el texto final y qué criterios (SPEC-032/AC14)
     gate_failed: bool
     gate_blockers: List[Dict[str, Any]]

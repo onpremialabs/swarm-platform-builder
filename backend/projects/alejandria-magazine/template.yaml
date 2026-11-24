@@ -112,6 +112,12 @@ research:
   # como máximo uno) entre ellas no sintetiza. Entero >= 1, por defecto 3. Del proyecto: el
   # autor no lo puede bajar desde el artículo.
   min_substantive_fragments: 3
+  # Recuperación por sub-preguntas de sección (AC18): además de por el título, el Investigador
+  # recupera evidencia por sub-preguntas (problema, método, resultados, limitaciones) que propone
+  # el modelo SOLO a partir del título y el enfoque del autor. `max_subqueries` las acota: entero
+  # >= 1, por defecto 6. Del proyecto: el autor no lo cambia desde el artículo. Una sección sin
+  # evidencia sustantiva queda «sin cobertura» en la traza y el Redactor no la rellena.
+  max_subqueries: 6
 
 # ── Compuerta de publicación (SPEC-032, ADR-0011) ───────────────────────────
 # Comprobaciones deterministas, sin LLM, sobre el texto final tras el Formateador.
