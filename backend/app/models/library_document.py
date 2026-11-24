@@ -24,7 +24,7 @@ from uuid import uuid4
 
 from sqlalchemy import (
     Boolean, CheckConstraint, Column, DateTime, ForeignKey, Index, Integer, JSON,
-    String, Text, UniqueConstraint, UUID as SA_UUID,
+    String, Text, UniqueConstraint, UUID as SA_UUID, false,
 )
 from sqlalchemy.orm import validates
 
@@ -117,6 +117,12 @@ class LibraryDocumentModel(Base):
         ),
         # Que `author_supplied` registre quién (AC4) lo exige `library.mark_verified`, no un
         # CHECK: `verified_by` es `ON DELETE SET NULL` y borrar al usuario no puede fallar.
+        # ADR-0013: «aportado por el autor» es la clase de un documento SIN identificador. Un DOI
+        # declarado que no resuelve no se «lava» con la declaración: o se corrige o se quita.
+        CheckConstraint(
+            "author_provided = false OR (doi IS NULL AND author_provided_at IS NOT NULL)",
+            name="ck_library_documents_author_provided_no_doi",
+        ),
         CheckConstraint(
             "must_cite = false OR curation_status = 'accepted'",
             name="ck_library_documents_must_cite_accepted",
@@ -162,6 +168,14 @@ class LibraryDocumentModel(Base):
     verification_method = Column(String(24))
     verified_at = Column(DateTime)
     verified_by = Column(SA_UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
+
+    #: Declaración «aportado por el autor» (ADR-0013 / AC14): la hace una persona, nunca el
+    #: sistema ni el modelo, y es reversible. Registra quién y cuándo; `author_provided_by` es
+    #: `ON DELETE SET NULL` como `verified_by`, así que `library.declare_author_provided` es quien
+    #: exige la persona, no un CHECK.
+    author_provided = Column(Boolean, nullable=False, default=False, server_default=false())
+    author_provided_at = Column(DateTime)
+    author_provided_by = Column(SA_UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
 
     added_by = Column(SA_UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)

@@ -197,4 +197,10 @@ def document_view(doc: LibraryDocumentModel) -> Dict[str, Any]:
         "verified_at": doc.verified_at.isoformat() + "Z" if doc.verified_at else None,
         "verified_by": str(doc.verified_by) if doc.verified_by else None,
         "citable": library.is_citable(doc),
+        # Clase citable (ADR-0013): «identified», «author_provided» o `None` (solo contexto).
+        "source_class": library.source_class(doc),
+        "author_provided": bool(doc.author_provided),
+        "author_provided_at": doc.author_provided_at.isoformat() + "Z"
+        if doc.author_provided_at else None,
+        "author_provided_by": str(doc.author_provided_by) if doc.author_provided_by else None,
     }

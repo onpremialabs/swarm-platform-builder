@@ -69,7 +69,7 @@ def _mensaje_abstencion(*, verificadas: int, minimo: int, solo_contexto: List[st
                         umbral: float, rag_fallo: bool, hubo_resultados: bool) -> str:
     """Qué pasó, qué falta y cómo resolverlo, para la persona que lanzó la ejecución."""
     partes = [
-        f"El Investigador se ha abstenido: hay {verificadas} fuente(s) verificada(s) y relevante(s) "
+        f"El Investigador se ha abstenido: hay {verificadas} fuente(s) citable(s) y relevante(s) "
         f"para este tema y el proyecto exige al menos {minimo}. No se ha generado ningún texto "
         "desde el conocimiento del modelo."
     ]
@@ -83,12 +83,14 @@ def _mensaje_abstencion(*, verificadas: int, minimo: int, solo_contexto: List[st
         muestra = "; ".join(solo_contexto[:5]) + ("…" if len(solo_contexto) > 5 else "")
         partes.append(
             f"{len(solo_contexto)} documento(s) relevante(s) solo pueden usarse como contexto porque "
-            f"su DOI no está verificado y por eso no pueden citarse: {muestra}."
+            f"no son citables (no están aceptados, o no tienen DOI verificado ni están declarados "
+            f"«aportados por el autor»): {muestra}."
         )
     partes.append(
-        "Qué hacer: añade a la biblioteca del proyecto documentos con DOI verificado (acepta "
-        "candidatos verificados o sube el PDF), o aporta y verifica el DOI de los documentos que ya "
-        "tienes subidos; después vuelve a ejecutar el artículo."
+        "Qué hacer: acepta en la biblioteca los documentos que quieras usar y, para cada uno sin "
+        "identificador, verifica su DOI o decláralo «aportado por el autor» en la pantalla "
+        "Documentos; también puedes añadir más documentos (candidatos verificados o PDFs). "
+        "Después vuelve a ejecutar el artículo."
     )
     return " ".join(partes)
 
@@ -100,11 +102,13 @@ async def run_investigador(state: Dict[str, Any]) -> Dict[str, Any]:
 
     1. RAG local (Qdrant) — búsqueda semántica con el umbral de similitud activo.
     2. Clasificación contra la biblioteca (`library_documents`, del proyecto):
-         * **citable**: aceptado y con DOI verificado (resuelto por el sistema o aportado por
-           el autor). Es lo único que entra en `sources` y, por tanto, en Referencias.
-         * **solo contexto**: sin verificar, o sin fila en la biblioteca (documentos subidos
-           antes de que existiera). Alimenta la síntesis pero **nunca** se cita. No existe
-           excepción para un «documento interno» (ADR-0011).
+         * **citable**: aceptado y, o bien con DOI verificado (resuelto por el sistema o
+           aportado por el autor), o bien declarado «aportado por el autor» por una persona
+           (AC14, ADR-0013). Es lo único que entra en `sources` y, por tanto, en Referencias,
+           cada fuente con su clase en `source_class`.
+         * **solo contexto**: sin verificar y sin declarar, o sin fila en la biblioteca
+           (documentos subidos antes de que existiera). Alimenta la síntesis pero **nunca** se
+           cita. No existe excepción implícita para un «documento interno».
          * **descartado** por el autor: no se usa ni como contexto.
     3. Abstención: con menos de `research.min_sources` documentos citables, no se sintetiza
        —ni desde el conocimiento paramétrico del modelo— y se devuelve `abstained`, que
@@ -231,8 +235,8 @@ async def run_investigador(state: Dict[str, Any]) -> Dict[str, Any]:
             # Sin fila (documento anterior a la biblioteca) o sin DOI verificado: contexto.
             solo_contexto[doc_id] = grupo
     log(
-        f"📚 Etapa 2/3 — {len(citables)} documento(s) citable(s) (DOI verificado), "
-        f"{len(solo_contexto)} solo contexto (sin verificar)"
+        f"📚 Etapa 2/3 — {len(citables)} documento(s) citable(s) (DOI verificado o aportado por el "
+        f"autor), {len(solo_contexto)} solo contexto (ni verificado ni declarado)"
         + (f", {descartados} descartado(s) por el autor." if descartados else ".")
     )
 
@@ -257,6 +261,7 @@ async def run_investigador(state: Dict[str, Any]) -> Dict[str, Any]:
                 "reason": "insufficient_verified_sources",
                 "message": mensaje,
                 "verified_sources": len(citables),
+                "citable_sources": len(citables),
                 "min_sources": minimo,
                 "similarity_threshold": umbral,
                 "context_only_documents": len(solo_contexto),
@@ -271,6 +276,7 @@ async def run_investigador(state: Dict[str, Any]) -> Dict[str, Any]:
         grupo = por_doc[doc_id]
         for item in grupo["items"]:
             research_chunks.append(f"[Fuente: {fila.title}] {item.get('text', '')}")
+        declarado = getattr(fila, "author_provided_at", None)
         sources.append({
             "doc_id": doc_id,
             "title": fila.title,
@@ -282,6 +288,10 @@ async def run_investigador(state: Dict[str, Any]) -> Dict[str, Any]:
             "filename": grupo["filename"],
             "snippet": (grupo["items"][0].get("text", "") or "")[:200],
             "doi_verification": fila.verification_method,
+            # Clase citable (ADR-0013): «identified» o «author_provided». La compuerta decide su
+            # severidad y Referencias la etiqueta; sin DOI no se inventa un identificador.
+            "source_class": library.source_class(fila),
+            "author_provided_at": declarado.isoformat() + "Z" if declarado else None,
         })
     # Lo no verificado alimenta la síntesis y nada más: ni `sources` ni `[Fuente: …]`.
     contexto_no_citable = [
@@ -347,11 +357,11 @@ async def run_investigador(state: Dict[str, Any]) -> Dict[str, Any]:
     # Lista explícita de lo citable al frente: lo único que el Redactor puede referenciar.
     citables_txt = "\n".join(
         f"- {s['title']}" + (f" ({s['authors']}, {s['year']})" if s["authors"] or s["year"] else "")
-        + f" — DOI {s['doi']}"
+        + (f" — DOI {s['doi']}" if s.get("doi") else " — documento aportado por el autor, sin identificador")
         for s in sources
     )
     research_data = (
-        "FUENTES CITABLES (únicas que pueden citarse; DOI verificado):\n" + citables_txt
+        "FUENTES CITABLES (únicas que pueden citarse; DOI verificado o aportadas por el autor):\n" + citables_txt
         + "\n\n---\n\n" + "\n\n---\n\n".join(research_chunks)
     )
     log(f"📦 Investigación completada: {len(sources)} fuente(s), {len(research_chunks)} fragmento(s).")

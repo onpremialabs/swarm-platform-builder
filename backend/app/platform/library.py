@@ -85,25 +85,87 @@ async def list_documents(
     return list(result)
 
 
-async def citable_documents(session: AsyncSession, project_id: UUID) -> list[LibraryDocumentModel]:
-    """Lo que puede entrar en `sources` y Referencias (AC5): aceptado **y** con DOI verificado."""
-    return await list_documents(
-        session, project_id, curation_status=CurationStatus.ACCEPTED, verified=True
-    )
+#: Clases de fuente citable (ADR-0013). Son lo que `sources` lleva en `source_class`.
+CLASS_IDENTIFIED = "identified"
+CLASS_AUTHOR_PROVIDED = "author_provided"
+
+
+def source_class(doc: LibraryDocumentModel) -> str | None:
+    """Clase citable del documento, o `None` si no es citable (AC5, AC14, ADR-0013).
+
+    * `identified`: aceptado y con DOI verificado (por el sistema o aportado por el autor).
+    * `author_provided`: aceptado, **sin DOI** y declarado «aportado por el autor» por una persona.
+
+    No hay otra vía: sin DOI verificado ni declaración explícita, solo es contexto. Un DOI
+    declarado y sin verificar **no** cae a la segunda clase.
+    """
+    if doc.curation_status != CurationStatus.ACCEPTED.value:
+        return None
+    if doc.verified and doc.doi:
+        return CLASS_IDENTIFIED
+    if getattr(doc, "author_provided", False) and not doc.doi:
+        return CLASS_AUTHOR_PROVIDED
+    return None
 
 
 def is_citable(doc: LibraryDocumentModel) -> bool:
-    """¿Puede el documento entrar en `sources` y Referencias? (AC5, ADR-0011.)
+    """¿Puede el documento entrar en `sources` y Referencias? (AC5, ADR-0011, ADR-0013.)
 
-    Aceptado por el autor **y** con DOI verificado —por el sistema o aportado por el autor—.
-    Es el mismo predicado que `citable_documents`, para un documento ya cargado. No hay
-    excepción para un «documento interno»: sin DOI verificado, solo es contexto.
+    Aceptado por el autor **y** (con DOI verificado **o** declarado «aportado por el autor»).
+    No hay excepción implícita para un «documento interno»: la única vía sin identificador es
+    la declaración explícita de una persona.
     """
-    return (
-        doc.curation_status == CurationStatus.ACCEPTED.value
-        and bool(doc.verified)
-        and bool(doc.doi)
-    )
+    return source_class(doc) is not None
+
+
+async def citable_documents(session: AsyncSession, project_id: UUID) -> list[LibraryDocumentModel]:
+    """Lo que puede entrar en `sources` y Referencias (AC5): los citables de las dos clases."""
+    docs = await list_documents(session, project_id, curation_status=CurationStatus.ACCEPTED)
+    return [d for d in docs if is_citable(d)]
+
+
+async def declare_author_provided(
+    session: AsyncSession, project_id: UUID, document_id: UUID, *, declared_by: UUID | None,
+) -> LibraryDocumentModel | None:
+    """Una persona declara el documento «aportado por el autor» (AC14, ADR-0013).
+
+    Solo una persona: `declared_by` es obligatorio (ni el sistema ni el modelo pueden). El
+    documento debe estar **aceptado** y **no tener DOI**: un DOI declarado que no resuelve
+    se corrige o se quita, no se «lava» con esta declaración.
+    """
+    if declared_by is None:
+        raise ValueError("solo una persona puede declarar un documento «aportado por el autor»")
+    doc = await get_document(session, project_id, document_id)
+    if doc is None:
+        return None
+    if doc.curation_status != CurationStatus.ACCEPTED.value:
+        raise ValueError("solo un documento aceptado puede declararse «aportado por el autor»")
+    if doc.doi:
+        raise ValueError(
+            "el documento tiene un DOI declarado: corrígelo o quítalo; no puede declararse "
+            "«aportado por el autor» con un identificador que no se verifica"
+        )
+    doc.author_provided = True
+    doc.author_provided_at = datetime.utcnow()
+    doc.author_provided_by = declared_by
+    await session.commit()
+    await session.refresh(doc)
+    return doc
+
+
+async def revoke_author_provided(
+    session: AsyncSession, project_id: UUID, document_id: UUID
+) -> LibraryDocumentModel | None:
+    """Revierte la declaración (AC14: es reversible). El documento vuelve a ser solo contexto."""
+    doc = await get_document(session, project_id, document_id)
+    if doc is None:
+        return None
+    doc.author_provided = False
+    doc.author_provided_at = None
+    doc.author_provided_by = None
+    await session.commit()
+    await session.refresh(doc)
+    return doc
 
 
 async def documents_by_rag_id(
@@ -179,6 +241,10 @@ async def mark_verified(
         doc.doi = doi
     if not doc.doi:
         raise ValueError("un documento sin DOI no puede marcarse como verificado")
+    # Con un DOI verificado el documento pasa a la clase «identificada»: la declaración sobra.
+    doc.author_provided = False
+    doc.author_provided_at = None
+    doc.author_provided_by = None
     doc.verified = True
     doc.verification_method = method.value
     doc.verified_at = datetime.utcnow()
