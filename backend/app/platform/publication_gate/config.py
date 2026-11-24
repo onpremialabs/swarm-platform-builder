@@ -6,6 +6,7 @@ una compuerta mal escrita se entera al arrancar, no al publicar.
 from dataclasses import dataclass, field
 from typing import Any, Mapping
 
+from app.platform.publication_gate.citation_judge import DEFAULT_SAMPLE_SIZE
 from app.platform.publication_gate.citation_support import DEFAULT_MIN_OVERLAP
 from app.platform.publication_gate.dates import DateRules
 from app.platform.publication_gate.placeholders import (
@@ -42,6 +43,10 @@ class GateConfig:
     responsible: Mapping[str, str] = field(default_factory=dict)
     #: umbral de solape afirmacion/fragmento (SPEC-035); `None` = criterio no declarado.
     citation_support_min_overlap: float | None = None
+    #: juez de modelo independiente del redactor (SPEC-035 T23.4); requiere `citation_support`.
+    citation_judge: bool = False
+    #: tamaño de la muestra de citas para verificación humana en el informe (AC7).
+    citation_sample_size: int = DEFAULT_SAMPLE_SIZE
 
 
 _NUMEROS = {
@@ -161,16 +166,28 @@ def parse_gate(raw: Any) -> GateConfig:
 
     soporte = raw.get("citation_support")
     umbral = None
+    juez = False
+    tam_muestra = DEFAULT_SAMPLE_SIZE
     if soporte is not None:
         _exigir(isinstance(soporte, dict), "'gate.citation_support' debe ser un mapa")
         for clave in soporte:
-            _exigir(clave == "min_overlap", f"'gate.citation_support.{clave}' no es un ajuste conocido")
+            _exigir(
+                clave in ("min_overlap", "judge", "sample_size"),
+                f"'gate.citation_support.{clave}' no es un ajuste conocido",
+            )
         umbral = soporte.get("min_overlap", DEFAULT_MIN_OVERLAP)
         _exigir(
             isinstance(umbral, (int, float)) and not isinstance(umbral, bool) and 0.0 <= umbral <= 1.0,
             f"'gate.citation_support.min_overlap' debe ser un número entre 0 y 1, no {umbral!r}",
         )
         umbral = float(umbral)
+        juez = soporte.get("judge", False)
+        _exigir(isinstance(juez, bool), f"'gate.citation_support.judge' debe ser true o false, no {juez!r}")
+        tam_muestra = soporte.get("sample_size", DEFAULT_SAMPLE_SIZE)
+        _exigir(
+            isinstance(tam_muestra, int) and not isinstance(tam_muestra, bool) and 0 <= tam_muestra <= 100,
+            f"'gate.citation_support.sample_size' debe ser un entero entre 0 y 100, no {tam_muestra!r}",
+        )
 
     return GateConfig(
         placeholders=tuple(marcadores),
@@ -182,4 +199,6 @@ def parse_gate(raw: Any) -> GateConfig:
         pending=tuple(pendientes),
         responsible=dict(responsable),
         citation_support_min_overlap=umbral,
+        citation_judge=juez,
+        citation_sample_size=tam_muestra,
     )

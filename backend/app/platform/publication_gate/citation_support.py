@@ -13,8 +13,9 @@ puede decidir sin interpretar nada:
 * **Marcador sin mapa**: un `[F#]` del texto sin fila en el mapa, un texto sin
   ninguna cita o un mapa que no se pudo leer, tampoco se aprueban.
 
-Un solape alto no demuestra el soporte: solo lo deja pasar a T23.4. Aquí `passed`
-significa «nada determinista que objetar».
+Un solape alto no demuestra el soporte: solo lo deja pasar al juez (T23.4,
+`citation_judge.py`). Sin juez declarado, `passed` significa «nada determinista que
+objetar»; con juez (`judge_required`), exige además su veredicto.
 
 Limitación: se compara contra el `excerpt` guardado (inicio del fragmento,
 `EXTRACT_CHARS`), no contra el fragmento completo; un solape bajo puede ser un falso
@@ -62,8 +63,15 @@ def check_citation_support(
     text: str,
     links: Optional[Iterable[Any]],
     min_overlap: float = DEFAULT_MIN_OVERLAP,
+    judge_required: bool = False,
 ) -> CriterionResult:
-    """`links`: filas de `citation_links` (o dicts) del texto evaluado; `None` = no se pudo leer."""
+    """`links`: filas de `citation_links` (o dicts) del texto evaluado; `None` = no se pudo leer.
+
+    `judge_required` (T23.4): el proyecto declaró el juez, así que un solape suficiente ya
+    no basta: hace falta su veredicto (`status` de la fila). `unsupported` falla,
+    `partial` va a revisión humana y sin veredicto (`not_verified`: el juez no corrió o
+    falló) no se aprueba. La confirmación manual del autor los rescata a los tres.
+    """
     if links is None:
         return CriterionResult(CRITERION, CriterionStatus.NOT_VERIFIED, [{"problem": "map_unavailable"}])
     filas = list(links)
@@ -91,6 +99,19 @@ def check_citation_support(
                 **base, "reason": "low_overlap", "overlap": round(solape, 3),
                 "min_overlap": min_overlap, "needs_human_review": True,
             })
+        elif judge_required and _get(f, "confirmed_at") is None:
+            veredicto = _get(f, "status") or "not_verified"
+            if veredicto == "unsupported":
+                evidence.append({**base, "reason": "judge_unsupported", "needs_human_review": True,
+                                 "rationale": _get(f, "rationale")})
+            elif veredicto == "partial":
+                evidence.append({**base, "reason": "judge_partial", "needs_human_review": True,
+                                 "rationale": _get(f, "rationale")})
+            elif veredicto != "supported":
+                evidence.append({**base, "reason": "judge_unavailable"})
 
-    status = CriterionStatus.NOT_VERIFIED if evidence else CriterionStatus.PASSED
+    if any(e.get("reason") == "judge_unsupported" for e in evidence):
+        status = CriterionStatus.FAILED
+    else:
+        status = CriterionStatus.NOT_VERIFIED if evidence else CriterionStatus.PASSED
     return CriterionResult(CRITERION, status, evidence)

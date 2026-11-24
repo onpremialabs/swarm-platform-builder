@@ -42,3 +42,14 @@ Se despliega aparte y **en modo aviso**: `CITATION_SUPPORT_ENFORCE` (por defecto
 aparezca en el informe con su estado real (`not_verified` y el motivo: `no_citations`, `map_unavailable`, `no_fragment`, `low_overlap`...) y la marca `advisory`, pero sin bloquear.
 Con `true` bloquea como el resto de criterios. El Publicador guarda el mapa cita→fragmento sobre el texto final antes de evaluar. Pasar a `true` es una decisión posterior,
 con datos de falsos positivos (`low_overlap` es una heurística de solape, no un juicio). Solo actúa si la plantilla declara `gate.citation_support`.
+
+### Juez de soporte y muestra humana (T23.4)
+
+Con `gate.citation_support.judge: true` un modelo emite `supported | partial | unsupported` (con una frase de justificación) para cada cita con fragmento y solape suficiente.
+Su perfil es `citation_judge.agent.md` (temperatura 0) y **su modelo debe ser distinto del Redactor**: si ambos resuelven al mismo, no se juzga y las citas quedan
+`not_verified` (`judge_unavailable`) y el motivo va al log. Para `ollama` el perfil pide `llama3.1:8b` (`ollama pull llama3.1:8b`); si no está, el juez falla cerrado.
+`unsupported` falla el criterio; `partial` y la falta de veredicto lo dejan `not_verified`; la confirmación manual del autor los rescata. Sigue en modo aviso mientras
+`CITATION_SUPPORT_ENFORCE=false`. Los datos del manuscrito (afirmación y extracto) salen hacia el proveedor activo de `LLM_PROVIDER`.
+
+El resumen del criterio en el informe lleva el recuento por estado (`counts`) y una muestra determinista de citas no confirmadas para que una persona compruebe al juez
+(`sample`, tamaño `gate.citation_support.sample_size`, por defecto 5, `0` = ninguna).
