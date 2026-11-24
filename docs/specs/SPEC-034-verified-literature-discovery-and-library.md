@@ -184,6 +184,42 @@
   *And* esas fuentes llegan a Referencias etiquetadas y la compuerta (SPEC-032, AC17) decide su
   severidad; *And* una ejecución con todas las fuentes identificadas se comporta como antes.
 
+- [ ] **AC15** — *Given* un PDF académico que se indexa (subido, o descargado por AC11)
+  *When* se trocea *Then* los fragmentos de la **sección de referencias** (bibliografía) se
+  detectan y **no entran en el índice de recuperación**: se marcan `section=references` y quedan
+  fuera de la búsqueda semántica del Investigador y del Redactor, y los demás llevan `section`
+  cuando es detectable (`abstract`, `introduction`, `methods`, `results`, `discussion`,
+  `conclusion`, `other`). *And* la detección es determinista (sin LLM) y conservadora: ante duda
+  un fragmento se conserva como `other`, nunca se descarta contenido por error de heurística.
+  *And* el texto de referencias se conserva en el documento para extraer metadatos (AC4), solo
+  que no se recupera como evidencia. *And* hay un caso de prueba con un PDF real de acceso
+  abierto cuyo final es una lista de referencias de más de 100 entradas, donde ningún fragmento
+  devuelto por la recuperación es una entrada bibliográfica.
+- [ ] **AC16** — *Given* fragmentos recuperados por encima del umbral de similitud *When* corre
+  el Investigador *Then* cuenta como evidencia solo los fragmentos **sustantivos** (no
+  `references`, con texto utilizable) y se abstiene también cuando hay **menos de K fragmentos
+  sustantivos** entre las fuentes citables, aunque haya N fuentes (AC7). `K` es
+  `research.min_substantive_fragments` en `template.yaml` (por defecto **3**), se valida al
+  cargar (entero ≥ 1) y el autor no puede bajarlo desde el artículo. *And* el motivo de
+  abstención distingue «faltan fuentes citables» (AC7) de «las fuentes no aportan contenido
+  recuperable», con el mensaje de qué hacer (subir el PDF completo, reindexar, o aportar texto).
+  *And* los documentos `abstract_only` (AC11) cuentan como un fragmento sustantivo como máximo.
+- [ ] **AC17** — *Given* documentos ya indexados antes de AC15 *When* se ejecuta el reindexado
+  *Then* sus fragmentos se reclasifican por `section` y se excluyen los de referencias **sin
+  duplicar ni perder** fragmentos de contenido ni alterar `doc_id`, DOI ni el estado de curación;
+  es idempotente, tiene modo de simulación (sin escribir) y respeta el aislamiento por proyecto
+  (`project_context`). *And* los mapas de citas (SPEC-035) de ejecuciones ya guardadas no se
+  reescriben.
+- [ ] **AC18** — *Given* un artículo con título y enfoque *When* corre el Investigador *Then*
+  recupera evidencia **por sub-pregunta de sección** (qué problema, qué método, qué resultados
+  reportan las fuentes, qué limitaciones) además de por el título, de modo que el contexto
+  entregado cubre cada sección IMRaD con fragmentos de contenido y cada fragmento declara de qué
+  sub-pregunta viene. *And* las sub-preguntas las propone el modelo a partir del título y del
+  enfoque del autor (nunca del manuscrito ni de las fuentes), se registran en la traza, y su
+  número está acotado (`research.max_subqueries`, por defecto 6). *And* una sección sin
+  evidencia sustantiva queda declarada como «sin cobertura» en la traza y se pasa al Redactor, que
+  no la rellena con conocimiento propio.
+
 ## 4. Diseño propuesto
 
 - **Capacidad nueva** `literature` en `platform/capabilities/registry.py`, con
@@ -235,6 +271,18 @@
   que actualizar T22.5 (adaptador y mensaje de abstención), los datasets EDD de T22.9 que
   afirman «un documento interno sin verificar no se cita», y el panel de Documentos (acción
   «declarar aportado por el autor» y su etiqueta).
+- **Evidencia sustantiva (AC15–AC18).** Observado en una ejecución de punta a punta (2026-11-24,
+  10 fuentes con texto completo): los 10 fragmentos del mapa de citas eran entradas de las listas
+  de referencias de los PDF, no contenido, porque `rag.chunk_text` trocea por párrafos sin
+  distinguir secciones y las listas bibliográficas puntúan alto frente a consultas por tema. Con ese
+  material ningún modelo puede escribir afirmaciones citables y el Revisor no lo detecta. Por
+  eso: (a) clasificar y excluir referencias al indexar (AC15), con `section` en el payload de
+  Qdrant; (b) abstenerse por falta de contenido, no solo de fuentes (AC16); (c) reindexar lo ya
+  guardado (AC17), con el patrón de `scripts/migrate_rag_namespaces.py`; (d) recuperar por
+  sub-preguntas de sección (AC18). **Decisión pendiente de `/speckit-clarify`:** el tamaño de
+  fragmento (hoy 500 caracteres) es corto para argumentos de método o resultados; cambiarlo
+  obliga a reindexar y cambia los mapas de citas, así que se decide aparte y no entra en estas
+  tareas.
 - **Seguridad:** claves de API solo por variable de entorno; User-Agent genérico
   de la plataforma (sin datos del usuario) y cabecera de contacto configurable.
 
@@ -335,4 +383,24 @@ tasks:
     sev: high
     depends_on: [T22.4, T22.5, T22.8]
     acceptance: [AC4, AC5, AC7, AC14]
+  - id: T22.14
+    title: "Indexación: detectar y excluir la sección de referencias del índice de recuperación y etiquetar section en el payload"
+    sev: high
+    depends_on: [T22.10]
+    acceptance: [AC15]
+  - id: T22.15
+    title: "Investigador: abstenerse por falta de fragmentos sustantivos (research.min_substantive_fragments) con motivo propio"
+    sev: high
+    depends_on: [T22.14, T22.13]
+    acceptance: [AC16]
+  - id: T22.16
+    title: "Reindexado idempotente de la biblioteca existente con modo de simulación y aislamiento por proyecto"
+    sev: medium
+    depends_on: [T22.14]
+    acceptance: [AC17]
+  - id: T22.17
+    title: "Investigador: recuperación por sub-preguntas de sección con cobertura declarada en la traza"
+    sev: medium
+    depends_on: [T22.14, T22.15]
+    acceptance: [AC18]
 ```
