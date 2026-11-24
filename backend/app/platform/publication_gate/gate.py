@@ -13,6 +13,7 @@ from typing import Any
 
 from app.platform.metrics import observe_gate_criterion
 
+from app.platform.publication_gate.citation_judge import citation_report
 from app.platform.publication_gate.citation_support import check_citation_support
 from app.platform.publication_gate.config import GateConfig
 from app.platform.publication_gate.explain import explain
@@ -92,7 +93,9 @@ async def evaluate_gate(
     ]
     if config.citation_support_min_overlap is not None:
         # `citations=None` (no se pudo leer el mapa) -> not_verified, no se omite.
-        soporte = check_citation_support(text, citations, config.citation_support_min_overlap)
+        soporte = check_citation_support(
+            text, citations, config.citation_support_min_overlap, judge_required=config.citation_judge,
+        )
         if citation_support_enforce is None:
             from app.core.config import settings
             citation_support_enforce = settings.CITATION_SUPPORT_ENFORCE
@@ -113,7 +116,14 @@ async def evaluate_gate(
             "Compuerta: %s → %s", c.criterion, c.status.value,
             extra={"event": "gate_criterion", "criterion": c.criterion, "status": c.status.value},
         )
+    explicaciones = explain(criteria, enriched, config.sections, config.responsible)
+    if config.citation_support_min_overlap is not None and "citation_support" in explicaciones:
+        # AC7 (T23.4): recuento por estado y muestra para verificación humana.
+        explicaciones["citation_support"]["summary"].update(
+            citation_report(citations, config.citation_sample_size),
+            judge=config.citation_judge,
+        )
     return GateReport(
         criteria=criteria, sources=enriched, pending=pending, responsible=dict(config.responsible),
-        explanations=explain(criteria, enriched, config.sections, config.responsible),
+        explanations=explicaciones,
     )

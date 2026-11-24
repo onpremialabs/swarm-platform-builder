@@ -155,6 +155,11 @@ gate:
   # (`not_verified`, `advisory`), pero no bloquea. Pasar a bloqueo es decisión posterior.
   citation_support:
     min_overlap: 0.25
+    # Juez de modelo independiente del redactor (T23.4, AC3): perfil `citation_judge`. Si su
+    # modelo coincide con el del Redactor no juzga y las citas quedan `not_verified`.
+    judge: true
+    # Citas que el informe propone para verificación humana (AC7); 0 = ninguna.
+    sample_size: 5
   structure:
     sections: [introduction, methods, results, discussion, references]
     titles:

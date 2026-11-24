@@ -43,6 +43,14 @@ FUENTE = {"title": "Deep learning", "authors": "LeCun, Bengio, Hinton", "year": 
 
 
 @pytest.fixture(autouse=True)
+def _juez_de_citas_simulado(monkeypatch):
+    """La plantilla declara el juez (T23.4): sin proveedor real, responde `supported`."""
+    async def juez(prompt, **kw):
+        return '{"verdict": "supported", "rationale": "el fragmento lo respalda"}'
+    monkeypatch.setattr("app.platform.llm.call_llm", juez)
+
+
+@pytest.fixture(autouse=True)
 def _referencias_resueltas(monkeypatch):
     async def ok(sources, cfg, **kw):
         return CriterionResult("reference_existence", CriterionStatus.PASSED, []), list(sources)
@@ -118,7 +126,7 @@ async def test_current_citation_map_devuelve_filas_tras_una_ejecucion_completa(d
     assert fila.text_sha256 == text_sha256(a.body)
     assert (fila.citation_key, fila.doc_id, fila.page, fila.excerpt) == ("F1", "doc-1", 7, EXTRACTO)
     assert fila.claim and "[F1]" not in fila.claim
-    assert fila.excerpt_sha256 and fila.status == "not_verified"
+    assert fila.excerpt_sha256 and fila.status == "supported"  # lo fijó el juez (T23.4)
     # La compuerta evaluó con ese mapa y no lo tomó por «sin mapa».
     crit = _criterio(await _informe(art.id))
     assert crit is not None and crit["status"] == "passed"
