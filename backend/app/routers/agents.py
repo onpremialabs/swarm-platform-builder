@@ -45,7 +45,7 @@ from app.modules.agents.application.use_cases import (
     submit_user_decision,
 )
 from app.platform.capabilities.rag import (
-    extract_text, chunk_text, ensure_collection, upsert_chunks,
+    extract_text, chunk_text_sections, ensure_collection, upsert_chunks,
     list_documents, delete_document, get_rag_backend, backfill_doc_metadata,
     EmbeddingDimensionMismatch, embed_vector_size,
 )
@@ -326,7 +326,7 @@ async def upload_to_rag_library(
 
     doc_id = str(uuid.uuid4())
     metadata = extract_doc_metadata(file.filename, raw, text)
-    chunks = chunk_text(text, chunk_size=c_size, overlap=c_overlap)
+    chunks, sections = chunk_text_sections(text, chunk_size=c_size, overlap=c_overlap)
 
     await ensure_collection(settings.QDRANT_URL, col, embed_vector_size(), settings.QDRANT_API_KEY)
     # Una dimensión que no cuadra es configuración, no un fallo del servicio: 409
@@ -345,6 +345,7 @@ async def upload_to_rag_library(
             api_key=settings.QDRANT_API_KEY,
             doc_title=metadata.get("title", ""),
             doc_authors=metadata.get("authors", ""),
+            sections=sections,
         )
     except EmbeddingDimensionMismatch as error:
         raise HTTPException(status_code=409, detail=str(error))
@@ -843,7 +844,8 @@ async def upload_rag_document(
         "rag_chunk_size": rag_chunk_size,
         "rag_chunk_overlap": rag_chunk_overlap,
     }, project=project)
-    chunks = chunk_text(text, chunk_size=rag_settings["chunk_size"], overlap=rag_settings["chunk_overlap"])
+    chunks, sections = chunk_text_sections(
+        text, chunk_size=rag_settings["chunk_size"], overlap=rag_settings["chunk_overlap"])
     collection = rag_settings["collection"]
 
     await ensure_collection(settings.QDRANT_URL, collection, embed_vector_size(), settings.QDRANT_API_KEY)
@@ -862,6 +864,7 @@ async def upload_rag_document(
             api_key=settings.QDRANT_API_KEY,
             doc_title=metadata.get("title", ""),
             doc_authors=metadata.get("authors", ""),
+            sections=sections,
         )
     except EmbeddingDimensionMismatch as error:
         raise HTTPException(status_code=409, detail=str(error))

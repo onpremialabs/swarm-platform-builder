@@ -6,9 +6,11 @@ import json
 import logging
 import uuid
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 
 import httpx
+
+from app.platform.capabilities.sections import OTHER, REFERENCES, split_sections
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +53,17 @@ def _load_local_document(path: Path) -> Optional[Dict[str, Any]]:
 
 # Shared bucket where library-wide documents are stored (not scoped to one agent).
 LIBRARY_AGENT = "__library__"
+
+
+#: Condición de Qdrant que deja fuera la bibliografía (T22.14 / AC15). Es un
+#: ``must_not`` y no un ``must`` sobre otras secciones a propósito: los puntos
+#: indexados antes de AC15 no tienen ``section`` y deben seguir siendo
+#: recuperables hasta que el reindexado los reclasifique.
+_EXCLUIR_REFERENCIAS = {"key": "section", "match": {"value": REFERENCES}}
+
+
+def _es_referencia(chunk: Dict[str, Any]) -> bool:
+    return chunk.get("section") == REFERENCES
 
 
 def _agent_name_clause(agent_name) -> Dict[str, Any]:
@@ -175,6 +188,27 @@ def chunk_text(text: str, chunk_size: int = 500, overlap: int = 50) -> List[str]
         return overlapped
 
     return chunks
+
+
+def chunk_text_sections(
+    text: str, chunk_size: int = 500, overlap: int = 50,
+) -> Tuple[List[str], List[str]]:
+    """Como ``chunk_text`` pero etiquetando cada fragmento con su ``section``.
+
+    Devuelve ``(chunks, sections)`` alineadas. El texto se parte por sección
+    **antes** de trocear (un fragmento no cruza de una sección a otra), con la
+    detección determinista y conservadora de ``sections.py``. Un texto sin
+    encabezados reconocibles produce los mismos fragmentos que ``chunk_text``,
+    todos ``other``. El texto de las referencias **se conserva** (AC4); lo que
+    cambia es que ``section=references`` queda fuera de la recuperación.
+    """
+    chunks: List[str] = []
+    etiquetas: List[str] = []
+    for seccion, cuerpo in split_sections(text):
+        for fragmento in chunk_text(cuerpo, chunk_size=chunk_size, overlap=overlap):
+            chunks.append(fragmento)
+            etiquetas.append(seccion)
+    return chunks, etiquetas
 
 
 # ---------------------------------------------------------------------------
@@ -419,12 +453,19 @@ async def upsert_chunks(
     api_key: Optional[str] = None,
     doc_title: str = "",
     doc_authors: str = "",
+    sections: Optional[List[str]] = None,
 ) -> int:
     """Embed and upsert chunks into Qdrant. Returns count of inserted points.
 
     ``doc_title``/``doc_authors`` are stored on every chunk so retrieval can build
-    real bibliographic citations.
+    real bibliographic citations. ``sections`` (alineada con ``chunks``, T22.14)
+    etiqueta cada fragmento; los ``references`` se guardan pero no se recuperan.
     """
+    def _seccion(i: int) -> str:
+        if sections is not None and i < len(sections):
+            return sections[i]
+        return OTHER
+
     if not await is_qdrant_available(qdrant_url, api_key):
         payload = {
             "doc_id": doc_id,
@@ -436,6 +477,7 @@ async def upsert_chunks(
                 {
                     "chunk_index": index,
                     "text": chunk,
+                    "section": _seccion(index),
                 }
                 for index, chunk in enumerate(chunks)
             ],
@@ -513,6 +555,7 @@ async def upsert_chunks(
                 "doc_authors": doc_authors,
                 "chunk_index": i,
                 "text": chunk,
+                "section": _seccion(i),
             },
         })
 
@@ -836,6 +879,8 @@ async def fetch_agent_context(
             if not data or not _agent_name_matches(data.get("agent_name"), agent_name):
                 continue
             for chunk in data.get("chunks", []):
+                if _es_referencia(chunk):
+                    continue
                 text = chunk.get("text", "")
                 if text:
                     texts.append(text)
@@ -851,7 +896,8 @@ async def fetch_agent_context(
                 return ""
 
             payload = {
-                "filter": {"must": [_agent_name_clause(agent_name)]},
+                "filter": {"must": [_agent_name_clause(agent_name)],
+                           "must_not": [_EXCLUIR_REFERENCIAS]},
                 "limit": limit,
                 "with_payload": True,
                 "with_vector": False,
@@ -930,6 +976,8 @@ async def _fetch_agent_results(
             elif not _agent_name_matches(data.get("agent_name"), agent_name):
                 continue
             for chunk in data.get("chunks", []):
+                if _es_referencia(chunk):
+                    continue
                 text = chunk.get("text", "")
                 if text:
                     out.append({
@@ -941,6 +989,7 @@ async def _fetch_agent_results(
                         # misma función para la traza.
                         "chunk_id": chunk.get("chunk_index"),
                         "chunk_index": chunk.get("chunk_index"),
+                        "section": chunk.get("section", OTHER),
                         "agent_name": data.get("agent_name", ""),
                         "doc_title": data.get("doc_title", ""),
                         "doc_authors": data.get("doc_authors", ""),
@@ -963,7 +1012,7 @@ async def _fetch_agent_results(
             else:
                 must = [_agent_name_clause(agent_name)]
             payload = {
-                "filter": {"must": must},
+                "filter": {"must": must, "must_not": [_EXCLUIR_REFERENCIAS]},
                 "limit": limit,
                 "with_payload": True,
                 "with_vector": False,
@@ -974,13 +1023,14 @@ async def _fetch_agent_results(
             out = []
             for p in resp.json().get("result", {}).get("points", []):
                 pl = p.get("payload", {})
-                if pl.get("text"):
+                if pl.get("text") and not _es_referencia(pl):
                     out.append({
                         "text": pl.get("text", ""),
                         "filename": pl.get("filename", ""),
                         "doc_id": pl.get("doc_id", ""),
                         "chunk_id": p.get("id"),
                         "chunk_index": pl.get("chunk_index"),
+                        "section": pl.get("section", OTHER),
                         "agent_name": pl.get("agent_name", ""),
                         "doc_title": pl.get("doc_title", ""),
                         "doc_authors": pl.get("doc_authors", ""),
@@ -1058,7 +1108,7 @@ async def semantic_search_results(
 
             payload: Dict[str, Any] = {
                 "vector": query_vector,
-                "filter": {"must": must},
+                "filter": {"must": must, "must_not": [_EXCLUIR_REFERENCIAS]},
                 "limit": limit,
                 "with_payload": True,
                 "with_vector": False,
@@ -1080,7 +1130,9 @@ async def semantic_search_results(
                 # Defensa en profundidad: no depender solo de que Qdrant filtre.
                 if umbral > 0.0 and (score is None or score < umbral):
                     continue
-                if pl.get("text"):
+                # Defensa en profundidad: la bibliografía no es evidencia aunque
+                # el filtro del servidor no la haya apartado.
+                if pl.get("text") and not _es_referencia(pl):
                     out.append({
                         "text": pl.get("text", ""),
                         "filename": pl.get("filename", ""),
@@ -1090,6 +1142,7 @@ async def semantic_search_results(
                         # fragmento se recuperó y no solo de qué documento.
                         "chunk_id": r.get("id"),
                         "chunk_index": pl.get("chunk_index"),
+                        "section": pl.get("section", OTHER),
                         "agent_name": pl.get("agent_name", ""),
                         "doc_title": pl.get("doc_title", ""),
                         "doc_authors": pl.get("doc_authors", ""),

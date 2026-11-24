@@ -12,7 +12,7 @@ from app.platform.llm import call_llm, get_default_model
 from app.platform.capabilities.rag import (
     LIBRARY_AGENT,
     EmbeddingDimensionMismatch,
-    chunk_text,
+    chunk_text_sections,
     embed_vector_size,
     ensure_collection,
     upsert_chunks,
@@ -120,7 +120,7 @@ async def ingest(
     proyecto en vez de invisible para todos.
     """
     collection = project.collection(settings.QDRANT_COLLECTION)
-    chunks = chunk_text(req.text)
+    chunks, sections = chunk_text_sections(req.text)
     if not chunks:
         raise HTTPException(status_code=422, detail="No hay texto que indexar")
 
@@ -142,6 +142,7 @@ async def ingest(
             embedding_model=settings.OLLAMA_EMBED_MODEL,
             vector_size=embed_vector_size(),
             api_key=settings.QDRANT_API_KEY,
+            sections=sections,
         )
     except EmbeddingDimensionMismatch as error:
         raise HTTPException(status_code=409, detail=str(error))

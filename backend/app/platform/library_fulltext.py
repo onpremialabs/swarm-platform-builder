@@ -93,7 +93,7 @@ async def index_pdf(
         raise FulltextError("no se pudo extraer texto del PDF")
     col = project.collection(collection or settings.QDRANT_COLLECTION)
     doc_id = str(uuid.uuid4())
-    chunks = rag.chunk_text(texto, chunk_size=getattr(settings, "RAG_CHUNK_SIZE", 500), overlap=50)
+    chunks, sections = rag.chunk_text_sections(texto, chunk_size=getattr(settings, "RAG_CHUNK_SIZE", 500), overlap=50)
     autores = authors if isinstance(authors, str) else "; ".join(authors or [])
     try:
         await rag.ensure_collection(settings.QDRANT_URL, col, rag.embed_vector_size(),
@@ -103,7 +103,7 @@ async def index_pdf(
             agent_name="__library__", filename=filename, chunks=chunks,
             ollama_base_url=settings.OLLAMA_BASE_URL, embedding_model=settings.OLLAMA_EMBED_MODEL,
             vector_size=rag.embed_vector_size(), api_key=settings.QDRANT_API_KEY,
-            doc_title=title, doc_authors=autores,
+            doc_title=title, doc_authors=autores, sections=sections,
         )
     except Exception as error:
         raise FulltextError(f"no se pudo indexar el PDF: {type(error).__name__}") from error
