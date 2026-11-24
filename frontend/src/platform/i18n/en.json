@@ -651,6 +651,9 @@
     "unverified": "Sin verificar",
     "verifiedAt": "Verificado {date}",
     "verified": "Verificado",
+    "authorProvided": "Aportado por el autor",
+    "authorProvidedTitle": "Sin identificador: declarado por una persona como aportado por el autor. Se cita etiquetado y no se puede comprobar su retractación",
+    "authorProvidedAt": "Declarado {date}",
     "edit": {
       "saved": "Ficha actualizada",
       "saveError": "No se pudo guardar la ficha",
@@ -732,6 +735,13 @@
       "uploadPdfAria": "Subir el PDF de {title}",
       "uploadPdf": "Subir PDF",
       "editAria": "Editar metadatos de {title}",
+      "declareAuthorProvided": "Declarar aportado por el autor",
+      "declareAuthorProvidedAria": "Declarar {title} como aportado por el autor",
+      "revokeAuthorProvided": "Quitar declaración",
+      "revokeAuthorProvidedAria": "Quitar la declaración «aportado por el autor» de {title}",
+      "authorProvidedDone": "Declarado como aportado por el autor",
+      "authorProvidedRevoked": "Declaración retirada",
+      "authorProvidedError": "No se pudo cambiar la declaración",
       "edit": "Editar"
     },
     "panel": {

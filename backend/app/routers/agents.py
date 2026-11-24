@@ -427,6 +427,38 @@ async def update_library_record(
     return library_upload.document_view(doc)
 
 
+class AuthorProvidedDeclaration(BaseModel):
+    declared: bool = True
+
+
+@router.post("/rag/library/records/{document_id}/author-provided")
+async def declare_library_record_author_provided(
+    document_id: UUID,
+    payload: AuthorProvidedDeclaration,
+    token_data=Depends(require_redactor),
+    project: ProjectContext = Depends(get_project_context),
+    session: AsyncSession = Depends(get_session),
+):
+    """Declara (o revierte) un documento «aportado por el autor» (SPEC-034 / T22.13 / AC14).
+
+    Lo hace una persona autenticada; queda registrado quién y cuándo. Un documento con DOI
+    declarado no puede declararse así (409).
+    """
+    try:
+        if payload.declared:
+            doc = await library.declare_author_provided(
+                session, project.project_id, document_id,
+                declared_by=UUID(token_data["user_id"]),
+            )
+        else:
+            doc = await library.revoke_author_provided(session, project.project_id, document_id)
+    except ValueError as error:
+        raise HTTPException(status_code=409, detail=str(error))
+    if doc is None:
+        raise HTTPException(status_code=404, detail="Documento no encontrado")
+    return library_upload.document_view(doc)
+
+
 class LibraryCuration(BaseModel):
     status: str
     must_cite: bool = False

@@ -345,9 +345,10 @@ async def test_el_mensaje_al_autor_es_accionable(mundo, entorno):
     entorno["resultados"]["hits"] = [_hit(1), _hit(2)]    # el 2 no tiene fila
     out = await investigador.run_investigador(_estado(p))
     msg = out["abstention"]["message"]
-    assert "1 fuente(s) verificada(s)" in msg and "al menos 3" in msg
-    assert "Paper 2" in msg and "no pueden citarse" in msg
-    assert "añade a la biblioteca" in msg and "vuelve a ejecutar" in msg
+    assert "1 fuente(s) citable(s)" in msg and "al menos 3" in msg
+    assert "Paper 2" in msg and "no son citables" in msg
+    # T22.13: dice cómo resolverlo: verificar el DOI **o** declararlo «aportado por el autor».
+    assert "verifica su DOI" in msg and "aportado por el autor" in msg and "vuelve a ejecutar" in msg
 
 
 # ── Traza y motor ───────────────────────────────────────────────────────────

@@ -48,6 +48,14 @@ function errorDe(err, fallback) {
 /** Estado de verificación: texto siempre (no solo color) para que no dependa de verlo. */
 export function VerificationBadge({ record }) {
   const { t } = useTranslation();
+  if (record.author_provided) {
+    return (
+      <span className="badge badge-approved" title={record.author_provided_at
+        ? t('library.authorProvidedAt', { date: record.author_provided_at }) : t('library.authorProvidedTitle')}>
+        {t('library.authorProvided')}
+      </span>
+    );
+  }
   if (!record.verified) {
     return <span className="badge badge-pending" title={t('library.unverifiedTitle')}>{t('library.unverified')}</span>;
   }
@@ -323,7 +331,7 @@ function SearchForm({ onFound }) {
   );
 }
 
-function RecordRow({ record, busy, onCurate, onEdit, onUploadPdf }) {
+function RecordRow({ record, busy, onCurate, onEdit, onUploadPdf, onAuthorProvided }) {
   const { t } = useTranslation();
   const meta = [record.year, record.journal].filter(Boolean).join(' · ');
   const estado = record.curation_status;
@@ -374,6 +382,13 @@ function RecordRow({ record, busy, onCurate, onEdit, onUploadPdf }) {
             <input type="file" accept="application/pdf,.pdf" disabled={busy} style={{ display: 'none' }}
               onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) onUploadPdf(record, f); }} />
           </label>
+        )}
+        {estado === 'accepted' && !record.doi && (
+          <button className="btn btn-ghost btn-sm" disabled={busy}
+            onClick={() => onAuthorProvided(record, !record.author_provided)}
+            aria-label={t(record.author_provided ? 'library.record.revokeAuthorProvidedAria' : 'library.record.declareAuthorProvidedAria', { title: record.title })}>
+            {record.author_provided ? t('library.record.revokeAuthorProvided') : t('library.record.declareAuthorProvided')}
+          </button>
         )}
         <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => onEdit(record)}
           aria-label={t('library.record.editAria', { title: record.title })}><Pencil size={14} /> {t('library.record.edit')}</button>
@@ -433,6 +448,19 @@ export default function LibraryRecordsPanel() {
     }
   };
 
+  const authorProvided = async (record, declared) => {
+    setBusyId(record.id);
+    try {
+      const saved = await agentsApi.declareLibraryRecordAuthorProvided(record.id, declared);
+      replace(saved);
+      toast.success(t(declared ? 'library.record.authorProvidedDone' : 'library.record.authorProvidedRevoked'));
+    } catch (err) {
+      toast.error(errorDe(err, t('library.record.authorProvidedError')));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   const uploadPdf = async (record, file) => {
     setBusyId(record.id);
     try {
@@ -483,7 +511,7 @@ export default function LibraryRecordsPanel() {
         >
           <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
             {visibles.map((r) => (
-              <RecordRow key={r.id} record={r} busy={busyId === r.id} onCurate={curate} onEdit={setEditing} onUploadPdf={uploadPdf} />
+              <RecordRow key={r.id} record={r} busy={busyId === r.id} onCurate={curate} onEdit={setEditing} onUploadPdf={uploadPdf} onAuthorProvided={authorProvided} />
             ))}
           </ul>
         </AsyncState>

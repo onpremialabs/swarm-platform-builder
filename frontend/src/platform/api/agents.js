@@ -138,6 +138,10 @@ export const agentsApi = {
   updateLibraryRecord: (id, changes) =>
     api.patch(`/api/v1/agents/rag/library/records/${id}`, changes).then(r => r.data),
 
+  // Declara (o retira) un documento «aportado por el autor» (SPEC-034 / T22.13 / AC14).
+  declareLibraryRecordAuthorProvided: (id, declared = true) =>
+    api.post(`/api/v1/agents/rag/library/records/${id}/author-provided`, { declared }).then(r => r.data),
+
   // status: 'candidate' | 'accepted' | 'discarded'
   curateLibraryRecord: (id, status, mustCite = false) =>
     api.post(`/api/v1/agents/rag/library/records/${id}/curation`, {
