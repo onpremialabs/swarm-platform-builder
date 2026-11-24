@@ -217,6 +217,8 @@ def decision_of(salida: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             "reason": abstencion.get("reason"),
             "verified_sources": abstencion.get("verified_sources"),
             "min_sources": abstencion.get("min_sources"),
+            "substantive_fragments": abstencion.get("substantive_fragments"),
+            "min_substantive_fragments": abstencion.get("min_substantive_fragments"),
             "similarity_threshold": abstencion.get("similarity_threshold"),
             "context_only_documents": abstencion.get("context_only_documents"),
         }

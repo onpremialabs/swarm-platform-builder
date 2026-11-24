@@ -6,6 +6,7 @@ from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.platform import library
 from app.platform.capabilities.binding import provider
+from app.platform.capabilities.sections import REFERENCES
 from app.platform.project_context import collection_for_state
 from app.platform.capabilities.rag import (
     semantic_search_results, get_rag_backend, resolve_score_threshold, LIBRARY_AGENT,
@@ -42,6 +43,25 @@ def _min_sources() -> int:
     from app.modules.agents.domain import alejandria  # perezoso: evita un ciclo de imports
 
     return alejandria.package().research.min_sources
+
+
+def _min_substantive_fragments() -> int:
+    """K de la abstención por contenido: de `research.min_substantive_fragments`, y de ningún otro sitio."""
+    from app.modules.agents.domain import alejandria  # perezoso: evita un ciclo de imports
+
+    return alejandria.package().research.min_substantive_fragments
+
+
+_PALABRA = re.compile(r"[^\W\d_]{2,}")
+#: Palabras mínimas para que un fragmento tenga «texto utilizable» (AC16).
+_MIN_PALABRAS_SUSTANTIVO = 3
+
+
+def _es_sustantivo(item: Dict[str, Any]) -> bool:
+    """¿El fragmento aporta contenido? No es bibliografía y tiene texto utilizable (AC16)."""
+    if item.get("section") == REFERENCES:
+        return False
+    return len(_PALABRA.findall(item.get("text") or "")) >= _MIN_PALABRAS_SUSTANTIVO
 
 
 def _supera_umbral(item: Dict[str, Any], umbral: float, seleccion_explicita: bool) -> bool:
@@ -90,6 +110,29 @@ def _mensaje_abstencion(*, verificadas: int, minimo: int, solo_contexto: List[st
         "Qué hacer: acepta en la biblioteca los documentos que quieras usar y, para cada uno sin "
         "identificador, verifica su DOI o decláralo «aportado por el autor» en la pantalla "
         "Documentos; también puedes añadir más documentos (candidatos verificados o PDFs). "
+        "Después vuelve a ejecutar el artículo."
+    )
+    return " ".join(partes)
+
+
+def _mensaje_sin_contenido(*, sustantivos: int, minimo: int, fuentes: int,
+                           solo_resumen: List[str]) -> str:
+    """Hay fuentes citables, pero no aportan contenido recuperable (AC16)."""
+    partes = [
+        f"El Investigador se ha abstenido: hay {fuentes} fuente(s) citable(s), pero solo "
+        f"{sustantivos} fragmento(s) con contenido recuperable (sin contar la bibliografía) y el "
+        f"proyecto exige al menos {minimo}. No se ha generado ningún texto desde el conocimiento "
+        "del modelo."
+    ]
+    if solo_resumen:
+        muestra = "; ".join(solo_resumen[:5]) + ("…" if len(solo_resumen) > 5 else "")
+        partes.append(
+            f"{len(solo_resumen)} documento(s) solo tienen el resumen, que cuenta como un único "
+            f"fragmento: {muestra}."
+        )
+    partes.append(
+        "Qué hacer: sube el PDF completo de las fuentes (o súbelo de nuevo si solo se indexó la "
+        "bibliografía), reindexa los documentos ya guardados o aporta el texto de las fuentes. "
         "Después vuelve a ejecutar el artículo."
     )
     return " ".join(partes)
@@ -152,6 +195,7 @@ async def run_investigador(state: Dict[str, Any]) -> Dict[str, Any]:
     if isinstance(rag_doc_ids, list) and len(rag_doc_ids) == 0:
         rag_doc_ids = None
     minimo = _min_sources()
+    minimo_fragmentos = _min_substantive_fragments()
     umbral = resolve_score_threshold()
 
     # ── Etapa 1: RAG local ───────────────────────────────────────────────────
@@ -269,12 +313,54 @@ async def run_investigador(state: Dict[str, Any]) -> Dict[str, Any]:
             },
         }
 
+    # ── Abstención por contenido (AC16) ──────────────────────────────────────
+    # Solo cuentan los fragmentos sustantivos de las fuentes citables; un documento
+    # `abstract_only` (AC11) aporta uno como máximo, por mucho que se recupere.
+    sustantivos: Dict[str, List[Dict[str, Any]]] = {
+        doc_id: [i for i in por_doc[doc_id]["items"] if _es_sustantivo(i)] for doc_id in citables
+    }
+    solo_resumen = {
+        doc_id for doc_id, fila in citables.items()
+        if getattr(fila, "text_status", None) == library.TextStatus.ABSTRACT_ONLY.value
+    }
+    total_sustantivos = sum(
+        min(len(items), 1) if doc_id in solo_resumen else len(items)
+        for doc_id, items in sustantivos.items()
+    )
+    if total_sustantivos < minimo_fragmentos:
+        nombres = [citables[d].title for d in citables if d in solo_resumen]
+        mensaje = _mensaje_sin_contenido(
+            sustantivos=total_sustantivos, minimo=minimo_fragmentos, fuentes=len(citables),
+            solo_resumen=nombres,
+        )
+        log(f"⛔ {mensaje}", "warning")
+        logger.warning("Investigador se abstiene en el artículo %s: %s/%s fragmentos sustantivos",
+                       article_id, total_sustantivos, minimo_fragmentos)
+        return {
+            "research_data": "",
+            "sources": [],
+            "abstained": True,
+            "abstention": {
+                "reason": "insufficient_substantive_content",
+                "message": mensaje,
+                "verified_sources": len(citables),
+                "citable_sources": len(citables),
+                "min_sources": minimo,
+                "substantive_fragments": total_sustantivos,
+                "min_substantive_fragments": minimo_fragmentos,
+                "abstract_only_documents": len(solo_resumen),
+                "similarity_threshold": umbral,
+                "context_only_documents": len(solo_contexto),
+                "rag_unavailable": rag_fallo,
+            },
+        }
+
     # ── Fuentes citables y material ──────────────────────────────────────────
     sources: List[Dict[str, Any]] = []
     research_chunks: List[str] = []
     for doc_id, fila in citables.items():
         grupo = por_doc[doc_id]
-        for item in grupo["items"]:
+        for item in sustantivos[doc_id]:
             research_chunks.append(f"[Fuente: {fila.title}] {item.get('text', '')}")
         declarado = getattr(fila, "author_provided_at", None)
         sources.append({
@@ -286,7 +372,7 @@ async def run_investigador(state: Dict[str, Any]) -> Dict[str, Any]:
             "doi": fila.doi,
             "url": (fila.url or "").strip(),
             "filename": grupo["filename"],
-            "snippet": (grupo["items"][0].get("text", "") or "")[:200],
+            "snippet": ((sustantivos[doc_id] or grupo["items"])[0].get("text", "") or "")[:200],
             "doi_verification": fila.verification_method,
             # Clase citable (ADR-0013): «identified» o «author_provided». La compuerta decide su
             # severidad y Referencias la etiqueta; sin DOI no se inventa un identificador.
