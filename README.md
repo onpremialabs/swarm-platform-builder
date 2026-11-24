@@ -687,6 +687,8 @@ del proyecto y del *bucket* del perfil (`rag_collection`). Así la biblioteca se
 comparte dentro del proyecto y un perfil no puede apuntar al espacio de otro. Para
 bases anteriores al aislamiento: `python scripts/migrate_rag_namespaces.py --apply`.
 
+**Reindexado de la biblioteca (SPEC-034 AC17 / T22.16).** Los fragmentos indexados antes de que se etiquetara `section` siguen recuperando listas de referencias como evidencia. `python scripts/reindex_library.py` (simulacro, no escribe) y `--apply` les ponen la `section` sin crear, borrar ni re-embeber puntos: no cambia `doc_id`, DOI ni curacion, y no reescribe los mapas de citas de ejecuciones guardadas. Es idempotente y respeta el proyecto (`--project <uuid>` para uno solo). Si el troceado antiguo perdio el encabezado, solo se marca como bibliografia una cola final de 3 o mas fragmentos seguidos con aspecto de referencias; ante duda queda `other`.
+
 ---
 
 ## Referencia de API
