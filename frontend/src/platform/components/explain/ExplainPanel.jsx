@@ -243,10 +243,17 @@ function Paso({ paso, abierto, onToggle }) {
             )}
             {decision.abstained && (
               <div>
-                <Trans
-                  i18nKey="explain.decision.abstained"
-                  values={{ verified: decision.verified_sources ?? 0, min: decision.min_sources ?? '?' }}
-                />
+                {decision.reason === 'insufficient_substantive_content' ? (
+                  <Trans
+                    i18nKey="explain.decision.abstainedContent"
+                    values={{ found: decision.substantive_fragments ?? 0, min: decision.min_substantive_fragments ?? '?' }}
+                  />
+                ) : (
+                  <Trans
+                    i18nKey="explain.decision.abstained"
+                    values={{ verified: decision.verified_sources ?? 0, min: decision.min_sources ?? '?' }}
+                  />
+                )}
               </div>
             )}
             {paso.rationale && (

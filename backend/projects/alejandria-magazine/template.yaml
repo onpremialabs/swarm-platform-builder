@@ -107,6 +107,11 @@ research:
   # desde el conocimiento del modelo: se detiene y se lo dice al autor. Entero >= 1, por
   # defecto 3. Es de la plantilla: el autor no lo puede bajar desde el artículo.
   min_sources: 3
+  # Abstención por contenido (AC16): aunque haya N fuentes citables, con menos de K fragmentos
+  # **sustantivos** (no `references`, con texto utilizable; un documento `abstract_only` cuenta
+  # como máximo uno) entre ellas no sintetiza. Entero >= 1, por defecto 3. Del proyecto: el
+  # autor no lo puede bajar desde el artículo.
+  min_substantive_fragments: 3
 
 # ── Compuerta de publicación (SPEC-032, ADR-0011) ───────────────────────────
 # Comprobaciones deterministas, sin LLM, sobre el texto final tras el Formateador.

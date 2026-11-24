@@ -9,6 +9,11 @@ menos, se abstiene. Es un dato **de la plantilla del proyecto**: el autor no lo 
 desde el artículo ni desde los ajustes de ejecución (el Investigador solo lo lee de aquí). Una
 clave desconocida se rechaza, para que un error de escritura no se quede en silencio.
 
+`min_substantive_fragments` (T22.15, AC16): el mínimo de fragmentos **sustantivos** (no
+`references`, con texto utilizable) entre las fuentes citables; con menos, el Investigador se
+abstiene aunque haya N fuentes, con un motivo propio. Entero >= 1, por defecto 3, y tampoco
+lo baja el autor.
+
 Semantic Scholar es válida en `sources` aunque no haya clave: la plantilla es un dato del
 proyecto y no puede cambiar de validez según el entorno donde se cargue. Sin clave, la
 base se omite en tiempo de ejecución con un aviso explícito (ver `discovery.py`).
@@ -20,10 +25,13 @@ from typing import Any, Tuple
 
 from app.platform.capabilities.literature.models import DEFAULT_SOURCES, KNOWN_SOURCES
 
-CLAVES_SOPORTADAS = ("sources", "min_sources")
+CLAVES_SOPORTADAS = ("sources", "min_sources", "min_substantive_fragments")
 
 #: N de la abstención (SPEC-034 Clarifications): por defecto 3, entero >= 1.
 DEFAULT_MIN_SOURCES = 3
+
+#: K de la abstención por contenido (AC16): por defecto 3, entero >= 1.
+DEFAULT_MIN_SUBSTANTIVE_FRAGMENTS = 3
 
 
 class ResearchConfigError(ValueError):
@@ -34,17 +42,22 @@ class ResearchConfigError(ValueError):
 class ResearchConfig:
     sources: Tuple[str, ...] = DEFAULT_SOURCES
     min_sources: int = DEFAULT_MIN_SOURCES
+    min_substantive_fragments: int = DEFAULT_MIN_SUBSTANTIVE_FRAGMENTS
+
+
+def _entero_minimo_1(clave: str, crudo: Any, defecto: int) -> int:
+    if crudo is None:
+        return defecto
+    # `bool` es un `int` en Python: `true` no es un número.
+    if isinstance(crudo, bool) or not isinstance(crudo, int) or crudo < 1:
+        raise ResearchConfigError(
+            f"'research.{clave}' debe ser un entero >= 1, no {crudo!r}"
+        )
+    return crudo
 
 
 def _parse_min_sources(crudo: Any) -> int:
-    if crudo is None:
-        return DEFAULT_MIN_SOURCES
-    # `bool` es un `int` en Python: `true` no es un número de fuentes.
-    if isinstance(crudo, bool) or not isinstance(crudo, int) or crudo < 1:
-        raise ResearchConfigError(
-            f"'research.min_sources' debe ser un entero >= 1, no {crudo!r}"
-        )
-    return crudo
+    return _entero_minimo_1("min_sources", crudo, DEFAULT_MIN_SOURCES)
 
 
 def parse_research(crudo: Any) -> ResearchConfig:
@@ -60,8 +73,12 @@ def parse_research(crudo: Any) -> ResearchConfig:
             f"(se admiten: {', '.join(CLAVES_SOPORTADAS)})"
         )
     minimo = _parse_min_sources(crudo.get("min_sources"))
+    fragmentos = _entero_minimo_1(
+        "min_substantive_fragments", crudo.get("min_substantive_fragments"),
+        DEFAULT_MIN_SUBSTANTIVE_FRAGMENTS,
+    )
     if "sources" not in crudo or crudo["sources"] is None:
-        return ResearchConfig(min_sources=minimo)
+        return ResearchConfig(min_sources=minimo, min_substantive_fragments=fragmentos)
     fuentes = crudo["sources"]
     if not isinstance(fuentes, list) or not fuentes:
         raise ResearchConfigError("'research.sources' debe ser una lista no vacía")
@@ -78,5 +95,7 @@ def parse_research(crudo: Any) -> ResearchConfig:
         if nombre in nombres:
             raise ResearchConfigError(f"'research.sources' repite la base '{nombre}'")
         nombres.append(nombre)
-    return ResearchConfig(sources=tuple(nombres), min_sources=minimo)
+    return ResearchConfig(
+        sources=tuple(nombres), min_sources=minimo, min_substantive_fragments=fragmentos,
+    )
 

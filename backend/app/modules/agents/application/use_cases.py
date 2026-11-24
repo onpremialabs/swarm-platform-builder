@@ -428,6 +428,7 @@ def make_node_wrapper(agent_name: str, run_fn):
                     "message": abstencion.get("message"),
                     "verified_sources": abstencion.get("verified_sources"),
                     "min_sources": abstencion.get("min_sources"),
+                    "reason": abstencion.get("reason"),
                 })
 
             res["current_step_index"] = state.get("current_step_index", 0) + 1
@@ -752,6 +753,7 @@ class Orchestrator:
                     "message": abstencion.get("message"),
                     "verified_sources": abstencion.get("verified_sources"),
                     "min_sources": abstencion.get("min_sources"),
+                    "reason": abstencion.get("reason"),
                 })
                 logger.info("Run for article %s stopped by abstention", article_id)
             else:

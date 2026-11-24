@@ -6,7 +6,7 @@ AlejandrIA Magazine es el proyecto de referencia de la plataforma. Implementa un
 
 | Agente | Modelo sugerido | Responsabilidad |
 |---|---|---|
-| **Investigador** | `llama3.2:1b` | Busca contexto en Qdrant y lo cruza con la biblioteca del proyecto: solo los documentos con DOI verificado entran en `sources`/Referencias; sin al menos `research.min_sources` (3 por defecto) se abstiene (SPEC-034). |
+| **Investigador** | `llama3.2:1b` | Busca contexto en Qdrant y lo cruza con la biblioteca del proyecto: solo los documentos con DOI verificado entran en `sources`/Referencias; sin al menos `research.min_sources` (3 por defecto) fuentes citables, o con menos de `research.min_substantive_fragments` (3 por defecto) fragmentos sustantivos (no bibliografía; un documento «solo resumen» cuenta uno), con motivo propio en cada caso, se abstiene (SPEC-034). |
 | **Redactor** | `llama3.2` / `mistral` | Genera el borrador académico en Markdown. Incorpora feedback del Revisor en iteraciones. |
 | **Revisor** | `llama3.2` | Evalúa el borrador con puntuación 0-100 y genera comentarios. Si score < 80, reenvía al Redactor (máx. 3 ciclos). |
 | **Formateador** | `llama3.2:1b` | Reformatea citas y referencias: APA, IEEE o Vancouver. |
