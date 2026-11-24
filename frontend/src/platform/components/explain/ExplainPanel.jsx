@@ -256,6 +256,28 @@ function Paso({ paso, abierto, onToggle }) {
                 )}
               </div>
             )}
+            {!decision.abstained && Array.isArray(decision.subqueries) && decision.subqueries.length > 0 && (
+              <div>
+                <Trans i18nKey="explain.decision.subqueries" values={{ count: decision.subqueries.length }} />
+                <ul style={{ margin: '2px 0 0', paddingLeft: 'var(--space-4)' }}>
+                  {decision.subqueries.map((q) => (
+                    <li key={q.id}>
+                      {t('explain.decision.subquery', {
+                        section: q.section, fragments: q.substantive_fragments ?? 0, question: q.question,
+                      })}
+                    </li>
+                  ))}
+                </ul>
+                <div>
+                  {(decision.uncovered_sections || []).length > 0 ? (
+                    <Trans
+                      i18nKey="explain.decision.uncovered"
+                      values={{ sections: decision.uncovered_sections.join(', ') }}
+                    />
+                  ) : t('explain.decision.fullCoverage')}
+                </div>
+              </div>
+            )}
             {paso.rationale && (
               <div style={{ marginTop: 6, whiteSpace: 'pre-wrap' }}>{paso.rationale}</div>
             )}

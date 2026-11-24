@@ -120,6 +120,10 @@ async def test_la_sintesis_del_investigador_lleva_tope(monkeypatch, con_fuentes)
     llamadas = []
 
     async def llm_falso(prompt, **kwargs):
+        if prompt.startswith("Eres un bibliotecario"):
+            # Sub-preguntas de sección (T22.17): no es la síntesis, pero también lleva tope.
+            assert 0 < kwargs.get("max_tokens", 0) <= 2048
+            return "no es json"
         llamadas.append(kwargs)
         return "resumen " * 40
 

@@ -7,6 +7,7 @@ from app.platform.capabilities.binding import provider
 from app.platform.project_context import collection_for_state
 from app.platform.capabilities.rag import semantic_search_results, LIBRARY_AGENT
 from app.platform import citations as citas
+from app.platform.capabilities import subqueries as citas_cobertura
 from app.platform.llm import (
     call_llm, call_llm_stream, resolve_agent_model, resolve_agent_temperature,
 )
@@ -27,6 +28,8 @@ _DEFAULT_TEMPLATE_ES = (
     "- Resumen (Abstract)\n- Introducción\n- Metodología\n- Resultados\n- Discusión\n\n"
     "Resultados y Discusión son DOS secciones separadas, cada una con su propio encabezado: en "
     "Resultados expón los hallazgos sin interpretarlos; la interpretación va en Discusión.\n\n"
+    "Si el contexto declara «EVIDENCIA SIN COBERTURA» para una sección, no la rellenes con tu "
+    "propio conocimiento: indica que las fuentes no aportan evidencia.\n\n"
     "Redacta el borrador en español, con lenguaje académico y profesional."
     "{word_count_footer}"
 )
@@ -44,6 +47,8 @@ _DEFAULT_TEMPLATE_EN = (
     "- Abstract\n- Introduction\n- Methodology\n- Results\n- Discussion\n\n"
     "Results and Discussion are TWO separate sections, each with its own heading: report "
     "findings in Results without interpreting them; interpretation belongs in Discussion.\n\n"
+    "If the context declares «EVIDENCE WITHOUT COVERAGE» for a section, do not fill it with your "
+    "own knowledge: state that the sources provide no evidence.\n\n"
     "Write the draft in English, in professional, academic language."
     "{word_count_footer}"
 )
@@ -141,6 +146,15 @@ async def run_redactor(state: Dict[str, Any]) -> Dict[str, Any]:
     if rag_doc_ids:
         # La selección del autor solo puede restringir, nunca ampliar más allá de `sources`.
         source_doc_ids = [d for d in source_doc_ids if d in set(rag_doc_ids)]
+
+    # Secciones sin evidencia sustantiva (SPEC-034/AC18): se declaran al modelo como hueco, también
+    # con plantilla propia del autor, y se le prohíbe rellenarlas con conocimiento propio.
+    aviso_cobertura = citas_cobertura.render_gaps(
+        (state.get("research_coverage") or {}).get("coverage"), language,
+    )
+    if aviso_cobertura:
+        research_data = research_data + "\n\n---\n\n" + aviso_cobertura
+        log("⚠️ Hay secciones sin cobertura de evidencia: el Redactor no las rellena con conocimiento propio.", "warning")
 
     citation_map: Dict[str, Any] = dict(state.get("citation_map") or {})
     bloque_fragmentos = ""

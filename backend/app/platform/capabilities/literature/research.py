@@ -14,6 +14,10 @@ clave desconocida se rechaza, para que un error de escritura no se quede en sile
 abstiene aunque haya N fuentes, con un motivo propio. Entero >= 1, por defecto 3, y tampoco
 lo baja el autor.
 
+`max_subqueries` (T22.17, AC18): el tope de sub-preguntas de sección con las que el
+Investigador recupera evidencia además de por el título. Entero >= 1, por defecto 6; lo
+fija la plantilla y el autor no lo cambia desde el artículo.
+
 Semantic Scholar es válida en `sources` aunque no haya clave: la plantilla es un dato del
 proyecto y no puede cambiar de validez según el entorno donde se cargue. Sin clave, la
 base se omite en tiempo de ejecución con un aviso explícito (ver `discovery.py`).
@@ -25,13 +29,16 @@ from typing import Any, Tuple
 
 from app.platform.capabilities.literature.models import DEFAULT_SOURCES, KNOWN_SOURCES
 
-CLAVES_SOPORTADAS = ("sources", "min_sources", "min_substantive_fragments")
+CLAVES_SOPORTADAS = ("sources", "min_sources", "min_substantive_fragments", "max_subqueries")
 
 #: N de la abstención (SPEC-034 Clarifications): por defecto 3, entero >= 1.
 DEFAULT_MIN_SOURCES = 3
 
 #: K de la abstención por contenido (AC16): por defecto 3, entero >= 1.
 DEFAULT_MIN_SUBSTANTIVE_FRAGMENTS = 3
+
+#: Tope de sub-preguntas de sección por ejecución (AC18): por defecto 6, entero >= 1.
+DEFAULT_MAX_SUBQUERIES = 6
 
 
 class ResearchConfigError(ValueError):
@@ -43,6 +50,7 @@ class ResearchConfig:
     sources: Tuple[str, ...] = DEFAULT_SOURCES
     min_sources: int = DEFAULT_MIN_SOURCES
     min_substantive_fragments: int = DEFAULT_MIN_SUBSTANTIVE_FRAGMENTS
+    max_subqueries: int = DEFAULT_MAX_SUBQUERIES
 
 
 def _entero_minimo_1(clave: str, crudo: Any, defecto: int) -> int:
@@ -77,8 +85,13 @@ def parse_research(crudo: Any) -> ResearchConfig:
         "min_substantive_fragments", crudo.get("min_substantive_fragments"),
         DEFAULT_MIN_SUBSTANTIVE_FRAGMENTS,
     )
+    subpreguntas = _entero_minimo_1(
+        "max_subqueries", crudo.get("max_subqueries"), DEFAULT_MAX_SUBQUERIES,
+    )
     if "sources" not in crudo or crudo["sources"] is None:
-        return ResearchConfig(min_sources=minimo, min_substantive_fragments=fragmentos)
+        return ResearchConfig(
+            min_sources=minimo, min_substantive_fragments=fragmentos, max_subqueries=subpreguntas,
+        )
     fuentes = crudo["sources"]
     if not isinstance(fuentes, list) or not fuentes:
         raise ResearchConfigError("'research.sources' debe ser una lista no vacía")
@@ -97,5 +110,6 @@ def parse_research(crudo: Any) -> ResearchConfig:
         nombres.append(nombre)
     return ResearchConfig(
         sources=tuple(nombres), min_sources=minimo, min_substantive_fragments=fragmentos,
+        max_subqueries=subpreguntas,
     )
 

@@ -5,6 +5,7 @@ from typing import Dict, Any, List
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.platform import library
+from app.platform.capabilities import subqueries as subq
 from app.platform.capabilities.binding import provider
 from app.platform.capabilities.sections import REFERENCES
 from app.platform.project_context import collection_for_state
@@ -50,6 +51,59 @@ def _min_substantive_fragments() -> int:
     from app.modules.agents.domain import alejandria  # perezoso: evita un ciclo de imports
 
     return alejandria.package().research.min_substantive_fragments
+
+
+def _max_subqueries() -> int:
+    """Tope de sub-preguntas: de `research.max_subqueries` en `template.yaml`, y de ningún otro sitio."""
+    from app.modules.agents.domain import alejandria  # perezoso: evita un ciclo de imports
+
+    return alejandria.package().research.max_subqueries
+
+
+async def _proponer_subpreguntas(state: Dict[str, Any], maximo: int, log) -> List[Dict[str, str]]:
+    """Sub-preguntas de sección (AC18) a partir **solo** del título y el enfoque del autor.
+
+    Nunca recibe el manuscrito ni texto de las fuentes. Si el modelo falla o no devuelve nada
+    utilizable, quedan las deterministas derivadas del título: la recuperación por sección no
+    depende de que el modelo responda bien.
+    """
+    titulo = state.get("title") or ""
+    enfoque = state.get("context_description") or ""
+    respuesta = None
+    try:
+        from app.platform.llm import call_llm, resolve_agent_model, resolve_agent_temperature
+
+        model = resolve_agent_model("investigador", state.get("agent_settings"))
+        temperature = resolve_agent_temperature("investigador", state.get("agent_settings"))
+        proponer = provider(state, "llm", call_llm)
+        respuesta = await proponer(
+            subq.build_prompt(titulo, enfoque, maximo),
+            model=model,
+            timeout=120.0,
+            num_ctx=4096,
+            temperature=temperature,
+            max_tokens=512,
+        )
+    except Exception as exc:
+        logger.warning("Sub-question proposal failed (non-critical): %s", exc)
+        log(f"⚠️ No se pudieron proponer sub-preguntas con el modelo ({exc}); se usan las derivadas del título.", "warning")
+    return subq.plan(titulo, respuesta, maximo)
+
+
+def _ordenar_por_subpregunta(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Intercala los fragmentos por sub-pregunta (reparto en turnos), para que un tope de
+    material (p. ej. el de la síntesis) no se lo lleve una sola sección."""
+    grupos: Dict[str, List[Dict[str, Any]]] = {}
+    for item in items:
+        clave = (item.get("subqueries") or [subq.TITULO])[0]
+        grupos.setdefault(clave, []).append(item)
+    colas = list(grupos.values())
+    salida: List[Dict[str, Any]] = []
+    while any(colas):
+        for cola in colas:
+            if cola:
+                salida.append(cola.pop(0))
+    return salida
 
 
 _PALABRA = re.compile(r"[^\W\d_]{2,}")
@@ -179,6 +233,8 @@ async def run_investigador(state: Dict[str, Any]) -> Dict[str, Any]:
         # El listón de evidencia es del proyecto (template.yaml); un ajuste de la ejecución
         # no lo mueve, y se dice para que no parezca que sí.
         log("ℹ️ Se ignora 'min_sources' en los ajustes de la ejecución: lo fija la plantilla del proyecto.", "warning")
+    if "max_subqueries" in agent_cfg:
+        log("ℹ️ Se ignora 'max_subqueries' en los ajustes de la ejecución: lo fija la plantilla del proyecto.", "warning")
     if context_hint:
         query_str = f"{context_hint} {query_str}"
         logger.info("Investigador context hint: '%s'", context_hint[:80])
@@ -212,12 +268,13 @@ async def run_investigador(state: Dict[str, Any]) -> Dict[str, Any]:
             f"buckets: {', '.join(search_agents)}]...")
     rag_results: List[Dict[str, Any]] = []
     rag_fallo = False
-    try:
-        # La búsqueda sale de la capacidad `rag_results` cuando el motor la
-        # inyecta, y del import de siempre cuando no (SPEC-013/T8.3/AC8).
-        buscar = provider(state, "rag_results", semantic_search_results)
-        rag_results = await buscar(
-            query=query_str,
+    # La búsqueda sale de la capacidad `rag_results` cuando el motor la
+    # inyecta, y del import de siempre cuando no (SPEC-013/T8.3/AC8).
+    buscar = provider(state, "rag_results", semantic_search_results)
+
+    async def _consultar(consulta: str) -> List[Dict[str, Any]]:
+        return await buscar(
+            query=consulta,
             qdrant_url=settings.QDRANT_URL,
             collection=rag_collection,
             agent_name=search_agents,
@@ -227,10 +284,46 @@ async def run_investigador(state: Dict[str, Any]) -> Dict[str, Any]:
             api_key=settings.QDRANT_API_KEY,
             doc_ids=rag_doc_ids,
         ) or []
+
+    # Sub-preguntas de sección (AC18): el modelo las propone solo con título y enfoque.
+    subpreguntas = await _proponer_subpreguntas(state, _max_subqueries(), log)
+    log(f"🧭 {len(subpreguntas)} sub-pregunta(s) de sección: "
+        + "; ".join(f"[{q['id']}] {subq.ETIQUETAS[q['section']]}" for q in subpreguntas))
+
+    # Cada fragmento declara qué consultas lo recuperaron: `title` o ids `q#` (dedup por chunk).
+    por_fragmento: Dict[Any, Dict[str, Any]] = {}
+
+    def _fusionar(consulta_id: str, resultados: List[Dict[str, Any]]) -> None:
+        for r in resultados:
+            if r.get("chunk_id") is not None:
+                clave = (r.get("doc_id"), r.get("chunk_id"))
+            else:
+                clave = (r.get("doc_id"), (r.get("text") or "")[:120])
+            previo = por_fragmento.get(clave)
+            if previo is None:
+                previo = dict(r)
+                previo["subqueries"] = []
+                por_fragmento[clave] = previo
+            if consulta_id not in previo["subqueries"]:
+                previo["subqueries"].append(consulta_id)
+
+    try:
+        _fusionar(subq.TITULO, await _consultar(query_str))
     except Exception as exc:
         rag_fallo = True
         logger.warning("Could not search Qdrant: %s", exc)
         log(f"⚠️ RAG local no disponible: {exc}", "warning")
+    if not rag_fallo:
+        for q in subpreguntas:
+            try:
+                _fusionar(q["id"], await _consultar(q["question"]))
+            except Exception as exc:
+                logger.warning("Sub-question search %s failed: %s", q["id"], exc)
+                log(f"⚠️ La sub-pregunta {q['id']} no se pudo recuperar: {exc}", "warning")
+    # Lo recuperado por sub-preguntas va antes que lo que solo trajo el título.
+    rag_results = list(por_fragmento.values())
+    for r in rag_results:
+        r["subqueries"].sort(key=lambda i: (i == subq.TITULO, i))
 
     # Guard: when the user selected specific documents, never build citations
     # from anything else — even if an upstream fallback ignored the filter.
@@ -310,6 +403,7 @@ async def run_investigador(state: Dict[str, Any]) -> Dict[str, Any]:
                 "similarity_threshold": umbral,
                 "context_only_documents": len(solo_contexto),
                 "rag_unavailable": rag_fallo,
+                "subqueries": subpreguntas,
             },
         }
 
@@ -352,16 +446,46 @@ async def run_investigador(state: Dict[str, Any]) -> Dict[str, Any]:
                 "similarity_threshold": umbral,
                 "context_only_documents": len(solo_contexto),
                 "rag_unavailable": rag_fallo,
+                "subqueries": subpreguntas,
             },
         }
+
+    # ── Cobertura por sección (AC18) ──────────────────────────────────────────
+    # Una sección sin fragmento sustantivo de una fuente citable queda «sin cobertura»: se
+    # declara en la traza y el Redactor la recibe como hueco, no como invitación a rellenar.
+    sustantivos_citables = [
+        {**i, "_doc_id": doc_id} for doc_id, items in sustantivos.items() for i in items
+    ]
+    cobertura = subq.coverage(subpreguntas, sustantivos_citables)
+    sin_cobertura = [c["label"] for c in cobertura if not c["covered"]]
+    por_pregunta = []
+    for q in subpreguntas:
+        por_pregunta.append({
+            **q,
+            "fragments": sum(1 for i in rag_results if q["id"] in i["subqueries"]),
+            "substantive_fragments": sum(1 for i in sustantivos_citables if q["id"] in i["subqueries"]),
+        })
+    research_coverage = {
+        "subqueries": por_pregunta,
+        "coverage": cobertura,
+        "uncovered_sections": [c["section"] for c in cobertura if not c["covered"]],
+    }
+    if sin_cobertura:
+        log(f"⚠️ Sin cobertura (sin evidencia sustantiva): {', '.join(sin_cobertura)}.", "warning")
+    else:
+        log("✅ Todas las secciones tienen evidencia sustantiva.")
 
     # ── Fuentes citables y material ──────────────────────────────────────────
     sources: List[Dict[str, Any]] = []
     research_chunks: List[str] = []
+    # Material por sub-pregunta, intercalado; cada fragmento declara de cuál viene.
+    etiquetas_q = {q["id"]: subq.ETIQUETAS[q["section"]] for q in subpreguntas}
+    for item in _ordenar_por_subpregunta(sustantivos_citables):
+        origen = (item.get("subqueries") or [subq.TITULO])[0]
+        marca = f"[Sub-pregunta {origen}: {etiquetas_q[origen]}]" if origen in etiquetas_q else "[Sub-pregunta: título]"
+        research_chunks.append(f"[Fuente: {citables[item['_doc_id']].title}] {marca} {item.get('text', '')}")
     for doc_id, fila in citables.items():
         grupo = por_doc[doc_id]
-        for item in sustantivos[doc_id]:
-            research_chunks.append(f"[Fuente: {fila.title}] {item.get('text', '')}")
         declarado = getattr(fila, "author_provided_at", None)
         sources.append({
             "doc_id": doc_id,
@@ -451,4 +575,4 @@ async def run_investigador(state: Dict[str, Any]) -> Dict[str, Any]:
         + "\n\n---\n\n" + "\n\n---\n\n".join(research_chunks)
     )
     log(f"📦 Investigación completada: {len(sources)} fuente(s), {len(research_chunks)} fragmento(s).")
-    return {"research_data": research_data, "sources": sources}
+    return {"research_data": research_data, "sources": sources, "research_coverage": research_coverage}
