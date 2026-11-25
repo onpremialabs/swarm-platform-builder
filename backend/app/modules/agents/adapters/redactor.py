@@ -349,8 +349,13 @@ async def run_redactor(state: Dict[str, Any]) -> Dict[str, Any]:
 
     emit_token = state.get("_emit_token") or (lambda t: None)
 
-    # Una plantilla propia puede pedir otra estructura: no se le exige el IMRaD.
-    exigir_secciones = not custom_template
+    # Secciones obligatorias: las de `gate.structure` del proyecto (T24.10). Una plantilla propia
+    # o el esquema del autor (`article_outline`) piden otra estructura: no se le exigen secciones
+    # que no pidió y solo cuenta el cierre de frase.
+    from app.modules.agents.domain import alejandria
+    secciones = [] if (custom_template or article_outline) else draft_integrity.required_sections(
+        alejandria.package().gate
+    )
 
     async def _generar(texto_prompt: str, ctx: int, tope):
         """Una generación por streaming y su veredicto de truncado (T24.9 / AC10)."""
@@ -365,7 +370,7 @@ async def run_redactor(state: Dict[str, Any]) -> Dict[str, Any]:
             trozos.append(token)
         resultado = "".join(trozos)
         diagnostico = draft_integrity.detect_truncation(
-            resultado, last_stop_reason(), language=language, require_sections=exigir_secciones,
+            resultado, last_stop_reason(), sections=secciones,
         ) if resultado else None
         if diagnostico is not None:
             diagnostico.update({"num_ctx": ctx, "max_output_tokens": tope, "model": model})
@@ -384,7 +389,9 @@ async def run_redactor(state: Dict[str, Any]) -> Dict[str, Any]:
             motivo = draft_integrity.describe(truncado)
             nuevo_ctx, nuevo_tope = enlarge_output_budget(num_ctx, max_output, model)
             log(f"⚠️ Borrador truncado: {motivo}.", "warning")
-            if (nuevo_ctx, nuevo_tope) == (num_ctx, max_output):
+            # Sin más presupuesto que dar solo se renuncia si el corte fue de presupuesto; un
+            # texto sin cerrar con parada normal se reintenta igual, una vez (AC11).
+            if (nuevo_ctx, nuevo_tope) == (num_ctx, max_output) and "stop_reason" in truncado["signals"]:
                 raise RuntimeError(
                     f"Borrador truncado ({motivo}) y no hay más presupuesto de salida que dar: "
                     f"num_ctx={num_ctx} ya está en el límite de la ventana de {model}. "
