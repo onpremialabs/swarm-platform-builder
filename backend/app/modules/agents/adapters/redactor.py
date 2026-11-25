@@ -8,7 +8,7 @@ from app.platform.project_context import collection_for_state
 from app.platform.capabilities.rag import semantic_search_results, LIBRARY_AGENT
 from app.platform import citations as citas
 from app.platform.capabilities import subqueries as citas_cobertura
-from app.platform import draft_integrity, explainability
+from app.platform import draft_integrity, explainability, prompt_trim, review_budget
 from app.platform.llm import (
     call_llm, call_llm_stream, enlarge_output_budget, last_stop_reason,
     reset_stop_reason, resolve_agent_max_output_tokens, resolve_agent_model,
@@ -187,14 +187,13 @@ async def run_redactor(state: Dict[str, Any]) -> Dict[str, Any]:
         research_data = research_data + "\n\n---\n\n" + aviso_cobertura
         log("⚠️ Hay secciones sin cobertura de evidencia: el Redactor no las rellena con conocimiento propio.", "warning")
 
-    citation_map: Dict[str, Any] = dict(state.get("citation_map") or {})
-    bloque_fragmentos = ""
-    fragmentos_rag: list = []
+    fragmentos: list = []
     permitidos = set(source_doc_ids)
     if not source_doc_ids:
         log("ℹ️ Sin fuentes citables con documento en la base: el Redactor no consulta el RAG por su cuenta.")
     else:
         log(f"🔎 Ampliando desde las {len(source_doc_ids)} fuente(s) citable(s) (colección: {rag_collection}, límite: 10)...")
+        fragmentos_rag: list = []
         try:
             rag_query = f"{title} {' '.join(keywords[:6])}"
             buscar = provider(state, "rag_results", semantic_search_results)
@@ -225,14 +224,8 @@ async def run_redactor(state: Dict[str, Any]) -> Dict[str, Any]:
         # incorporar; sin marcador solo se podían citar como autor-año. Se marcan aunque el RAG
         # propio falle o no devuelva nada.
         fragmentos = _fusionar_fragmentos(state.get("research_fragments"), fragmentos_rag, permitidos)
-        # T23.1: cada fragmento lleva un marcador [F#] estable (platform/citations.py).
-        citation_map = citas.assign_cite_ids(fragmentos, state.get("citation_map"))
-        bloque_fragmentos = citas.render_fragments(fragmentos, citation_map, language)
-        if bloque_fragmentos:
-            research_data = research_data + "\n\n---\n\n" + bloque_fragmentos
-            log(f"✅ {len(fragmentos)} fragmento(s) citable(s) con marcador.")
-        else:
-            log("ℹ️ Sin fragmentos citables con marcador.")
+        # Los marcadores [F#] y el bloque citable se asignan al armar el prompt: si hay que
+        # quitar fragmentos para que quepa (T24.12), la numeración sale de los que se quedan.
 
     # Build context section from user-provided description and outline
     context_parts = []
@@ -306,41 +299,99 @@ async def run_redactor(state: Dict[str, Any]) -> Dict[str, Any]:
         word_count_header = "\n"
         word_count_footer = ""
 
-    # Render prompt: custom template takes priority over built-in
-    if custom_template:
-        prompt = custom_template.format(
-            title=title,
-            keywords=", ".join(keywords),
-            research_data=research_data,
-            feedback_section=feedback_section,
-            context_section=context_section,
-            language=language,
-            word_count_header=word_count_header,
-            word_count_footer=word_count_footer,
+    # Render prompt: custom template takes priority over built-in. Es una función de los
+    # fragmentos que se mantienen: el tamaño del prompt decide la ventana y, si no cabe, cuáles
+    # se quitan (T24.12 / AC13).
+    def _armar(frags):
+        mapa = citas.assign_cite_ids(frags, state.get("citation_map")) if frags else dict(state.get("citation_map") or {})
+        bloque = citas.render_fragments(frags, mapa, language) if frags else ""
+        datos = research_data + ("\n\n---\n\n" + bloque if bloque else "")
+        contexto = context_section
+        if custom_template:
+            texto = custom_template.format(
+                title=title,
+                keywords=", ".join(keywords),
+                research_data=datos,
+                feedback_section=feedback_section,
+                context_section=contexto,
+                language=language,
+                word_count_header=word_count_header,
+                word_count_footer=word_count_footer,
+            )
+        elif feedback:
+            # MODO Edición y Corrección: el prompt no lleva `research_data`, así que los
+            # fragmentos citables se añaden aquí para que pueda seguir citando con [F#].
+            if bloque:
+                contexto = contexto + bloque + "\n\n"
+            base = _CORRECTION_TEMPLATE_ES if language == "es" else _CORRECTION_TEMPLATE_EN
+            texto = base.format(
+                draft_text=state.get("draft_text") or "",
+                feedback_section=feedback_section,
+                context_section=contexto,
+            )
+        else:
+            base = _DEFAULT_TEMPLATE_ES if language == "es" else _DEFAULT_TEMPLATE_EN
+            texto = base.format(
+                title=title,
+                keywords=", ".join(keywords),
+                research_data=datos,
+                feedback_section=feedback_section,
+                context_section=contexto,
+                word_count_header=word_count_header,
+                word_count_footer=word_count_footer,
+            )
+        return texto, mapa, bloque
+
+    margen = review_budget.writer_output_margin(max_output, target_word_count)
+    activos = list(fragmentos)
+    quitados: list = []
+    prompt, citation_map, bloque_fragmentos = _armar(activos)
+    ventana = review_budget.size_window(prompt, model=model, configured_ctx=num_ctx, output_margin=margen)
+    subpreguntas = (state.get("research_coverage") or {}).get("subqueries") or []
+    if not ventana.fits and activos:
+        orden = prompt_trim.trim_order(activos, subpreguntas)
+        for frag, seccion, motivo in orden:
+            if len(activos) <= 1:
+                break
+            activos = [f for f in activos if f is not frag]
+            quitados.append({
+                "fragment_id": citas.fragment_id(frag), "section": seccion, "reason": motivo,
+            })
+            prompt, citation_map, bloque_fragmentos = _armar(activos)
+            ventana = review_budget.size_window(prompt, model=model, configured_ctx=num_ctx, output_margin=margen)
+            if ventana.fits:
+                break
+    if bloque_fragmentos:
+        log(f"✅ {len(citation_map)} fragmento(s) citable(s) con marcador.")
+    elif source_doc_ids:
+        log("ℹ️ Sin fragmentos citables con marcador.")
+    # Secciones que se quedaron sin ningún fragmento por el recorte (cobertura perdida).
+    quedan = {prompt_trim.section_of(f, subpreguntas) for f in activos}
+    perdidas = sorted({q["section"] for q in quitados if q["section"]} - quedan)
+    traza_ventana = {
+        **ventana.as_trace(), "model": model, "max_output_tokens": max_output,
+        "target_word_count": target_word_count, "fragments_total": len(fragmentos),
+        "fragments_removed": len(quitados), "removed": quitados, "sections_lost": perdidas,
+        "outcome": "does_not_fit" if not ventana.fits else ("trimmed" if quitados else "ok"),
+        "reason": ("prompt_exceeds_model_window" if quitados or not ventana.fits else None),
+    }
+    explainability.record_prompt_budget(traza_ventana)
+    log(f"🧮 Ventana del Redactor — prompt ≈{ventana.prompt_tokens} tokens + salida {margen}: "
+        f"num_ctx {num_ctx}→{ventana.num_ctx} (ventana del modelo {ventana.model_window}).")
+    if quitados:
+        log(f"✂️ El prompt no cabía en la ventana del modelo: se quitaron {len(quitados)} de "
+            f"{len(fragmentos)} fragmento(s) por prioridad de sección"
+            + (f"; sin cobertura: {', '.join(perdidas)}" if perdidas else "") + ".", "warning")
+    if not ventana.fits:
+        raise RuntimeError(
+            f"El prompt del Redactor no cabe en la ventana de {model}: ≈{ventana.prompt_tokens} tokens de "
+            f"prompt + {margen} de salida > {ventana.model_window}"
+            + (f", ni quitando {len(quitados)} fragmento(s)" if quitados else "")
+            + ". No se envía recortado. Reduce el contexto/esquema, baja 'target_word_count' o usa un "
+            "modelo con más ventana."
         )
-    elif feedback:
-        # MODO Edición y Corrección: el prompt no lleva `research_data`, así que los
-        # fragmentos citables se añaden aquí para que pueda seguir citando con [F#].
-        if bloque_fragmentos:
-            context_section = context_section + bloque_fragmentos + "\n\n"
-        # MODO Edición y Corrección
-        base = _CORRECTION_TEMPLATE_ES if language == "es" else _CORRECTION_TEMPLATE_EN
-        prompt = base.format(
-            draft_text=state.get("draft_text") or "",
-            feedback_section=feedback_section,
-            context_section=context_section,
-        )
-    else:
-        base = _DEFAULT_TEMPLATE_ES if language == "es" else _DEFAULT_TEMPLATE_EN
-        prompt = base.format(
-            title=title,
-            keywords=", ".join(keywords),
-            research_data=research_data,
-            feedback_section=feedback_section,
-            context_section=context_section,
-            word_count_header=word_count_header,
-            word_count_footer=word_count_footer,
-        )
+    # La ventana configurada es el mínimo, no el tope.
+    num_ctx = ventana.num_ctx
 
     # Scale timeout: base 300s + 1.2s per expected word (minimum 1200s for slow local models)
     timeout = max(1200.0, 300.0 + target_word_count * 1.2) if target_word_count > 0 else 1200.0
@@ -446,7 +497,15 @@ async def run_redactor(state: Dict[str, Any]) -> Dict[str, Any]:
                     f"EXPANDED DRAFT ({target_word_count} words):"
                 )
             try:
-                expanded, expansion_truncada = await _generar(expand_prompt, num_ctx, max_output)
+                # La ampliación lleva el borrador entero: también se dimensiona (AC13). Si no cabe
+                # en la ventana del modelo no se envía; el borrador original ya estaba entero.
+                v_exp = review_budget.size_window(
+                    expand_prompt, model=model, configured_ctx=num_ctx, output_margin=margen)
+                if not v_exp.fits:
+                    raise RuntimeError(
+                        f"el prompt de ampliación (≈{v_exp.prompt_tokens} tokens + {margen} de salida) no cabe "
+                        f"en la ventana de {model} ({v_exp.model_window})")
+                expanded, expansion_truncada = await _generar(expand_prompt, v_exp.num_ctx, max_output)
                 if expansion_truncada is not None:
                     # Una ampliación cortada no sustituye al borrador, que ya estaba entero.
                     log("⚠️ La ampliación salió truncada; se conserva el borrador original.", "warning")

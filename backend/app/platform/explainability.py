@@ -53,6 +53,9 @@ class StepAccumulator:
     #: Salidas truncadas detectadas en el paso (SPEC-036 / T24.9 / AC10): una por intento
     #: cortado, con la señal que lo detectó y el presupuesto con el que se generó.
     truncations: List[Dict[str, Any]] = field(default_factory=list)
+    #: Presupuesto de ventana del Redactor (SPEC-036 / T24.12 / AC13): ventana pedida, fragmentos
+    #: quitados y por qué. Se anota antes de generar, así que queda también si el paso falla.
+    prompt_budget: Optional[Dict[str, Any]] = None
 
 
 _paso: ContextVar[Optional[StepAccumulator]] = ContextVar("explain_step", default=None)
@@ -108,6 +111,26 @@ def record_truncation(diagnostico: Dict[str, Any]) -> None:
         acumulador.truncations.append(dict(diagnostico))
     except Exception:  # pragma: no cover - defensivo
         logger.debug("No se pudo anotar el truncado del paso", exc_info=True)
+
+
+def record_prompt_budget(presupuesto: Dict[str, Any]) -> None:
+    """Anota el presupuesto de ventana del paso en curso (fuera de un paso no hace nada)."""
+    acumulador = _paso.get()
+    if acumulador is None:
+        return
+    try:
+        acumulador.prompt_budget = dict(presupuesto)
+    except Exception:  # pragma: no cover - defensivo
+        logger.debug("No se pudo anotar el presupuesto del paso", exc_info=True)
+
+
+def with_prompt_budget(decision: Optional[Dict[str, Any]], presupuesto: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """Añade el presupuesto de ventana a la decisión del paso (o crea una); sin él, tal cual."""
+    if not presupuesto:
+        return decision
+    fusion = dict(decision or {})
+    fusion["prompt_budget"] = presupuesto
+    return fusion
 
 
 def with_truncations(decision: Optional[Dict[str, Any]], truncations: Iterable[Dict[str, Any]]) -> Optional[Dict[str, Any]]:

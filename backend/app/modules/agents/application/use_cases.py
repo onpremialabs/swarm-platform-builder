@@ -398,8 +398,10 @@ def make_node_wrapper(agent_name: str, run_fn):
                 tokens_in=_acumulador.tokens_in,
                 tokens_out=_acumulador.tokens_out,
                 latency_ms=(time.perf_counter() - _inicio_agente) * 1000,
-                decision=explainability.with_truncations(
-                    explainability.decision_of(res), _acumulador.truncations),
+                decision=explainability.with_prompt_budget(
+                    explainability.with_truncations(
+                        explainability.decision_of(res), _acumulador.truncations),
+                    _acumulador.prompt_budget),
                 rationale=explainability.rationale_of(res),
             )
 
@@ -462,7 +464,9 @@ def make_node_wrapper(agent_name: str, run_fn):
                 **_paso_comun,
                 status="failed",
                 error_message=str(e),
-                decision=explainability.with_truncations(None, _acumulador.truncations),
+                decision=explainability.with_prompt_budget(
+                    explainability.with_truncations(None, _acumulador.truncations),
+                    _acumulador.prompt_budget),
                 rag_sources=_acumulador.rag_sources,
                 searches=_acumulador.searches,
                 tokens_in=_acumulador.tokens_in,
