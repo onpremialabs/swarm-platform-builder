@@ -110,6 +110,17 @@
   la traza dice cuántos reintentos y cuánto tiempo consumieron. *And* hay un caso de prueba
   con un borrador de ~2300 palabras que se revisa con el modelo falso sin recorte y otro
   con un borrador que no cabe y devuelve `not_verified` con motivo.
+- [ ] **AC13** — *Given* el Redactor *When* construye su prompt *Then* la ventana
+  (`num_ctx`) se **dimensiona por el prompt**, igual que en AC12: tamaño estimado del prompt
+  más el margen de salida para el objetivo de palabras, redondeado y acotado por la
+  ventana del modelo, con el valor de la cascada como **mínimo** y no como tope. *And* si el
+  prompt no cabe en la ventana del modelo, el Redactor **no lo envía**: reduce los
+  fragmentos por prioridad de sección y lo registra en la traza (cuántos fragmentos se
+  quitaron y por qué) o, si ni así cabe, falla con motivo antes de generar. *And* la
+  generación no empieza con una ventana que ya se sabe insuficiente: el reintento de AC10
+  queda para cortes que no se podían prever. *And* hay un caso de prueba con un prompt de
+  ~16 000 tokens y `num_ctx` configurado de 16 384 que se envía con una ventana mayor
+  sin pasar por un corte y reintento, y otro con un prompt que no cabe.
 
 ## 4. Diseño propuesto
 
@@ -130,6 +141,13 @@
   cerrada y devolvió el artículo al Redactor sin que nadie lo hubiera revisado. Además, un
   borrador de ese tamaño no cabe en 4096 tokens: el proveedor lo recorta sin avisar. Misma
   causa y misma solución que T24.9 en el Redactor.
+- **Ventana del Redactor por el prompt (AC13):** reproducido el 2026-11-25 con
+  `qwen3.5:9b` y `num_ctx=16384`: el prompt del Redactor (31 fragmentos citables) mide
+  ≈16 000 tokens y llena la ventana; el proveedor corta a los ~107 s con motivo `length`
+  (2089 palabras, sin Referencias) y AC10 reintenta con 32768 (231 s más, borrador completo).
+  En dos ejecuciones de punta a punta ese segundo intento acabó además sin cierre de frase.
+  Cada ejecución pierde así un intento entero. Misma solución que AC12, con
+  `platform/review_budget.py` como base.
 - **Plantilla:** `review_loops[].require_distinct_model` (por defecto `true` en
   proyectos de paper); validación en `platform/projects/`.
 - **Frontend:** `AgentsPage.jsx` muestra el aviso de modelo; el historial muestra la
@@ -220,4 +238,9 @@ tasks:
     sev: high
     depends_on: []
     acceptance: [AC12]
+  - id: T24.12
+    title: "Redactor: ventana dimensionada por el prompt, recorte de fragmentos por prioridad y sin intento perdido por ventana insuficiente"
+    sev: high
+    depends_on: [T24.11]
+    acceptance: [AC13]
 ```
