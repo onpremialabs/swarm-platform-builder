@@ -69,6 +69,24 @@
 - [ ] **AC8** — *Given* el harness EDD *When* se añaden casos *Then* hay golden
   (borrador sólido aprobado) y regressions (borrador con defecto conocido
   rechazado) por eje, y el informe declara su `provenance`.
+- [ ] **AC9** — *Given* un borrador cuyo score queda por debajo del umbral y una
+  pausa de decisión humana (`await_decision`) *When* **nadie la responde** (no hay
+  oyente SSE o vence el tiempo de espera) *Then* el valor por defecto **no es
+  «continuar»**: el bucle vuelve al Redactor mientras queden vueltas, y agotadas pasa
+  a `requires_human_review` (SPEC-032/AC7). *And* solo una decisión **explícita de una
+  persona** salta la revisión, y la traza distingue «decidió una persona» de «sin
+  respuesta», con quién y cuándo. *And* hay un caso de prueba de una ejecución sin
+  oyente con score < umbral que no llega al Formateador.
+- [ ] **AC10** — *Given* el borrador del Redactor *When* su salida **se trunca** (la
+  generación corta por límite de tokens o de ventana, sin cierre del texto) *Then* el
+  adapter lo **detecta** (motivo de parada del proveedor y, de no haberlo, ausencia de
+  secciones obligatorias o frase final sin cerrar), lo registra en la traza y no lo
+  entrega como borrador completo: reintenta con más presupuesto de salida o devuelve el
+  paso como fallido con motivo, nunca avanza en silencio. *And* el límite de salida del
+  Redactor deja de estar fijo en el código y se resuelve con la misma cascada que el
+  modelo (ajustes de la ejecución → `.agent.md` → defecto), validado al cargar y
+  acotado por la ventana del modelo. *And* hay un caso de prueba con una respuesta
+  cortada a mitad de frase que no pasa al Revisor.
 
 ## 4. Diseño propuesto
 
@@ -76,6 +94,13 @@
   traza (T9.1) guarda la rúbrica completa por vuelta.
 - **Motor:** `platform/engine/routing.py` (`make_review_router`) aplica la regla de
   reversión; el estado guarda `best_draft` y su score.
+- **Decisión por omisión y truncado (AC9, AC10):** la decisión por defecto de
+  `await_decision` pasa de «continuar» a «sin respuesta» y `make_review_router` solo
+  salta la revisión ante una decisión explícita; el Redactor lee el motivo de parada
+  del proveedor (`done_reason` en Ollama) y resuelve `num_ctx`/`num_predict` por la
+  cascada de `resolve_agent_model`. Observado en una prueba de punta a punta con
+  `qwen3.5:9b` (2026-11-25): borrador cortado a mitad de frase, sin Discusión, score
+  72 y `coherent: false` que aun así llegó al Formateador y al Publicador.
 - **Plantilla:** `review_loops[].require_distinct_model` (por defecto `true` en
   proyectos de paper); validación en `platform/projects/`.
 - **Frontend:** `AgentsPage.jsx` muestra el aviso de modelo; el historial muestra la
@@ -146,4 +171,14 @@ tasks:
     sev: medium
     depends_on: [T24.1]
     acceptance: [AC8]
+  - id: T24.8
+    title: "Decisión humana por omisión: sin respuesta no es «continuar»; el bucle vuelve al Redactor y distingue persona de omisión en la traza"
+    sev: high
+    depends_on: [T24.3]
+    acceptance: [AC9]
+  - id: T24.9
+    title: "Redactor: detectar salida truncada, no entregarla como borrador y resolver el límite de salida por la cascada de ajustes"
+    sev: high
+    depends_on: []
+    acceptance: [AC10]
 ```
