@@ -87,6 +87,17 @@
   modelo (ajustes de la ejecución → `.agent.md` → defecto), validado al cargar y
   acotado por la ventana del modelo. *And* hay un caso de prueba con una respuesta
   cortada a mitad de frase que no pasa al Revisor.
+- [ ] **AC11** — *Given* el borrador del Redactor *When* termina con un motivo de parada
+  que **no** es de corte (parada normal del modelo) pero le faltan secciones obligatorias de
+  la estructura del proyecto (`gate.structure.sections`, p. ej. Discusión o Referencias) o
+  acaba a mitad de frase *Then* se trata como **truncado** igual que en AC10: se anota en la
+  traza con la señal `heuristic`, se reintenta una vez y, si persiste, el paso falla con
+  motivo; **no avanza al Revisor**. *And* la heurística deja de ser solo el último recurso
+  «cuando el proveedor no informa motivo»: se aplica **siempre**, y el motivo de parada del
+  proveedor solo añade la señal `stop_reason`. *And* un borrador que termina bien no se
+  reintenta (sin falsos positivos con secciones en otro idioma, ver `gate.structure.titles`).
+  *And* hay un caso de prueba con una respuesta que acaba en «(HarnessDev, 2024» y no
+  contiene Discusión, con parada normal, que no pasa al Revisor.
 
 ## 4. Diseño propuesto
 
@@ -181,4 +192,9 @@ tasks:
     sev: high
     depends_on: []
     acceptance: [AC10]
+  - id: T24.10
+    title: "Redactor: tratar como truncado el borrador sin secciones obligatorias o sin cierre aunque la parada sea normal"
+    sev: high
+    depends_on: [T24.9]
+    acceptance: [AC11]
 ```
