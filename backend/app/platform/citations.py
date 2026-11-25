@@ -177,6 +177,9 @@ EXTRACT_CHARS = 280
 # `[F3]`, `[F1, F3]`, `[F1; F2]`
 _BRACKET = re.compile(r"\[\s*(F\d+(?:\s*[,;]\s*F\d+)*)\s*\]")
 _CITE = re.compile(r"F\d+")
+# Cita autor-año entre paréntesis: «(HarnessDev, 2024)», «(Code as Agent Harness et al., 2024)»,
+# «(Smith & Lee 2020; Ruiz, 2021)». No es una cita válida (T23.9 / AC10): el contrato es `[F#]`.
+_AUTOR_ANIO = re.compile(r"\(\s*[A-ZÁÉÍÓÚÜÑ][^()\[\]]*?(?:,\s*|\s)(?:19|20)\d{2}[a-z]?\b[^()\[\]]*\)")
 _SENTENCE_END = re.compile(r"(?<=[.!?])\s+|\n{2,}|\n(?=#|\s*[-*]\s)")
 
 
@@ -244,16 +247,19 @@ def render_fragments(results: Iterable[Dict[str, Any]], mapa: Dict[str, Dict[str
         cid = por_fragmento.get(fragment_id(r) or "")
         texto = (r.get("text") or "").strip()
         if cid and texto:
-            bloques.append(f"[{cid}] ({r.get('filename') or r.get('doc_title') or ''})\n{texto}")
+            origen = f" {r['origin']}" if r.get("origin") else ""
+            bloques.append(f"[{cid}] ({r.get('filename') or r.get('doc_title') or ''}){origen}\n{texto}")
     if not bloques:
         return ""
     if language == "es":
         regla = ("Cita ÚNICAMENTE con el marcador del fragmento que respalda la frase, así: [F1] o [F1, F2]. "
-                 "No inventes marcadores ni cites nada que no esté en esta lista.")
+                 "No inventes marcadores ni cites nada que no esté en esta lista. "
+                 "NO uses citas autor-año como (Autor, 2024): no son válidas.")
         cab = "### Fragmentos citables"
     else:
         regla = ("Cite ONLY with the marker of the fragment that supports the sentence, like [F1] or [F1, F2]. "
-                 "Do not invent markers or cite anything not in this list.")
+                 "Do not invent markers or cite anything not in this list. "
+                 "Do NOT use author-year citations like (Author, 2024): they are not valid.")
         cab = "### Citable fragments"
     return f"{cab}\n{regla}\n\n" + "\n\n".join(bloques)
 
@@ -262,10 +268,16 @@ def extract_citations(draft: str, mapa: Dict[str, Dict[str, Any]]) -> Dict[str, 
     """Lee las citas del borrador contra el mapa.
 
     Devuelve ``{"citations": [...], "unresolved": [cite_id...], "map": {...solo los usados},
-    "text_hash": str}``.
+    "text_hash": str, "author_year": [...], "valid_citations": int}``.
+
+    Una cita autor-año («(Título, 2024)») **no es una cita válida** (T23.9 / AC10): se trata como
+    una cita sin fragmento —entra en ``citations`` y ``unresolved`` con su texto literal como
+    clave y ``fragment_id`` ``None``, así que la compuerta la deja ``not_verified``—. Solo cuentan
+    como válidas (``valid_citations``) las que apuntan a un fragmento del mapa.
     """
     citas: List[Dict[str, Any]] = []
     sin_resolver: List[str] = []
+    autor_anio: List[str] = []
     usados: Dict[str, Dict[str, Any]] = {}
     texto = draft or ""
     for frase in _split_sentences(texto):
@@ -280,7 +292,17 @@ def extract_citations(draft: str, mapa: Dict[str, Dict[str, Any]]) -> Dict[str, 
                     continue
                 usados[cid] = entrada
                 citas.append({"cite_id": cid, "claim": claim, **entrada})
-    return {"citations": citas, "unresolved": sin_resolver, "map": usados, "text_hash": text_hash(texto)}
+        for m in _AUTOR_ANIO.finditer(frase):
+            cruda = re.sub(r"\s+", " ", m.group(0))[:120]
+            claim = re.sub(r"\s*" + _AUTOR_ANIO.pattern, "", re.sub(r"\s*" + _BRACKET.pattern, "", frase)).strip()
+            if cruda not in autor_anio:
+                autor_anio.append(cruda)
+            if cruda not in sin_resolver:
+                sin_resolver.append(cruda)
+            citas.append({"cite_id": cruda, "claim": claim, "fragment_id": None, "format": "author_year"})
+    validas = sum(1 for c in citas if c.get("fragment_id"))
+    return {"citations": citas, "unresolved": sin_resolver, "map": usados,
+            "text_hash": text_hash(texto), "author_year": autor_anio, "valid_citations": validas}
 
 
 def _split_sentences(texto: str) -> List[str]:
@@ -301,3 +323,24 @@ def to_citation_inputs(citations: Iterable[Dict[str, Any]]) -> List[CitationInpu
         )
         for c in citations
     ]
+
+
+# ── Recordatorio de formato (T23.9 / AC10) ──────────────────────────────────
+
+_RECORDATORIO = {
+    "es": ("\n\nRECORDATORIO OBLIGATORIO DEL FORMATO DE CITA: tu borrador anterior no citó ningún "
+           "fragmento con su marcador. Cada afirmación sustantiva se cita con el marcador del "
+           "fragmento que la respalda, entre corchetes, p. ej. «La HbA1c bajó un 1,1 % [F1].» o "
+           "«... [F1, F3].». NO uses citas autor-año como (Autor, 2024) ni el título de una obra como "
+           "autor: no son válidas. Reescribe el borrador completo citando con [F#]."),
+    "en": ("\n\nMANDATORY CITATION FORMAT REMINDER: your previous draft did not cite any fragment with "
+           "its marker. Every substantive claim is cited with the marker of the fragment that supports "
+           "it, in square brackets, e.g. \"HbA1c fell by 1.1% [F1].\" or \"... [F1, F3].\". Do NOT use "
+           "author-year citations like (Author, 2024) or a work's title as author: they are not valid. "
+           "Rewrite the full draft citing with [F#]."),
+}
+
+
+def format_reminder(language: str = "es") -> str:
+    """Recordatorio explícito del formato `[F#]` para el único reintento del Redactor."""
+    return _RECORDATORIO["es" if (language or "es").lower() == "es" else "en"]

@@ -267,6 +267,16 @@ def decision_of(salida: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             "coverage": cobertura.get("coverage"),
             "uncovered_sections": cobertura.get("uncovered_sections") or [],
         }
+    # Comprobación de citas del Redactor (SPEC-035 / T23.9 / AC10): solo se traza cuando hubo algo
+    # que decir —no hubo ningún [F#] habiendo fragmentos citables, o se reintentó—.
+    comprobacion = salida.get("citation_check")
+    if isinstance(comprobacion, dict) and (comprobacion.get("no_citations") or comprobacion.get("retried")):
+        return {
+            "no_citations": bool(comprobacion.get("no_citations")),
+            "citation_retry": bool(comprobacion.get("retried")),
+            "author_year_citations": comprobacion.get("author_year") or [],
+            "citable_fragments": comprobacion.get("citable_fragments"),
+        }
     claves = ("approval_score", "coherent", "user_decision", "review_status")
     if not any(clave in salida for clave in claves):
         return None
