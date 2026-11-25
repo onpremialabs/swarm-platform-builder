@@ -50,6 +50,9 @@ class StepAccumulator:
     #: Búsquedas de literatura del paso (SPEC-034 / T22.7): un resumen por búsqueda,
     #: con el `search_id` que apunta al registro completo en `search_logs`.
     searches: List[Dict[str, Any]] = field(default_factory=list)
+    #: Salidas truncadas detectadas en el paso (SPEC-036 / T24.9 / AC10): una por intento
+    #: cortado, con la señal que lo detectó y el presupuesto con el que se generó.
+    truncations: List[Dict[str, Any]] = field(default_factory=list)
 
 
 _paso: ContextVar[Optional[StepAccumulator]] = ContextVar("explain_step", default=None)
@@ -89,6 +92,37 @@ def record_tokens(entrada: Optional[int], salida: Optional[int]) -> None:
         acumulador.tokens_out += int(salida or 0)
     except Exception:  # pragma: no cover - defensivo
         logger.debug("No se pudieron anotar los tokens del paso", exc_info=True)
+
+
+def record_truncation(diagnostico: Dict[str, Any]) -> None:
+    """Anota una salida truncada del paso en curso (SPEC-036 / T24.9 / AC10).
+
+    Se anota **cada** intento cortado, también el que el reintento enmendó: que el primero
+    se cortara es justo lo que explica por qué el paso tardó el doble y gastó más tokens.
+    Fuera de un paso no hace nada.
+    """
+    acumulador = _paso.get()
+    if acumulador is None:
+        return
+    try:
+        acumulador.truncations.append(dict(diagnostico))
+    except Exception:  # pragma: no cover - defensivo
+        logger.debug("No se pudo anotar el truncado del paso", exc_info=True)
+
+
+def with_truncations(decision: Optional[Dict[str, Any]], truncations: Iterable[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """Añade los truncados del paso a su decisión (o crea una si no había).
+
+    Va en la misma columna `decision` que el resto de decisiones del paso, sin esquema nuevo:
+    la traza dice que la salida se cortó, con qué señal y si el reintento la recuperó. Si no
+    hubo truncados devuelve la decisión tal cual, así lo no truncado no cambia.
+    """
+    lista = list(truncations or [])
+    if not lista:
+        return decision
+    fusion = dict(decision or {})
+    fusion["truncation"] = lista
+    return fusion
 
 
 def record_rag_hits(collection: str, resultados: Iterable[Dict[str, Any]]) -> None:
@@ -266,7 +300,7 @@ def params_of(agent_name: str, state: Dict[str, Any]) -> Dict[str, Any]:
     """Parámetros con los que corrió el agente, de sus ajustes de ejecución."""
     ajustes = (state.get("agent_settings") or {}).get(agent_name) or {}
     interesantes = (
-        "temperature", "num_ctx", "target_word_count", "output_language",
+        "temperature", "num_ctx", "max_output_tokens", "target_word_count", "output_language",
         "scientific_format", "rag_collection", "rag_top_k", "graph_rag_enabled",
         "semantic_search_enabled",
     )

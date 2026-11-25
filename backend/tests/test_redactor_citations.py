@@ -64,6 +64,7 @@ PROMPTS = []
 
 async def _llm(prompt, **kw):
     PROMPTS.append(prompt)
+    __import__("app.platform.llm", fromlist=["x"])._anotar_motivo_parada("stop")  # el proveedor declara fin natural
     yield "Texto citado [F1] y falso [F7]."
 
 

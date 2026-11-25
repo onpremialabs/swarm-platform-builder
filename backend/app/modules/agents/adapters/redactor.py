@@ -8,8 +8,11 @@ from app.platform.project_context import collection_for_state
 from app.platform.capabilities.rag import semantic_search_results, LIBRARY_AGENT
 from app.platform import citations as citas
 from app.platform.capabilities import subqueries as citas_cobertura
+from app.platform import draft_integrity, explainability
 from app.platform.llm import (
-    call_llm, call_llm_stream, resolve_agent_model, resolve_agent_temperature,
+    call_llm, call_llm_stream, enlarge_output_budget, last_stop_reason,
+    reset_stop_reason, resolve_agent_max_output_tokens, resolve_agent_model,
+    resolve_agent_num_ctx, resolve_agent_temperature,
 )
 
 logger = logging.getLogger(__name__)
@@ -113,6 +116,10 @@ async def run_redactor(state: Dict[str, Any]) -> Dict[str, Any]:
     # guardaba y no llegaba a ningún proveedor: era un control de la interfaz
     # que no hacía nada.
     temperature = resolve_agent_temperature("redactor", state.get("agent_settings"))
+    # Ventana y tope de salida (T24.9): ya no están fijos en el código. Misma cascada que el
+    # modelo y la temperatura, acotados por la ventana del modelo.
+    num_ctx = resolve_agent_num_ctx("redactor", state.get("agent_settings"), model)
+    max_output = resolve_agent_max_output_tokens("redactor", state.get("agent_settings"), model)
     language = (agent_cfg.get("output_language") or "es").lower()
     custom_template = (agent_cfg.get("prompt_template") or "").strip()
     target_word_count = int(agent_cfg.get("target_word_count") or 0)
@@ -313,19 +320,59 @@ async def run_redactor(state: Dict[str, Any]) -> Dict[str, Any]:
 
     emit_token = state.get("_emit_token") or (lambda t: None)
 
-    try:
-        draft_chunks = []
-        generar = provider(state, "llm_stream", call_llm_stream)
-        async for token in generar(
-            prompt, model=model, timeout=timeout, num_ctx=4096, keep_alive=0,
-            temperature=temperature,
+    # Una plantilla propia puede pedir otra estructura: no se le exige el IMRaD.
+    exigir_secciones = not custom_template
+
+    async def _generar(texto_prompt: str, ctx: int, tope):
+        """Una generación por streaming y su veredicto de truncado (T24.9 / AC10)."""
+        reset_stop_reason()
+        trozos = []
+        stream = provider(state, "llm_stream", call_llm_stream)
+        async for token in stream(
+            texto_prompt, model=model, timeout=timeout, num_ctx=ctx, keep_alive=0,
+            temperature=temperature, max_tokens=tope,
         ):
             emit_token(token)
-            draft_chunks.append(token)
-        draft_text = "".join(draft_chunks)
+            trozos.append(token)
+        resultado = "".join(trozos)
+        diagnostico = draft_integrity.detect_truncation(
+            resultado, last_stop_reason(), language=language, require_sections=exigir_secciones,
+        ) if resultado else None
+        if diagnostico is not None:
+            diagnostico.update({"num_ctx": ctx, "max_output_tokens": tope, "model": model})
+            explainability.record_truncation(diagnostico)
+        return resultado, diagnostico
+
+    try:
+        draft_text, truncado = await _generar(prompt, num_ctx, max_output)
 
         if not draft_text:
             raise RuntimeError("LLM devolvió una respuesta vacía al generar el borrador")
+
+        if truncado is not None:
+            # La salida se cortó: no es un borrador. Un reintento con más presupuesto, y si
+            # tampoco, el paso falla con motivo. Lo que no se hace es seguir al Revisor.
+            motivo = draft_integrity.describe(truncado)
+            nuevo_ctx, nuevo_tope = enlarge_output_budget(num_ctx, max_output, model)
+            log(f"⚠️ Borrador truncado: {motivo}.", "warning")
+            if (nuevo_ctx, nuevo_tope) == (num_ctx, max_output):
+                raise RuntimeError(
+                    f"Borrador truncado ({motivo}) y no hay más presupuesto de salida que dar: "
+                    f"num_ctx={num_ctx} ya está en el límite de la ventana de {model}. "
+                    "Sube 'max_output_tokens'/'num_ctx' del Redactor o usa un modelo con más ventana."
+                )
+            log(f"🔁 Reintentando con más presupuesto (num_ctx {num_ctx}→{nuevo_ctx}, "
+                f"salida {max_output or 'defecto'}→{nuevo_tope or 'defecto'}).", "warning")
+            draft_text, segundo = await _generar(prompt, nuevo_ctx, nuevo_tope)
+            if segundo is not None or not draft_text:
+                raise RuntimeError(
+                    "Borrador truncado tras reintentar con más presupuesto "
+                    f"(num_ctx={nuevo_ctx}): {draft_integrity.describe(segundo or {'reasons': ['empty']})}. "
+                    "El paso falla en vez de pasar un texto cortado al Revisor."
+                )
+            # Lo que sigue (ampliación de palabras) parte del presupuesto que sí bastó.
+            num_ctx, max_output = nuevo_ctx, nuevo_tope
+            log("✅ El reintento produjo un borrador completo.")
 
         actual_words = len(draft_text.split())
         log(f"✅ Borrador generado — {actual_words} palabras.")
@@ -363,16 +410,11 @@ async def run_redactor(state: Dict[str, Any]) -> Dict[str, Any]:
                     f"EXPANDED DRAFT ({target_word_count} words):"
                 )
             try:
-                expanded_chunks = []
-                ampliar = provider(state, "llm_stream", call_llm_stream)
-                async for token in ampliar(
-                    expand_prompt, model=model, timeout=timeout, num_ctx=4096,
-                    keep_alive=0, temperature=temperature,
-                ):
-                    emit_token(token)
-                    expanded_chunks.append(token)
-                expanded = "".join(expanded_chunks)
-                if expanded:
+                expanded, expansion_truncada = await _generar(expand_prompt, num_ctx, max_output)
+                if expansion_truncada is not None:
+                    # Una ampliación cortada no sustituye al borrador, que ya estaba entero.
+                    log("⚠️ La ampliación salió truncada; se conserva el borrador original.", "warning")
+                elif expanded:
                     expanded_words = len(expanded.split())
                     if expanded_words > actual_words:
                         draft_text = expanded

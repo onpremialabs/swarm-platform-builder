@@ -6,6 +6,11 @@ models:
   anthropic: claude-sonnet-5
   ollama: llama3.2:3b
 temperature: 0.7
+# Presupuesto de generación (SPEC-036/AC10). Ventana de contexto (Ollama) y tope de tokens de
+# salida; se acotan a la ventana del modelo y los ajustes de la ejecución mandan sobre esto.
+# Sin `max_output_tokens` manda el defecto del proveedor. Si el borrador sale cortado, el
+# Redactor reintenta una vez con el doble y, si persiste, el paso falla.
+num_ctx: 4096
 rag_enabled: false
 output_type: markdown_draft
 focus: academic_writing

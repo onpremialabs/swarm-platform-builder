@@ -16,6 +16,7 @@ Supported providers
 
 import asyncio
 import logging
+from contextvars import ContextVar
 import time
 import random
 from pathlib import Path
@@ -302,6 +303,160 @@ def resolve_agent_temperature(
         return None
 
 
+# ---------------------------------------------------------------------------
+# Presupuesto de salida por agente (SPEC-036 / T24.9 / AC10)
+# ---------------------------------------------------------------------------
+
+#: Ventana de contexto por defecto del pipeline. Es el `num_ctx=4096` que el redactor tenía
+#: fijo en el código: sigue siendo el defecto, pero ya no es el único valor posible.
+DEFAULT_NUM_CTX = 4096
+
+#: Por debajo de esto una ventana o un tope de salida no deja escribir ni un párrafo: es un
+#: error de configuración y se rechaza al cargar el perfil, no se «corrige» en silencio.
+MIN_PRESUPUESTO = 256
+
+#: Ventana del modelo por prefijo del id (el primero que case gana; el orden importa). Es lo que
+#: acota lo que una persona puede pedir: un `num_ctx` de 1 000 000 en un modelo de 32k no da
+#: más contexto, da un modelo que no carga. Un modelo que la tabla no conoce usa la ventana
+#: conservadora de `VENTANA_DESCONOCIDA`.
+VENTANAS_MODELO = (
+    ("claude", 200_000),
+    ("gpt-4o", 128_000),
+    ("gpt-4.1", 1_000_000),
+    ("gpt-5", 256_000),
+    ("o3", 200_000),
+    ("o4", 200_000),
+    ("qwen3", 32_768),
+    ("qwen2.5", 32_768),
+    ("olmo-3", 65_536),
+    ("llama3.1", 131_072),
+    ("llama3.2", 131_072),
+    ("llama3", 8_192),
+    ("mistral", 32_768),
+    ("gemma3", 131_072),
+    ("phi", 16_384),
+)
+VENTANA_DESCONOCIDA = 8_192
+
+
+def model_context_window(model: Optional[str]) -> int:
+    """Ventana de contexto conocida del modelo (tokens), sin el prefijo de proveedor."""
+    nombre = (model or "").lower().split("/")[-1]
+    for prefijo, ventana in VENTANAS_MODELO:
+        if nombre.startswith(prefijo):
+            return ventana
+    return VENTANA_DESCONOCIDA
+
+
+def validate_output_limit(clave: str, valor) -> int:
+    """Valida un límite (`num_ctx`, `max_output_tokens`) y lo devuelve como entero.
+
+    Lanza `ValueError` con un mensaje accionable: lo usan el cargador de proyectos (que lo
+    convierte en error de plantilla) y la resolución en ejecución (que lo degrada a aviso).
+    """
+    if isinstance(valor, bool) or not isinstance(valor, (int, float, str)):
+        raise ValueError(f"'{clave}' debe ser un entero positivo (recibido {valor!r})")
+    try:
+        numero = int(float(valor))
+    except (TypeError, ValueError):
+        raise ValueError(f"'{clave}' debe ser un entero positivo (recibido {valor!r})") from None
+    if numero < MIN_PRESUPUESTO:
+        raise ValueError(f"'{clave}' debe ser al menos {MIN_PRESUPUESTO} (recibido {numero})")
+    return numero
+
+
+def _resolve_agent_limit(clave: str, agent_name: str, agent_settings: Optional[dict]):
+    """Cascada común: ajustes de la ejecución -> `.agent.md` -> `None` (defecto)."""
+    cfg = (agent_settings or {}).get(agent_name, {}) or {}
+    escalones = (
+        ("los ajustes de la ejecución", lambda: cfg.get(clave)),
+        ("el perfil .agent.md", lambda: _load_agent_frontmatter(agent_name).get(clave)),
+    )
+    for fuente, leer in escalones:
+        valor = leer()
+        if valor is None:
+            continue
+        try:
+            return validate_output_limit(clave, valor)
+        except ValueError as error:
+            logger.warning("%s de %s para '%s' ignorado: %s", clave, fuente, agent_name, error)
+    return None
+
+
+def resolve_agent_num_ctx(
+    agent_name: str, agent_settings: Optional[dict] = None, model: Optional[str] = None
+) -> int:
+    """Ventana de contexto (`num_ctx`) del agente, acotada por la ventana del modelo.
+
+    Cascada, como :func:`resolve_agent_model`: ajustes de la ejecución -> ``.agent.md`` ->
+    :data:`DEFAULT_NUM_CTX`. Un valor inválido se ignora con aviso y cae al siguiente escalón.
+    Solo la usa Ollama, que es quien recibe `num_ctx`; los demás proveedores la ignoran.
+    """
+    valor = _resolve_agent_limit("num_ctx", agent_name, agent_settings) or DEFAULT_NUM_CTX
+    return min(valor, model_context_window(model)) if model else valor
+
+
+def resolve_agent_max_output_tokens(
+    agent_name: str, agent_settings: Optional[dict] = None, model: Optional[str] = None
+) -> Optional[int]:
+    """Tope de tokens de salida del agente, o `None` para el defecto del proveedor.
+
+    Misma cascada que el modelo. Acotado por la ventana del modelo: pedir más salida de la
+    que cabe en la ventana solo mueve el corte a otro sitio.
+    """
+    valor = _resolve_agent_limit("max_output_tokens", agent_name, agent_settings)
+    if valor is None:
+        return None
+    return min(valor, model_context_window(model)) if model else valor
+
+
+def enlarge_output_budget(
+    num_ctx: int, max_tokens: Optional[int], model: Optional[str], provider: Optional[str] = None
+) -> tuple:
+    """Presupuesto del reintento tras un truncado: el doble, sin pasar de la ventana del modelo.
+
+    Devuelve ``(num_ctx, max_tokens)``. Si no hay nada que crecer —ya está en la ventana— se
+    devuelve el mismo par, y quien llama sabe que reintentar sería repetir lo mismo.
+    """
+    from app.core.config import settings
+
+    ventana = model_context_window(model)
+    provider = (provider or settings.LLM_PROVIDER).lower()
+    nuevo_ctx = min(num_ctx * 2, ventana) if provider == "ollama" else num_ctx
+    base = max_tokens
+    if base is None and provider == "anthropic":
+        base = getattr(settings, "ANTHROPIC_MAX_TOKENS", 4096)
+    nuevo_max = min(base * 2, ventana) if base is not None else None
+    return nuevo_ctx, nuevo_max
+
+
+#: Motivos de parada que significan «se cortó por presupuesto», normalizados entre proveedores:
+#: Ollama `done_reason == "length"`, OpenAI `finish_reason == "length"`, Anthropic `max_tokens`.
+MOTIVOS_TRUNCADO = frozenset({"length", "max_tokens"})
+
+_motivo_parada: ContextVar[Optional[str]] = ContextVar("llm_stop_reason", default=None)
+
+
+def last_stop_reason() -> Optional[str]:
+    """Motivo de parada que el proveedor declaró en la última generación, o `None`.
+
+    Va por `ContextVar` y no como argumento ni como valor de retorno para no cambiar la firma
+    de `call_llm_stream`: sus otros llamadores (y los dobles de prueba) no se enteran.
+    `call_llm_stream` lo borra al empezar; un proveedor o un doble que no lo declara deja
+    `None`, y el adapter recurre a la heurística.
+    """
+    return _motivo_parada.get()
+
+
+def reset_stop_reason() -> None:
+    """Olvida el motivo de la generación anterior (para quien genera por un doble)."""
+    _motivo_parada.set(None)
+
+
+def _anotar_motivo_parada(motivo) -> None:
+    _motivo_parada.set(str(motivo).lower() if motivo else None)
+
+
 def _record_usage(provider: str, model: str, entrada, salida) -> None:
     """Anotar tokens consumidos (SPEC-019/T5.2 y SPEC-014/T9.1).
 
@@ -449,8 +604,13 @@ async def call_llm_stream(
     keep_alive: int = -1,
     num_ctx: Optional[int] = None,
     temperature: Optional[float] = None,
+    max_tokens: Optional[int] = None,
 ) -> AsyncGenerator[str, None]:
     """Call the configured LLM provider and yield the generated tokens.
+
+    ``max_tokens``: tope de salida (T24.9). Ollama lo recibe como ``num_predict``, Anthropic y
+    OpenAI como su tope de salida. `None` deja el defecto del proveedor, que es lo de siempre.
+    El motivo de parada queda en :func:`last_stop_reason`.
 
     ``temperature``: igual que en :func:`call_llm`. Va también aquí porque el
     redactor —el agente cuya temperatura más se nota— genera por streaming: sin
@@ -469,6 +629,7 @@ async def call_llm_stream(
             timeout=timeout,
             system_prompt=system_prompt,
             temperature=temperature,
+            **({"max_tokens": max_tokens} if max_tokens else {}),
         )
         what = f"Anthropic stream ({resolved_model})"
     elif provider == "openai":
@@ -478,6 +639,7 @@ async def call_llm_stream(
             timeout=timeout,
             system_prompt=system_prompt,
             temperature=temperature,
+            **({"max_tokens": max_tokens} if max_tokens else {}),
         )
         what = f"OpenAI stream ({resolved_model})"
     else:
@@ -488,9 +650,11 @@ async def call_llm_stream(
             keep_alive=keep_alive,
             num_ctx=num_ctx,
             temperature=temperature,
+            **({"num_predict": max_tokens} if max_tokens else {}),
         )
         what = f"Ollama stream ({resolved_model})"
 
+    _anotar_motivo_parada(None)
     async for token in _retry_stream(stream_factory, what=what):
         yield token
 
@@ -714,6 +878,7 @@ async def _call_ollama_stream(
     keep_alive: int = -1,
     num_ctx: Optional[int] = None,
     temperature: Optional[float] = None,
+    num_predict: Optional[int] = None,
 ) -> AsyncGenerator[str, None]:
     """Send a generation request with streaming enabled to local Ollama /api/generate."""
     from app.core.config import settings
@@ -725,6 +890,8 @@ async def _call_ollama_stream(
         options["num_ctx"] = num_ctx
     if temperature is not None:
         options["temperature"] = temperature
+    if num_predict is not None:
+        options["num_predict"] = num_predict
     if options:
         payload["options"] = options
     if keep_alive != -1:
@@ -759,6 +926,7 @@ async def _call_ollama_stream(
                             # El chunk final (`done`) trae el recuento de tokens.
                             if chunk.get("done"):
                                 motivo_fin = chunk.get("done_reason")
+                                _anotar_motivo_parada(motivo_fin)
                                 _record_usage(
                                     "ollama", model,
                                     chunk.get("prompt_eval_count"), chunk.get("eval_count"),
@@ -780,6 +948,7 @@ async def _call_openai_stream(
     timeout: float,
     system_prompt: Optional[str] = None,
     temperature: Optional[float] = None,
+    max_tokens: Optional[int] = None,
 ) -> AsyncGenerator[str, None]:
     """Send a chat completion request with streaming enabled via the OpenAI Python SDK."""
     from app.core.config import settings
@@ -811,8 +980,18 @@ async def _call_openai_stream(
             crear_kwargs: dict = {"model": model, "messages": messages, "stream": True}
             if temperature is not None:
                 crear_kwargs["temperature"] = temperature
+            if max_tokens:
+                # Las pasarelas compatibles solo conocen `max_tokens`; la API de OpenAI
+                # actual exige `max_completion_tokens` en sus modelos de razonamiento.
+                clave_tope = "max_tokens" if settings.OPENAI_BASE_URL else "max_completion_tokens"
+                crear_kwargs[clave_tope] = max_tokens
             stream = await client.chat.completions.create(**crear_kwargs)
             async for chunk in stream:
+                if not chunk.choices:
+                    continue
+                motivo = getattr(chunk.choices[0], "finish_reason", None)
+                if motivo:
+                    _anotar_motivo_parada(motivo)
                 token = chunk.choices[0].delta.content or ""
                 if token:
                     yield token
@@ -1014,6 +1193,7 @@ async def _call_anthropic_stream(
             # El mensaje final del stream trae el uso acumulado.
             try:
                 final = await stream.get_final_message()
+                _anotar_motivo_parada(getattr(final, "stop_reason", None))
                 uso = getattr(final, "usage", None)
                 _record_usage("anthropic", model,
                               getattr(uso, "input_tokens", None), getattr(uso, "output_tokens", None))
