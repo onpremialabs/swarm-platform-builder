@@ -235,9 +235,15 @@ def test_el_redactor_la_resuelve_por_la_cascada_y_no_la_deja_fija():
 
 @pytest.mark.parametrize("agente", ["investigador", "revisor", "formateador"])
 def test_los_demas_agentes_no_cambian_de_comportamiento(agente):
-    """No resuelven ni pasan el tope de salida: siguen con el defecto del proveedor."""
+    """No resuelven ni pasan el tope de salida: siguen con el defecto del proveedor.
+
+    El Revisor (T24.11) sí resuelve su ventana (`num_ctx`) y su tiempo por la cascada, pero
+    tampoco fija un tope de salida.
+    """
     fuente = (ROOT_DIR / "app" / "modules" / "agents" / "adapters" / f"{agente}.py").read_text(encoding="utf-8")
-    assert "max_output_tokens" not in fuente and "resolve_agent_num_ctx" not in fuente
+    assert "max_output_tokens" not in fuente
+    if agente != "revisor":
+        assert "resolve_agent_num_ctx" not in fuente
 
 
 # ── Validación al cargar el perfil ──────────────────────────────────────────
