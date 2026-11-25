@@ -43,6 +43,14 @@ CON_CITAS = (
     "La evolución automática no supera las líneas base [F2].\n"
 )
 
+# T24.10: el Redactor exige las secciones del gate; los borradores de prueba las traen.
+_RESTO = (
+    "\n## Metodología\n\nSe revisó la literatura.\n\n## Resultados\n\nLos hallazgos se resumen arriba.\n"
+    "\n## Discusión\n\nLimitaciones: corpus pequeño.\n"
+)
+SIN_CITAS += _RESTO
+CON_CITAS += _RESTO
+
 PROMPTS: list = []
 
 
