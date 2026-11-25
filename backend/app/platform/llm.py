@@ -37,6 +37,25 @@ class TransientLLMError(RuntimeError):
     """
 
 
+class LLMTimeoutError(TransientLLMError):
+    """El proveedor no respondió dentro del límite (SPEC-036 / T24.11 / AC12).
+
+    Sigue siendo transitoria para quien no distingue, pero se puede identificar: reintentar con
+    **el mismo** límite repite el mismo fallo (un borrador largo agotó 45 s cuatro veces, 20
+    minutos). Quien la quiere tratar aparte pide ``retry_on_timeout=False`` y decide él si sube
+    el presupuesto.
+    """
+
+    def __init__(self, message: str, timeout: Optional[float] = None):
+        super().__init__(message)
+        self.timeout = timeout
+
+
+def _is_sdk_timeout(exc: BaseException) -> bool:
+    """`APITimeoutError` de los SDK de Anthropic/OpenAI (hereda de `APIConnectionError`)."""
+    return type(exc).__name__ == "APITimeoutError"
+
+
 def _retry_params() -> tuple[int, float, float]:
     """Read retry tuning from settings, tolerating older configs without the keys."""
     from app.core.config import settings
@@ -62,11 +81,14 @@ def _backoff_delay(attempt: int, base_delay: float, max_delay: float) -> float:
     return random.uniform(0.0, raw)
 
 
-async def _retry_async(factory: Callable[[], Awaitable[T]], *, what: str) -> T:
+async def _retry_async(
+    factory: Callable[[], Awaitable[T]], *, what: str, retry_on_timeout: bool = True
+) -> T:
     """Run an async LLM call, retrying transient failures with backoff.
 
     ``factory`` must return a *fresh* awaitable on each call (so each attempt is a
     new request). Permanent errors (non-``TransientLLMError``) propagate immediately.
+    ``retry_on_timeout=False`` also propagates a timeout at once (T24.11).
     """
     max_retries, base_delay, max_delay = _retry_params()
     attempt = 0
@@ -74,6 +96,9 @@ async def _retry_async(factory: Callable[[], Awaitable[T]], *, what: str) -> T:
         try:
             return await factory()
         except TransientLLMError as exc:
+            if isinstance(exc, LLMTimeoutError) and not retry_on_timeout:
+                logger.error("%s timed out and is not retried with the same limit: %s", what, exc)
+                raise
             if attempt >= max_retries:
                 logger.error("%s failed after %d attempt(s): %s", what, attempt + 1, exc)
                 raise
@@ -410,6 +435,46 @@ def resolve_agent_max_output_tokens(
     return min(valor, model_context_window(model)) if model else valor
 
 
+#: Tiempo de espera (T24.11): validación y cascada, como `num_ctx`. Sin defecto aquí: lo pone
+#: quien dimensiona (`platform/review_budget.py`), que conoce el tamaño del prompt.
+MIN_TIMEOUT_SEGUNDOS = 5.0
+
+
+def validate_timeout(clave: str, valor) -> float:
+    """Valida un tiempo de espera en segundos (`timeout_seconds`) y lo devuelve como float."""
+    if isinstance(valor, bool) or not isinstance(valor, (int, float, str)):
+        raise ValueError(f"'{clave}' debe ser un número de segundos positivo (recibido {valor!r})")
+    try:
+        numero = float(valor)
+    except (TypeError, ValueError):
+        raise ValueError(f"'{clave}' debe ser un número de segundos positivo (recibido {valor!r})") from None
+    if numero != numero or numero in (float("inf"), float("-inf")):
+        raise ValueError(f"'{clave}' debe ser un número finito (recibido {valor!r})")
+    if numero < MIN_TIMEOUT_SEGUNDOS:
+        raise ValueError(f"'{clave}' debe ser al menos {MIN_TIMEOUT_SEGUNDOS:g} s (recibido {numero:g})")
+    return numero
+
+
+def resolve_agent_timeout(agent_name: str, agent_settings: Optional[dict] = None) -> Optional[float]:
+    """Tiempo de espera configurado del agente, o `None` si nadie lo fijó (T24.11 / AC12).
+
+    Misma cascada que el modelo: ajustes de la ejecución -> ``.agent.md``. Un valor inválido se
+    ignora con aviso y cae al siguiente escalón.
+    """
+    cfg = (agent_settings or {}).get(agent_name, {}) or {}
+    for fuente, valor in (
+        ("los ajustes de la ejecución", cfg.get("timeout_seconds")),
+        ("el perfil .agent.md", _load_agent_frontmatter(agent_name).get("timeout_seconds")),
+    ):
+        if valor is None:
+            continue
+        try:
+            return validate_timeout("timeout_seconds", valor)
+        except ValueError as error:
+            logger.warning("timeout_seconds de %s para '%s' ignorado: %s", fuente, agent_name, error)
+    return None
+
+
 def enlarge_output_budget(
     num_ctx: int, max_tokens: Optional[int], model: Optional[str], provider: Optional[str] = None
 ) -> tuple:
@@ -496,6 +561,7 @@ async def call_llm(
     num_ctx: Optional[int] = None,
     temperature: Optional[float] = None,
     max_tokens: Optional[int] = None,
+    retry_on_timeout: bool = True,
 ) -> str:
     """Call the configured LLM provider and return the generated text.
 
@@ -521,6 +587,9 @@ async def call_llm(
             límite, y un modelo pequeño que entra en bucle genera hasta el
             timeout —la síntesis del investigador se quedaba así 10 minutos por
             intento, y el timeout se reintenta—.
+        retry_on_timeout: ``False`` propaga un tiempo agotado (``LLMTimeoutError``) sin
+            reintentarlo con el mismo límite (T24.11). El resto de fallos transitorios se
+            reintenta igual.
 
     Returns:
         The generated text, stripped of leading/trailing whitespace.
@@ -565,6 +634,7 @@ async def call_llm(
                 temperature=temperature,
             ),
             what=f"Anthropic call ({resolved_model})",
+            retry_on_timeout=retry_on_timeout,
         ))
 
     if provider == "openai":
@@ -578,6 +648,7 @@ async def call_llm(
                 max_tokens=max_tokens,
             ),
             what=f"OpenAI call ({resolved_model})",
+            retry_on_timeout=retry_on_timeout,
         ))
 
     # Default: Ollama
@@ -592,6 +663,7 @@ async def call_llm(
             max_tokens=max_tokens,
         ),
         what=f"Ollama call ({resolved_model})",
+            retry_on_timeout=retry_on_timeout,
     ))
 
 
@@ -733,9 +805,9 @@ async def _call_ollama(
             _record_usage("ollama", model, datos.get("prompt_eval_count"), datos.get("eval_count"))
             return text
     except httpx.TimeoutException as exc:
-        raise TransientLLMError(
+        raise LLMTimeoutError(
             f"Ollama request timed out after {timeout:.0f}s — "
-            "consider a faster model or a higher timeout"
+            "consider a faster model or a higher timeout", timeout=timeout,
         ) from exc
     except httpx.RequestError as exc:
         raise TransientLLMError(f"Ollama unavailable: {exc}") from exc
@@ -859,6 +931,8 @@ async def _call_openai(
             "OpenAI authentication failed — check OPENAI_API_KEY"
         ) from exc
     except APIConnectionError as exc:
+        if _is_sdk_timeout(exc):
+            raise LLMTimeoutError(f"OpenAI request timed out after {timeout:.0f}s", timeout=timeout) from exc
         raise TransientLLMError(f"Could not reach the OpenAI endpoint: {exc}") from exc
     except APIError as exc:
         err = f"OpenAI API error (status {exc.status_code}): {exc.message}"
@@ -1100,6 +1174,8 @@ def _classify_anthropic_error(exc, errors) -> Exception:
     if isinstance(exc, RateLimitError):
         return TransientLLMError(f"Anthropic rate limit (429): {exc}")
     if isinstance(exc, APIConnectionError):
+        if _is_sdk_timeout(exc):
+            return LLMTimeoutError(f"Anthropic request timed out: {exc}")
         return TransientLLMError(f"No se pudo contactar con el endpoint de Anthropic: {exc}")
     if isinstance(exc, (APIStatusError, APIError)):
         status = getattr(exc, "status_code", None)

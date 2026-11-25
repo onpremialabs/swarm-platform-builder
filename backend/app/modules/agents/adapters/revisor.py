@@ -5,7 +5,13 @@ from typing import Dict, Any
 
 from app.core.config import settings
 from app.platform.capabilities.binding import provider
-from app.platform.llm import call_llm, resolve_agent_model, resolve_agent_temperature
+import time
+
+from app.platform import review_budget
+from app.platform.llm import (
+    LLMTimeoutError, call_llm, resolve_agent_model, resolve_agent_num_ctx,
+    resolve_agent_temperature, resolve_agent_timeout,
+)
 from app.platform.publication_gate.review import (
     APPROVAL_THRESHOLD,
     REVIEW_NOT_VERIFIED,
@@ -71,12 +77,60 @@ async def run_revisor(state: Dict[str, Any]) -> Dict[str, Any]:
     review_status = REVIEW_NOT_VERIFIED
     motivo = ""
 
+    # Ventana y tiempo (T24.11 / AC12): ya no están fijos en el código. La cascada (ajustes de la
+    # ejecución -> .agent.md -> defecto) pone el mínimo y el borrador decide cuánto hace falta,
+    # con la ventana del modelo como techo.
+    ajustes = state.get("agent_settings")
+    presupuesto = review_budget.size_review_budget(
+        prompt, model=model,
+        configured_ctx=resolve_agent_num_ctx("revisor", ajustes, model),
+        configured_timeout=resolve_agent_timeout("revisor", ajustes),
+    )
+    traza_presupuesto: Dict[str, Any] = {
+        **presupuesto.as_trace(), "model": model, "timeout_retries": 0, "elapsed_seconds": 0.0,
+        "outcome": "ok",
+    }
+    log(f"🧮 Presupuesto de revisión — prompt ≈{presupuesto.prompt_tokens} tokens, "
+        f"num_ctx {presupuesto.num_ctx} (ventana del modelo {presupuesto.model_window}), "
+        f"timeout {presupuesto.timeout:.0f}s")
+
     try:
+        if not presupuesto.fits:
+            # No se envía recortado: Ollama descartaría texto sin avisar y el modelo puntuaría un
+            # borrador que no vio entero. Se falla cerrado con el motivo (SPEC-032/AC15).
+            traza_presupuesto["outcome"] = "prompt_exceeds_window"
+            raise RuntimeError(
+                f"el prompt (≈{presupuesto.prompt_tokens} tokens + {presupuesto.output_margin} de salida) "
+                f"no cabe en la ventana de {presupuesto.model_window} tokens de {model}; no se envía "
+                "recortado. Usa un modelo con más ventana para el Revisor o acorta el borrador"
+            )
         evaluar = provider(state, "llm", call_llm)
-        raw_response = await evaluar(
-            prompt, model=model, timeout=45.0, num_ctx=4096, keep_alive=0,
-            temperature=temperature,
-        )
+        timeout = presupuesto.timeout
+        inicio = time.perf_counter()
+        while True:
+            try:
+                raw_response = await evaluar(
+                    prompt, model=model, timeout=timeout, num_ctx=presupuesto.num_ctx, keep_alive=0,
+                    temperature=temperature, retry_on_timeout=False,
+                )
+                break
+            except LLMTimeoutError:
+                # Repetir con el mismo límite repite el fallo: se sube el presupuesto una vez o
+                # se falla con motivo.
+                traza_presupuesto["elapsed_seconds"] = round(time.perf_counter() - inicio, 1)
+                mayor = review_budget.raised_timeout(timeout)
+                if traza_presupuesto["timeout_retries"] >= 1 or mayor is None:
+                    traza_presupuesto["outcome"] = "timeout"
+                    raise RuntimeError(
+                        f"tiempo agotado tras {traza_presupuesto['timeout_retries']} reintento(s) "
+                        f"(último límite {timeout:.0f}s, {traza_presupuesto['elapsed_seconds']}s consumidos); "
+                        "sube 'timeout_seconds' del Revisor o usa un modelo más rápido"
+                    )
+                log(f"⏳ Tiempo agotado a los {timeout:.0f}s: se reintenta una vez con {mayor:.0f}s.", "warning")
+                traza_presupuesto["timeout_retries"] += 1
+                traza_presupuesto["timeout"] = round(mayor, 1)
+                timeout = mayor
+        traza_presupuesto["elapsed_seconds"] = round(time.perf_counter() - inicio, 1)
         json_match = re.search(r"\{.*\}", raw_response or "", re.DOTALL)
         if not json_match:
             motivo = "la respuesta no contiene un JSON"
@@ -132,6 +186,7 @@ async def run_revisor(state: Dict[str, Any]) -> Dict[str, Any]:
         "loop_count": new_loop_count,
         "coherent": coherent,
         "review_status": review_status,
+        "review_budget": traza_presupuesto,
         # Always reset the per-pass decision so a stale value can't re-trigger routing.
         "user_decision": None,
     }

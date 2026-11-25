@@ -107,7 +107,7 @@ def _validar_limites_perfil(nombre: str, ruta: Path) -> None:
     carga, con el nombre del agente y del campo. Un valor por encima de la ventana del modelo
     **no** es error: se acota al resolverlo, porque el modelo depende del proveedor activo.
     """
-    from app.platform.llm import validate_output_limit  # local: llm importa capacidades
+    from app.platform.llm import validate_output_limit, validate_timeout  # local: llm importa capacidades
 
     texto = ruta.read_text(encoding="utf-8")
     if not texto.startswith("---"):
@@ -126,6 +126,11 @@ def _validar_limites_perfil(nombre: str, ruta: Path) -> None:
             continue
         try:
             validate_output_limit(clave, cabecera[clave])
+        except ValueError as error:
+            raise TemplateError(f"'{nombre}': perfil '{ruta.name}': {error}") from error
+    if cabecera.get("timeout_seconds") is not None:
+        try:
+            validate_timeout("timeout_seconds", cabecera["timeout_seconds"])
         except ValueError as error:
             raise TemplateError(f"'{nombre}': perfil '{ruta.name}': {error}") from error
 

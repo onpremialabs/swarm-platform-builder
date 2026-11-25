@@ -290,6 +290,10 @@ def decision_of(salida: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     }
     if status is not None:
         decision["review_status"] = status
+    # Presupuesto del Revisor (SPEC-036 / T24.11 / AC12): ventana, límite de tiempo, reintentos
+    # y tiempo consumido; si el prompt no cabía, aquí queda el porqué.
+    if isinstance(salida.get("review_budget"), dict):
+        decision["review_budget"] = salida["review_budget"]
     return decision
 
 
