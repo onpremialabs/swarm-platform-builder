@@ -85,6 +85,21 @@ que acompaña. Evidencia:
   texto no tiene citas o cuyo mapa no se pudo guardar queda `not_verified` (falla cerrada)
   y lo dice, no se omite en silencio; *And* una ejecución sin `gate.citation_support`
   declarado se comporta como antes.
+- [ ] **AC10** — *Given* un borrador con afirmaciones sustantivas y fragmentos citables
+  con marcador `[F#]` *When* termina el Redactor *Then* el texto **cita con el marcador
+  `[F#]`** y no con otro formato: una cita autor-año inventada («(Título, 2024)», con el
+  título de la obra como autor o un año que no es el de la ficha) **no es una cita válida** y
+  se trata como cita sin fragmento. *And* si el borrador no contiene ninguna cita `[F#]`
+  habiendo fragmentos citables, el adapter lo **detecta**, reintenta una vez con un
+  recordatorio explícito del formato y, si persiste, lo registra en la traza como
+  `no_citations` y avisa al Revisor y al autor (no falla el paso: la compuerta
+  `citation_support` sigue en modo aviso). *And* el prompt por defecto del Redactor
+  (es/en) muestra un ejemplo del formato `[F#]` y prohíbe las citas autor-año. *And* se
+  **diagnostica y documenta** por qué una ejecución completa con `qwen3.5:9b` produjo 0
+  citas `[F#]` pese a tener fragmentos (marcadores ausentes del contexto del Redactor tras
+  las sub-preguntas de SPEC-034/AC18, o el modelo los ignora) y se corrige si la causa es
+  del contexto. *And* hay un caso de prueba con un borrador que cita «(HarnessDev, 2024)»
+  y ningún `[F#]` que se marca como sin citas válidas.
 
 ## 4. Diseño propuesto
 
@@ -184,4 +199,9 @@ tasks:
     sev: high
     depends_on: [T23.1, T23.2, T23.3, T23.6]
     acceptance: [AC1, AC6, AC9]
+  - id: T23.9
+    title: "Redactor: exigir citas [F#] en el cuerpo, rechazar autor-año inventadas, reintentar y diagnosticar el contexto"
+    sev: high
+    depends_on: [T23.1, T23.8]
+    acceptance: [AC10]
 ```
