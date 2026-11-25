@@ -47,6 +47,12 @@
   con `score` y estado por eje (rigor metodológico, soporte de afirmaciones,
   claridad, estructura, limitaciones) con **una cita textual** que justifica cada
   eje; la respuesta se valida con esquema.
+  *And* el prompt del Revisor **no le asigna una identidad ajena a la revisión científica**
+  (hoy empieza con «Senior Software Engineer Expert in LLMOps… stack: Python, FastAPI,
+  LangGraph, Qdrant»): el rol es el de un revisor de revista y los únicos criterios son los
+  ejes de la rúbrica. *And* hay un caso de prueba con un borrador teórico sin código ni
+  referencia a ninguna pila tecnológica, que no se penaliza ni recibe comentarios que pidan
+  código, esquemas de datos o pseudocódigo.
 - [ ] **AC2** — *Given* una respuesta no válida *When* se reintenta una vez *Then*
   si sigue sin cumplir el esquema el resultado es `not_verified` y **no aprueba**
   (falla cerrada, coherente con T20.7).
@@ -148,6 +154,12 @@
   En dos ejecuciones de punta a punta ese segundo intento acabó además sin cierre de frase.
   Cada ejecución pierde así un intento entero. Misma solución que AC12, con
   `platform/review_budget.py` como base.
+- **Identidad del Revisor (AC1):** observado en una prueba de punta a punta con
+  `qwen3.5:9b` (2026-11-25): con un borrador completo de 2101 palabras el Revisor puntuó 72 y
+  su feedback pedía «ejemplos de código, esquemas de datos para Qdrant, pseudocódigo» y tachaba
+  de «futuras o hipotéticas» las referencias de 2026; viene del prompt de `revisor.py`, que le
+  asigna la identidad de ingeniero de LLMOps con una pila concreta. La reescritura de la
+  rúbrica (T24.1) sustituye ese prompt entero.
 - **Plantilla:** `review_loops[].require_distinct_model` (por defecto `true` en
   proyectos de paper); validación en `platform/projects/`.
 - **Frontend:** `AgentsPage.jsx` muestra el aviso de modelo; el historial muestra la
