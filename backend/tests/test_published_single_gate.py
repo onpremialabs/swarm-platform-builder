@@ -194,6 +194,7 @@ def _llm_falso(monkeypatch, cuerpo):
         return '{"approval_score": 95, "feedback": []}'
 
     async def llm_stream(prompt, **kwargs):
+        __import__("app.platform.llm", fromlist=["x"])._anotar_motivo_parada("stop")  # el proveedor declara fin natural
         for t in cuerpo.splitlines(keepends=True):
             yield t
 

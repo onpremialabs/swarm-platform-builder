@@ -36,6 +36,13 @@ PERFILES = ROOT_DIR / "projects" / "alejandria-magazine" / "agents"
 #: Los agentes que invocan al LLM. Orquestador y publicador no (SPEC-023/AC4).
 AGENTES_CON_LLM = ("investigador", "redactor", "revisor", "formateador")
 
+#: Un borrador entero (SPEC-036/AC10): el Redactor ya no deja pasar texto sin las cinco
+#: secciones ni cerrado, así que el doble de streaming tiene que parecerse a un borrador.
+BORRADOR_COMPLETO = (
+    "# Titulo\n\n## Resumen\n\nTexto del resumen.\n\n## Introducción\n\nTexto.\n\n"
+    "## Metodología\n\nTexto.\n\n## Resultados\n\nTexto.\n\n## Discusión\n\nCierre."
+)
+
 
 @pytest.fixture
 def proveedor(monkeypatch):
@@ -171,8 +178,8 @@ async def test_el_redactor_manda_su_temperatura_por_el_camino_de_streaming(prove
 
     async def _falso(prompt, **kwargs):
         recibido.update(kwargs)
-        for token in ("palabra " * 400).split():
-            yield token + " "
+        for token in BORRADOR_COMPLETO.splitlines(keepends=True):
+            yield token
 
     monkeypatch.setattr(redactor, "call_llm_stream", _falso)
     await redactor.run_redactor({

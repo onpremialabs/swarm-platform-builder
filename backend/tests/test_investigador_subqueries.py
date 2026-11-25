@@ -233,6 +233,7 @@ def test_el_redactor_recibe_las_secciones_sin_cobertura_y_no_las_rellena():
 
     async def llm(prompt, **kw):
         prompts.append(prompt)
+        __import__("app.platform.llm", fromlist=["x"])._anotar_motivo_parada("stop")  # el proveedor declara fin natural
         yield "Texto."
 
     async def buscar(**kw):

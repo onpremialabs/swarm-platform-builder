@@ -99,6 +99,37 @@ def _leer_yaml(ruta: Path) -> Dict[str, Any]:
     return datos
 
 
+def _validar_limites_perfil(nombre: str, ruta: Path) -> None:
+    """Valida al cargar los límites de salida del perfil (SPEC-036 / T24.9 / AC10).
+
+    `num_ctx` y `max_output_tokens` los escribe una persona: un `num_ctx: abc` o un `-5` no
+    puede descubrirse a mitad de una ejecución, con el artículo escrito a medias. Aquí falla la
+    carga, con el nombre del agente y del campo. Un valor por encima de la ventana del modelo
+    **no** es error: se acota al resolverlo, porque el modelo depende del proveedor activo.
+    """
+    from app.platform.llm import validate_output_limit  # local: llm importa capacidades
+
+    texto = ruta.read_text(encoding="utf-8")
+    if not texto.startswith("---"):
+        return
+    partes = texto.split("---", 2)
+    if len(partes) < 3:
+        return
+    try:
+        cabecera = yaml.safe_load(partes[1]) or {}
+    except yaml.YAMLError:
+        return  # un frontmatter ilegible ya lo trata quien lo lee; no es de este límite
+    if not isinstance(cabecera, dict):
+        return
+    for clave in ("num_ctx", "max_output_tokens"):
+        if cabecera.get(clave) is None:
+            continue
+        try:
+            validate_output_limit(clave, cabecera[clave])
+        except ValueError as error:
+            raise TemplateError(f"'{nombre}': perfil '{ruta.name}': {error}") from error
+
+
 def _agentes(datos: Dict[str, Any], raiz: Path) -> Tuple[Tuple[AgentSpec, ...], Dict[str, Path]]:
     crudos = datos.get("agents") or []
     _exigir(isinstance(crudos, list) and crudos, "La plantilla no declara ningún agente")
@@ -139,6 +170,7 @@ def _agentes(datos: Dict[str, Any], raiz: Path) -> Tuple[Tuple[AgentSpec, ...], 
                 f"'{nombre}': el perfil '{perfil}' apunta fuera del proyecto",
             )
             perfiles[nombre] = ruta_perfil
+            _validar_limites_perfil(nombre, ruta_perfil)
 
         especificaciones.append(AgentSpec(
             name=nombre,
