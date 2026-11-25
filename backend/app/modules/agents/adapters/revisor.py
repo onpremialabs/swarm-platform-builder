@@ -37,10 +37,19 @@ async def run_revisor(state: Dict[str, Any]) -> Dict[str, Any]:
     logger.info(f"Running Revisor Agent with model: {model}")
     log(f"👁️ Evaluando borrador — modelo: {model} | iteración: {loop_count + 1} | {len(draft_text.split())} palabras")
 
+    # T23.9: el Redactor no citó con [F#] habiendo fragmentos citables: se le dice al revisor.
+    sin_citas = bool((state.get("citation_check") or {}).get("no_citations"))
+    aviso_citas = (
+        "NOTE: the draft contains NO valid [F#] fragment citations although citable fragments were "
+        "available (author-year citations like (Author, 2024) are not valid). Flag it in your feedback.\n\n"
+        if sin_citas else ""
+    )
+
     prompt = (
         f"Identity: You are a Senior Software Engineer Expert in LLMOps and multi-agent systems.\n"
         f"Exact technology stack: Python, FastAPI, LangGraph (v2), Qdrant and a local inference engine (like Ollama/vLLM).\n\n"
         f"You are acting as a peer reviewer for a scientific journal. Evaluate the following draft.\n\n"
+        f"{aviso_citas}"
         f"Draft Content:\n{draft_text}\n\n"
         f"Evaluate the draft for scientific rigor, clarity, structure, academic style, and especially "
         f"COHERENCE (does it stay on-topic, are the arguments internally consistent, do the sections "
@@ -88,6 +97,13 @@ async def run_revisor(state: Dict[str, Any]) -> Dict[str, Any]:
                 motivo = f"JSON no interpretable: {parse_err}"
     except Exception as e:
         motivo = f"fallo del LLM: {e}"
+
+    if sin_citas and review_status == REVIEW_OK:
+        # Determinista: no depende de que el modelo lo mencione. No cambia la puntuación.
+        feedback = list(feedback) + [
+            "El borrador no cita ningún fragmento con el marcador [F#] (las citas autor-año no son válidas): "
+            "cita cada afirmación sustantiva con [F#]."
+        ]
 
     if review_status != REVIEW_OK:
         logger.error("Revisor: revisión no verificada — %s", motivo)

@@ -575,4 +575,20 @@ async def run_investigador(state: Dict[str, Any]) -> Dict[str, Any]:
         + "\n\n---\n\n" + "\n\n---\n\n".join(research_chunks)
     )
     log(f"📦 Investigación completada: {len(sources)} fuente(s), {len(research_chunks)} fragmento(s).")
-    return {"research_data": research_data, "sources": sources, "research_coverage": research_coverage}
+    # Los fragmentos sustantivos citables, estructurados (T23.9): el Redactor les asigna marcador
+    # [F#] y los cita por él. Sin esto, lo que `research_data` lleva como «[Fuente: Título]» no
+    # tiene marcador y el modelo lo cita como autor-año.
+    research_fragments = [
+        {
+            "doc_id": i["_doc_id"],
+            "chunk_id": i.get("chunk_id"),
+            "chunk_index": i.get("chunk_index"),
+            "filename": por_doc[i["_doc_id"]]["filename"],
+            "text": i.get("text", ""),
+            "origin": (f"[Sub-pregunta {(i.get('subqueries') or [subq.TITULO])[0]}: "
+                       f"{etiquetas_q.get((i.get('subqueries') or [subq.TITULO])[0], 'título')}]"),
+        }
+        for i in _ordenar_por_subpregunta(sustantivos_citables)
+    ]
+    return {"research_data": research_data, "sources": sources, "research_coverage": research_coverage,
+            "research_fragments": research_fragments}

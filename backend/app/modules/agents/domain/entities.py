@@ -39,6 +39,11 @@ class AgentState(TypedDict):
     abstention: Dict[str, Any]
     # Sub-preguntas de sección y cobertura por sección del Investigador (SPEC-034/T22.17/AC18).
     research_coverage: Dict[str, Any]
+    # Fragmentos sustantivos citables del Investigador, estructurados (T23.9): el Redactor les
+    # asigna el marcador [F#] para que lo que cita el Investigador y lo que cita el Redactor sea lo mismo.
+    research_fragments: List[Dict[str, Any]]
+    # Resultado de la comprobación de citas del Redactor (T23.9): {no_citations, retried, author_year, ...}.
+    citation_check: Dict[str, Any]
     # La compuerta de publicación bloqueó el texto final y qué criterios (SPEC-032/AC14)
     gate_failed: bool
     gate_blockers: List[Dict[str, Any]]
