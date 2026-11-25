@@ -65,7 +65,8 @@ PROMPTS = []
 async def _llm(prompt, **kw):
     PROMPTS.append(prompt)
     __import__("app.platform.llm", fromlist=["x"])._anotar_motivo_parada("stop")  # el proveedor declara fin natural
-    yield "Texto citado [F1] y falso [F7]."
+    # Borrador entero (T24.10): con parada normal la heuristica igual exige las secciones.
+    yield "## Introducción\n\nTexto.\n\n## Metodología\n\nTexto.\n\n## Resultados\n\nTexto.\n\n## Discusión\n\n" + "Texto citado [F1] y falso [F7]."
 
 
 def test_el_redactor_solo_ofrece_fragmentos_de_sources_y_devuelve_el_mapa():

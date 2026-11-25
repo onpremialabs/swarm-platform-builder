@@ -1,47 +1,69 @@
-"""Detección de borradores truncados (SPEC-036 / T24.9 / AC10).
+"""Detección de borradores truncados (SPEC-036 / T24.9 / AC10 y T24.10 / AC11).
 
 Un modelo que se queda sin presupuesto de salida no da error: devuelve lo que llevaba, con
 una respuesta HTTP 200. En una prueba de punta a punta con `qwen3.5:9b` el borrador acabó en
 «…métricas como el tiempo de», sin Discusión, y siguió al Revisor y al Publicador como si
-estuviera entero. Esto es lo que lo distingue.
+estuviera entero. Y con `num_ctx=16384` acabó en «(HarnessDev, 2024», sin Discusión, **con
+parada normal**: el proveedor no vio corte alguno. Por eso:
 
-Dos señales, en este orden de confianza:
+* **La heurística se aplica siempre** (AC11): faltan secciones obligatorias o el texto acaba
+  sin cierre de frase. No depende de lo que diga el proveedor.
+* **El motivo de parada solo añade una señal**: si es de corte (`length` / `max_tokens`) se
+  suma `stop_reason` a `signals` y manda como `signal` principal; si es una parada normal no
+  exculpa al texto.
 
-1. **El motivo de parada del proveedor** (`length` / `max_tokens`): lo declara quien cortó, no
-   se infiere. Si lo dice, es truncado y no hace falta mirar el texto.
-2. **Una heurística determinista** para cuando el proveedor no lo dice (un doble de pruebas,
-   una pasarela que no lo propaga): faltan secciones obligatorias del IMRaD o el texto acaba
-   sin cierre de frase.
+Las secciones obligatorias **no están en este módulo**: salen de `gate.structure`
+(`sections` + `titles` por idioma) de la plantilla del proyecto, y un título vale si está en
+**cualquiera** de los idiomas declarados (una variante o un idioma distinto al configurado no
+es un falso positivo). Quien llama las resuelve con `required_sections(...)`. Sin
+plantilla/compuerta no hay secciones que exigir y solo cuenta el cierre de frase.
 
-La heurística **no se aplica cuando el proveedor declaró un motivo de parada distinto de
-truncado**: si dijo `stop`, el modelo terminó por su voluntad y un final raro es estilo, no
-corte. Es una función pura: no llama a nadie y se prueba sin pipeline.
+`references` no se exige al Redactor (`SECCIONES_FUERA_DEL_REDACTOR`): la lista de
+referencias la construye el Formateador en código a partir de las fuentes y el prompt del
+Redactor no la pide.
+
+Es una función pura: no llama a nadie y se prueba sin pipeline.
 """
 from __future__ import annotations
 
 import re
-from typing import Dict, List, Optional
+import unicodedata
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from app.platform.llm import MOTIVOS_TRUNCADO
 
-#: Secciones obligatorias del manuscrito, por idioma: alternativas por sección (el modelo puede
-#: llamar «Metodología» a «Métodos»). Coinciden con las que pide el prompt del Redactor.
-SECCIONES_IMRAD = {
-    "es": (
-        ("Resumen", ("resumen", "abstract")),
-        ("Introducción", ("introducción", "introduccion")),
-        ("Metodología", ("metodología", "metodologia", "métodos", "metodos", "materiales y métodos")),
-        ("Resultados", ("resultados",)),
-        ("Discusión", ("discusión", "discusion")),
-    ),
-    "en": (
-        ("Abstract", ("abstract", "resumen")),
-        ("Introduction", ("introduction", "introducción")),
-        ("Methodology", ("methodology", "methods", "materials and methods", "metodología")),
-        ("Results", ("results", "resultados")),
-        ("Discussion", ("discussion", "discusión")),
-    ),
-}
+#: Secciones del `gate.structure` que **no** escribe el Redactor: las añade un paso posterior.
+SECCIONES_FUERA_DEL_REDACTOR = frozenset({"references"})
+
+#: Una sección obligatoria: (clave de la plantilla, títulos aceptados ya normalizados).
+Seccion = Tuple[str, Tuple[str, ...]]
+
+
+def _norm(texto: str) -> str:
+    t = unicodedata.normalize("NFKD", texto).encode("ascii", "ignore").decode().lower()
+    t = re.sub(r"^[\d.\s)\-]+", "", t)
+    return re.sub(r"[^a-z0-9 ]+", " ", t).strip()
+
+
+def required_sections(gate: Any) -> List[Seccion]:
+    """Secciones que debe traer el borrador según `gate.structure` (duck-typing de `GateConfig`).
+
+    Cada una acepta los títulos de **todos** los idiomas declarados. `[]` si no hay compuerta
+    o no declara títulos.
+    """
+    if gate is None:
+        return []
+    titulos = getattr(gate, "titles", None) or {}
+    resultado: List[Seccion] = []
+    for clave in getattr(gate, "sections", ()) or ():
+        if clave in SECCIONES_FUERA_DEL_REDACTOR:
+            continue
+        aceptados = tuple(sorted({_norm(t) for por_idioma in titulos.values()
+                                  for t in (por_idioma.get(clave) or ()) if _norm(t)}))
+        if aceptados:
+            resultado.append((clave, aceptados))
+    return resultado
+
 
 #: Cómo puede acabar un texto entero: puntuación de cierre, con cierres de comillas/paréntesis/
 #: énfasis/cita `[F1]` detrás.
@@ -65,14 +87,20 @@ def _titulos(texto: str) -> List[str]:
     return encontrados
 
 
-def missing_sections(texto: str, language: str = "es") -> List[str]:
-    """Secciones obligatorias del IMRaD que el texto no tiene como encabezado."""
-    titulos = _titulos(texto)
-    faltan = []
-    for nombre, alternativas in SECCIONES_IMRAD.get((language or "es").lower(), SECCIONES_IMRAD["es"]):
-        if not any(t == alt or t.startswith(alt) for t in titulos for alt in alternativas):
-            faltan.append(nombre)
-    return faltan
+def missing_sections(texto: str, sections: Sequence[Seccion]) -> List[str]:
+    """Claves de las secciones obligatorias que el texto no tiene como encabezado.
+
+    Un encabezado que junta dos («Resultados y Discusión») cuenta para las dos: que estén
+    fundidas lo juzga la compuerta, no es un corte.
+    """
+    presentes = set()
+    for titulo in _titulos(texto):
+        norm = _norm(titulo)
+        trozos = [norm] + [p.strip() for p in re.split(r"\s+(?:y|and)\s+", norm) if p.strip()]
+        for clave, aceptados in sections:
+            if any(t == a or t.startswith(a + " ") for t in trozos for a in aceptados):
+                presentes.add(clave)
+    return [clave for clave, _ in sections if clave not in presentes]
 
 
 def ends_mid_sentence(texto: str) -> bool:
@@ -90,36 +118,33 @@ def detect_truncation(
     texto: str,
     stop_reason: Optional[str] = None,
     *,
-    language: str = "es",
-    require_sections: bool = True,
+    sections: Sequence[Seccion] = (),
 ) -> Optional[Dict[str, object]]:
     """Devuelve el diagnóstico si el texto está truncado, o `None` si parece entero.
 
-    ``require_sections=False`` para plantillas propias de la persona usuaria, que pueden pedir
-    otra estructura: entonces solo cuentan el motivo de parada y el cierre de frase.
+    ``sections`` son las obligatorias (`required_sections`); vacío para plantillas propias o
+    redacciones con esquema del autor, que pueden pedir otra estructura: entonces cuenta solo
+    el cierre de frase (y el motivo de parada de corte).
     """
     motivo = (stop_reason or "").lower() or None
-    if motivo in MOTIVOS_TRUNCADO:
-        return {"signal": "stop_reason", "stop_reason": motivo, "words": len((texto or "").split())}
-    if motivo is not None:
-        return None  # El proveedor dijo que terminó por su voluntad.
-
-    razones = []
+    corte = motivo in MOTIVOS_TRUNCADO
+    razones: List[str] = []
     faltan: List[str] = []
     if not (texto or "").strip():
         razones.append("empty")
     else:
-        if require_sections:
-            faltan = missing_sections(texto, language)
-            if faltan:
-                razones.append("missing_sections")
+        faltan = missing_sections(texto, sections) if sections else []
+        if faltan:
+            razones.append("missing_sections")
         if ends_mid_sentence(texto):
             razones.append("unterminated_sentence")
-    if not razones:
+    if not razones and not corte:
         return None
+    señales = (["stop_reason"] if corte else []) + (["heuristic"] if razones else [])
     return {
-        "signal": "heuristic",
-        "stop_reason": None,
+        "signal": señales[0],
+        "signals": señales,
+        "stop_reason": motivo,
         "reasons": razones,
         "missing_sections": faltan,
         "words": len((texto or "").split()),
@@ -129,9 +154,9 @@ def detect_truncation(
 
 def describe(diagnostico: Dict[str, object]) -> str:
     """Frase para el log y el mensaje de error: qué señal detectó el corte."""
-    if diagnostico.get("signal") == "stop_reason":
-        return f"el proveedor cortó por límite de salida (motivo de parada «{diagnostico['stop_reason']}»)"
     partes = []
+    if "stop_reason" in (diagnostico.get("signals") or [diagnostico.get("signal")]):
+        partes.append(f"el proveedor cortó por límite de salida (motivo de parada «{diagnostico['stop_reason']}»)")
     if "missing_sections" in (diagnostico.get("reasons") or []):
         partes.append("faltan secciones obligatorias: " + ", ".join(diagnostico["missing_sections"]))  # type: ignore[arg-type]
     if "unterminated_sentence" in (diagnostico.get("reasons") or []):

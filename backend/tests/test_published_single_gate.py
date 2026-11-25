@@ -168,7 +168,10 @@ FUENTE = {"title": "Deep learning", "authors": "LeCun, Bengio, Hinton", "year": 
 RAPIDO = ["redactor", "revisor", "publicador"]
 IMRAD = "\n\n".join(f"## {t}\nTexto." for t in
                     ("Introducción", "Metodología", "Resultados", "Discusión", "Referencias")) + "\n"
-INCOMPLETO = "## Introducción\nTexto.\n\n## Referencias\nLista.\n"
+# Entero para el Redactor (T24.10: uno incompleto ya no llega aqui) pero con el orden roto: la
+# compuerta lo bloquea (`out_of_order`).
+INCOMPLETO = "\n\n".join(f"## {t}\nTexto." for t in
+                         ("Metodología", "Introducción", "Resultados", "Discusión", "Referencias")) + "\n"
 
 
 @pytest.fixture

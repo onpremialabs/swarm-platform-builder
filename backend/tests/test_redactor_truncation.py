@@ -64,23 +64,62 @@ def test_el_motivo_de_parada_del_proveedor_manda_sobre_el_texto():
     assert draft_integrity.detect_truncation(COMPLETO, "max_tokens")["signal"] == "stop_reason"
 
 
-def test_un_stop_normal_no_se_cuestiona_por_la_heuristica():
-    assert draft_integrity.detect_truncation("sin secciones y sin punto", "stop") is None
+def _secciones():
+    from app.modules.agents.domain import alejandria
+    return draft_integrity.required_sections(alejandria.package().gate)
+
+
+def test_un_stop_normal_ya_no_exculpa_al_texto_cortado():
+    """AC11: la heurística se aplica siempre; la parada normal no la apaga."""
+    d = draft_integrity.detect_truncation(CORTADO, "stop", sections=_secciones())
+    assert d["signal"] == "heuristic" and d["signals"] == ["heuristic"] and d["stop_reason"] == "stop"
+    assert "discussion" in d["missing_sections"]
+
+
+def test_el_caso_harnessdev_con_parada_normal_es_truncado():
+    texto = COMPLETO.split("## Discusión")[0] + "Como en (HarnessDev, 2024"
+    d = draft_integrity.detect_truncation(texto, "stop", sections=_secciones())
+    assert d is not None and "unterminated_sentence" in d["reasons"]
+    assert d["missing_sections"] == ["discussion"]
+
+
+def test_el_corte_del_proveedor_suma_su_senal_a_la_heuristica():
+    d = draft_integrity.detect_truncation(CORTADO, "length", sections=_secciones())
+    assert d["signal"] == "stop_reason" and d["signals"] == ["stop_reason", "heuristic"]
 
 
 def test_sin_motivo_la_heuristica_ve_el_corte_a_mitad_de_frase():
-    diagnostico = draft_integrity.detect_truncation(CORTADO, None)
+    diagnostico = draft_integrity.detect_truncation(CORTADO, None, sections=_secciones())
     assert diagnostico["signal"] == "heuristic"
     assert "unterminated_sentence" in diagnostico["reasons"]
-    assert "Discusión" in diagnostico["missing_sections"]
+    assert "discussion" in diagnostico["missing_sections"]
 
 
 def test_un_borrador_entero_no_se_marca():
-    assert draft_integrity.detect_truncation(COMPLETO, None) is None
+    for motivo in (None, "stop"):
+        assert draft_integrity.detect_truncation(COMPLETO, motivo, sections=_secciones()) is None
 
 
-def test_una_plantilla_propia_no_exige_el_imrad():
-    assert draft_integrity.detect_truncation("Un texto libre.", None, require_sections=False) is None
+def test_no_se_exige_references_al_redactor():
+    assert "references" not in [c for c, _ in _secciones()]
+
+
+def test_sin_falsos_positivos_por_idioma_ni_por_variante_de_titulo():
+    ingles = ("# T\n\n## Abstract\n\nA.\n\n## 1. Introduction\n\nB.\n\n## Materials and Methods\n\nC.\n\n"
+              "## Results\n\nD.\n\n## Discussion\n\nFin.")
+    mezcla = COMPLETO.replace("## Metodología", "## Métodos").replace("## Resultados", "**Resultados**")
+    fundido = COMPLETO.replace("## Resultados\n\nHallazgos.\n\n## Discusión", "## Resultados y Discusión")
+    for texto in (ingles, mezcla, fundido):
+        assert draft_integrity.detect_truncation(texto, "stop", sections=_secciones()) is None, texto
+
+
+def test_las_secciones_salen_de_la_plantilla_no_del_codigo():
+    class Gate:
+        sections = ("alpha", "references")
+        titles = {"xx": {"alpha": ("Zeta",)}}
+
+    assert draft_integrity.required_sections(Gate()) == [("alpha", ("zeta",))]
+    assert draft_integrity.required_sections(None) == []
 
 
 # ── El caso del DoD ─────────────────────────────────────────────────────────
@@ -251,3 +290,45 @@ async def test_sin_max_tokens_los_proveedores_no_reciben_el_argumento(monkeypatc
         monkeypatch.setattr(llm, funcion, _falso)
         [t async for t in llm.call_llm_stream("p", model="m")]
         assert "max_tokens" not in recibido and "num_predict" not in recibido
+
+
+# ── AC11 de punta a punta ───────────────────────────────────────────────────
+
+HARNESSDEV = COMPLETO.split("## Discusión")[0] + "Como señalan (HarnessDev, 2024"
+
+
+@pytest.mark.asyncio
+async def test_harnessdev_con_parada_normal_no_pasa_al_revisor(ollama, monkeypatch):
+    llamadas = []
+    monkeypatch.setattr(redactor, "call_llm_stream", _stream([(HARNESSDEV, "stop")], llamadas))
+    with explainability.collecting() as traza:
+        with pytest.raises(RuntimeError, match="truncado"):
+            await redactor.run_redactor(_estado())
+    assert len(llamadas) == 2, "un reintento aunque no haya más presupuesto que dar"
+    assert traza.truncations[0]["signal"] == "heuristic"
+
+
+@pytest.mark.asyncio
+async def test_harnessdev_con_parada_normal_se_recupera_si_el_reintento_sale_entero(ollama, monkeypatch):
+    llamadas = []
+    monkeypatch.setattr(redactor, "call_llm_stream", _stream([(HARNESSDEV, "stop"), (COMPLETO, "stop")], llamadas))
+    salida = await redactor.run_redactor(_estado())
+    assert salida["draft_text"] == COMPLETO and len(llamadas) == 2
+
+
+@pytest.mark.asyncio
+async def test_borrador_completo_con_parada_normal_no_se_reintenta(ollama, monkeypatch):
+    llamadas = []
+    monkeypatch.setattr(redactor, "call_llm_stream", _stream([(COMPLETO, "stop")], llamadas))
+    await redactor.run_redactor(_estado())
+    assert len(llamadas) == 1
+
+
+@pytest.mark.asyncio
+async def test_esquema_del_autor_no_exige_secciones_que_no_pidio(ollama, monkeypatch):
+    """Con `article_outline` las secciones son las del autor: no falla por faltar «Discusión»."""
+    libre = "# T\n\n## Contexto\n\nTexto.\n\n## Hallazgos\n\nFin del texto."
+    llamadas = []
+    monkeypatch.setattr(redactor, "call_llm_stream", _stream([(libre, "stop")], llamadas))
+    salida = await redactor.run_redactor(_estado(article_outline="Contexto; Hallazgos"))
+    assert salida["draft_text"] == libre and len(llamadas) == 1

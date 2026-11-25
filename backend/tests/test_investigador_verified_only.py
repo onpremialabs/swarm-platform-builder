@@ -459,7 +459,7 @@ async def _correr_redactor(monkeypatch, state):
     async def stream(prompt, **_kw):
         visto["prompt"] = prompt
         __import__("app.platform.llm", fromlist=["x"])._anotar_motivo_parada("stop")  # el proveedor declara fin natural
-        yield "Borrador " * 20
+        yield "## Introducción\n\nTexto.\n\n## Metodología\n\nTexto.\n\n## Resultados\n\nTexto.\n\n## Discusión\n\n" + "Borrador " * 20 + "fin."
 
     monkeypatch.setattr(redactor, "semantic_search_results", rag)
     monkeypatch.setattr(redactor, "call_llm_stream", stream)
