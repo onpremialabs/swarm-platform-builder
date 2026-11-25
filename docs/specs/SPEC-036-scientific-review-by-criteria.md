@@ -98,6 +98,18 @@
   reintenta (sin falsos positivos con secciones en otro idioma, ver `gate.structure.titles`).
   *And* hay un caso de prueba con una respuesta que acaba en «(HarnessDev, 2024» y no
   contiene Discusión, con parada normal, que no pasa al Revisor.
+- [ ] **AC12** — *Given* el Revisor *When* evalúa un borrador *Then* el tiempo de espera
+  y la ventana de contexto (`num_ctx`) **no están fijos en el código** (hoy 45 s y 4096): se
+  resuelven con la misma cascada que el modelo (ajustes de la ejecución → `.agent.md` →
+  defecto), se validan al cargar y se **dimensionan por el borrador** (tamaño del texto más
+  la rúbrica y el margen de salida), acotados por la ventana del modelo. *And* si el
+  prompt no cabe en la ventana resuelta, el Revisor **no lo envía recortado**: lo registra
+  en la traza y falla cerrado con motivo (`not_verified`), sin que el proveedor descarte
+  texto en silencio. *And* un fallo por tiempo agotado no se reintenta con el mismo límite
+  (el reintento repite el mismo fallo): sube el presupuesto una vez o falla con motivo, y
+  la traza dice cuántos reintentos y cuánto tiempo consumieron. *And* hay un caso de prueba
+  con un borrador de ~2300 palabras que se revisa con el modelo falso sin recorte y otro
+  con un borrador que no cabe y devuelve `not_verified` con motivo.
 
 ## 4. Diseño propuesto
 
@@ -112,6 +124,12 @@
   cascada de `resolve_agent_model`. Observado en una prueba de punta a punta con
   `qwen3.5:9b` (2026-11-25): borrador cortado a mitad de frase, sin Discusión, score
   72 y `coherent: false` que aun así llegó al Formateador y al Publicador.
+- **Presupuesto del Revisor (AC12):** observado en una prueba de punta a punta con
+  `qwen3.5:9b` (2026-11-25): `revisor.py` llama con `timeout=45.0, num_ctx=4096` fijos;
+  un borrador de 2270 palabras agotó los 45 s cuatro veces (20 min), puntuó 0 por falla
+  cerrada y devolvió el artículo al Redactor sin que nadie lo hubiera revisado. Además, un
+  borrador de ese tamaño no cabe en 4096 tokens: el proveedor lo recorta sin avisar. Misma
+  causa y misma solución que T24.9 en el Redactor.
 - **Plantilla:** `review_loops[].require_distinct_model` (por defecto `true` en
   proyectos de paper); validación en `platform/projects/`.
 - **Frontend:** `AgentsPage.jsx` muestra el aviso de modelo; el historial muestra la
@@ -197,4 +215,9 @@ tasks:
     sev: high
     depends_on: [T24.9]
     acceptance: [AC11]
+  - id: T24.11
+    title: "Revisor: tiempo de espera y ventana por la cascada de ajustes, dimensionados por el borrador, sin recorte silencioso del prompt"
+    sev: high
+    depends_on: []
+    acceptance: [AC12]
 ```
