@@ -14,6 +14,10 @@ Aquí se decide, con una función pura y sin llamar a nadie:
   tamaño del prompt;
 * si el prompt **no cabe** ni en la ventana del modelo, `fits=False`: quien llama no lo envía
   recortado, lo registra y falla cerrado con motivo (`not_verified`).
+
+El mismo cálculo de ventana (`size_window`) lo usa el Redactor (SPEC-036 / T24.12 / AC13): su
+prompt lleva los fragmentos citables y llegó a llenar la ventana configurada; el recorte de
+fragmentos por prioridad vive en `platform/prompt_trim.py`.
 """
 from __future__ import annotations
 
@@ -44,6 +48,23 @@ TIMEOUT_MAXIMO_SEGUNDOS = 1800.0
 TIMEOUT_MAXIMO_REINTENTO = 3600.0
 
 
+#: Redactor (T24.12): tokens de salida por palabra objetivo (español, por exceso), y margen cuando
+#: no hay objetivo de palabras ni tope de salida.
+TOKENS_POR_PALABRA_SALIDA = 2.0
+MARGEN_REDACTOR_MINIMO = 2048
+MARGEN_REDACTOR_SIN_OBJETIVO = 4096
+
+
+def writer_output_margin(max_output_tokens: Optional[int], target_words: int) -> int:
+    """Margen de salida del Redactor: el tope de salida si lo hay (más no puede escribir), o lo
+    que piden las palabras objetivo, o un margen por defecto."""
+    if max_output_tokens:
+        return int(max_output_tokens)
+    if target_words and target_words > 0:
+        return max(MARGEN_REDACTOR_MINIMO, math.ceil(target_words * TOKENS_POR_PALABRA_SALIDA))
+    return MARGEN_REDACTOR_SIN_OBJETIVO
+
+
 def estimate_tokens(texto: str) -> int:
     """Tokens estimados de un texto (por exceso)."""
     return math.ceil(len(texto or "") / CARACTERES_POR_TOKEN)
@@ -64,6 +85,43 @@ class ReviewBudget:
         return datos
 
 
+@dataclass(frozen=True)
+class WindowSize:
+    """Resultado de dimensionar la ventana de un prompt (sin tiempo): ver `size_window`."""
+    fits: bool
+    num_ctx: int
+    prompt_tokens: int
+    output_margin: int
+    model_window: int
+    configured_num_ctx: int
+
+    def as_trace(self) -> Dict[str, Any]:
+        return asdict(self)
+
+
+def size_window(
+    prompt: str,
+    *,
+    model: Optional[str],
+    configured_ctx: Optional[int] = None,
+    output_margin: int = MARGEN_SALIDA_TOKENS,
+) -> WindowSize:
+    """Ventana para `prompt`: prompt estimado + margen de salida, redondeada hacia arriba.
+
+    Lo configurado (`configured_ctx`) es el **mínimo**; el techo es la ventana del modelo.
+    `fits` dice si el prompt y el margen caben en esa ventana del modelo.
+    """
+    ventana = model_context_window(model)
+    tokens = estimate_tokens(prompt)
+    necesario = tokens + output_margin
+    minimo = configured_ctx or 0
+    pedido = max(minimo, math.ceil(necesario / REDONDEO_VENTANA) * REDONDEO_VENTANA)
+    return WindowSize(
+        fits=necesario <= ventana, num_ctx=min(pedido, ventana), prompt_tokens=tokens,
+        output_margin=output_margin, model_window=ventana, configured_num_ctx=minimo,
+    )
+
+
 def size_review_budget(
     prompt: str,
     *,
@@ -73,13 +131,8 @@ def size_review_budget(
     output_margin: int = MARGEN_SALIDA_TOKENS,
 ) -> ReviewBudget:
     """Dimensiona ventana y tiempo para `prompt`. Ver el docstring del módulo."""
-    ventana = model_context_window(model)
-    tokens = estimate_tokens(prompt)
-    necesario = tokens + output_margin
-    cabe = necesario <= ventana
-    minimo = configured_ctx or 0
-    pedido = max(minimo, math.ceil(necesario / REDONDEO_VENTANA) * REDONDEO_VENTANA)
-    num_ctx = min(pedido, ventana)
+    w = size_window(prompt, model=model, configured_ctx=configured_ctx, output_margin=output_margin)
+    ventana, tokens, cabe, num_ctx = w.model_window, w.prompt_tokens, w.fits, w.num_ctx
 
     por_tamano = min(TIMEOUT_BASE_SEGUNDOS + tokens * SEGUNDOS_POR_TOKEN_PROMPT, TIMEOUT_MAXIMO_SEGUNDOS)
     timeout = max(configured_timeout or 0.0, por_tamano)

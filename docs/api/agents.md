@@ -72,6 +72,22 @@ motivo. Un tiempo agotado se reintenta una sola vez con el doble de límite (nun
 `decision.review_budget` en la traza (`GET /agents/{id}/explain`) dice ventana, límite, reintentos y
 segundos consumidos. `timeout_seconds` menor de 5 impide cargar el perfil.
 
+**Ventana del Redactor por el prompt (SPEC-036/T24.12/AC13).** `num_ctx` del Redactor es un
+**mínimo**, no un tope: antes de generar se estima el prompt (3 caracteres por token, por exceso) y
+se le suma el margen de salida (`max_output_tokens` si está fijado; si no, 2 tokens por palabra de
+`target_word_count`, mínimo 2048; sin objetivo, 4096). La ventana pedida es ese total redondeado a
+múltiplos de 1024, nunca menor que `num_ctx` y nunca mayor que la ventana del modelo. Así un prompt
+de ~16 000 tokens con `num_ctx: 16384` se envía de una vez con una ventana mayor, en lugar de
+cortarse con `length` y gastar un reintento. Si el prompt no cabe ni en la ventana del modelo **no se
+envía**: el Redactor quita fragmentos citables enteros por prioridad de sección (primero los sin
+sección, luego el sobrante de la sección con más fragmentos, y solo al final la cobertura de una
+sección, de la de menor prioridad) y, si ni así cabe, el paso **falla antes de generar** con el
+motivo. La traza (`GET /agents/{article_id}/explain`, columna `decision`) lleva `prompt_budget`:
+`num_ctx` pedido y configurado, tokens del prompt, margen, ventana del modelo, `outcome`
+(`ok` / `trimmed` / `does_not_fit`), `fragments_total`, `fragments_removed`, `removed` (id, sección y
+motivo de cada uno) y `sections_lost`. El reintento por truncado de abajo queda para cortes que no se
+podían prever.
+
 Si el borrador sale **truncado** (motivo de parada `length`/`max_tokens` del proveedor o, sin
 motivo, faltan secciones del IMRaD o el texto acaba sin cierre de frase), el Redactor reintenta
 **una vez** con el doble de presupuesto (sin pasar de la ventana del modelo). Si persiste, el paso

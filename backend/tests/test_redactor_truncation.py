@@ -146,12 +146,13 @@ async def test_el_reintento_recibe_mas_presupuesto_y_el_borrador_entero_se_entre
         salida = await redactor.run_redactor(_estado())
 
     assert salida["draft_text"] == COMPLETO
-    assert llamadas[0]["num_ctx"] == 4096
-    assert llamadas[1]["num_ctx"] == 8192
+    # AC13: 4096 de la cascada es el mínimo; prompt corto + 4096 de salida piden 5120 y el reintento duplica.
+    assert llamadas[0]["num_ctx"] == 5120
+    assert llamadas[1]["num_ctx"] == 10240
     # El truncado queda en la traza, aunque el reintento lo enmendara.
     assert len(traza.truncations) == 1 and traza.truncations[0]["signal"] == "stop_reason"
     decision = explainability.with_truncations(None, traza.truncations)
-    assert decision["truncation"][0]["num_ctx"] == 4096
+    assert decision["truncation"][0]["num_ctx"] == 5120
 
 
 @pytest.mark.asyncio
@@ -173,7 +174,7 @@ async def test_lo_no_truncado_sigue_igual(ollama, monkeypatch):
 
     assert salida["draft_text"] == COMPLETO
     assert len(llamadas) == 1
-    assert llamadas[0]["num_ctx"] == 4096 and llamadas[0]["max_tokens"] is None
+    assert llamadas[0]["num_ctx"] == 5120 and llamadas[0]["max_tokens"] is None
     assert traza.truncations == []
     assert explainability.with_truncations({"score": 90}, traza.truncations) == {"score": 90}
 
