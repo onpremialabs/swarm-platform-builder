@@ -151,7 +151,7 @@ export default function ExecutionPage() {
         } else if (data.type === 'decision_resolved') {
           setPendingDecision(null);
           setDecisionBusy(false);
-          addLog(tr('execution.log.decision', { decision: tr(data.decision === 'add_source' ? 'execution.log.decisionAddSource' : 'execution.log.decisionContinue') }), 'info');
+          addLog(tr('execution.log.decision', { decision: tr(data.timed_out || data.decision === 'no_response' ? 'execution.log.decisionNoResponse' : data.decision === 'add_source' ? 'execution.log.decisionAddSource' : 'execution.log.decisionContinue') }), 'info');
         } else if (data.type === 'gate_failed') {
           // SPEC-032/AC14: la compuerta bloqueó el texto final; el artículo vuelve a borrador.
           const lista = (data.blockers || []).map((b) => b.criterion).join(', ');

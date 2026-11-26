@@ -141,6 +141,15 @@
   cascada de `resolve_agent_model`. Observado en una prueba de punta a punta con
   `qwen3.5:9b` (2026-11-25): borrador cortado a mitad de frase, sin Discusión, score
   72 y `coherent: false` que aun así llegó al Formateador y al Publicador.
+  **Implementado (T24.8, saltando la dependencia de T24.3 por orden expresa):** la pausa
+  devuelve `{decision, by, at}`; al vencer `_DECISION_TIMEOUT` (900 s) o sin canal de
+  decisión el desenlace es `no_response` y `user_decision` queda a `None`, de modo que
+  `make_review_router` sigue por umbral y vueltas y, agotadas (`on_exhausted: stop`), la
+  ejecución pasa a `requires_human_review`. Solo `continue`/`add_source` vía
+  `POST /agents/{id}/decision` cuentan como decisión; el usuario autenticado y el instante
+  quedan en `agent_run_steps.decision.hitl` (`origin`: `person` | `no_response` |
+  `no_channel` | `source_retry_limit`). T24.3 (reversión a `best_draft`) debe reconciliar
+  aquí: su regla de reversión actuará sobre un `user_decision` ya vacío en estos casos.
 - **Presupuesto del Revisor (AC12):** observado en una prueba de punta a punta con
   `qwen3.5:9b` (2026-11-25): `revisor.py` llama con `timeout=45.0, num_ctx=4096` fijos;
   un borrador de 2270 palabras agotó los 45 s cuatro veces (20 min), puntuó 0 por falla

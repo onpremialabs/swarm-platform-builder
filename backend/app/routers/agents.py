@@ -1144,6 +1144,7 @@ async def cancel_pipeline_run(
 class PipelineDecisionDTO(BaseModel):
     # "add_source" → re-run research with a newly uploaded document
     # "continue"   → proceed with the current draft
+    # Solo estas dos son decisiones: «sin respuesta» lo fija el sistema al vencer el tiempo.
     decision: str
 
 
@@ -1167,7 +1168,7 @@ async def submit_pipeline_decision(
     if decision not in ("add_source", "continue"):
         raise HTTPException(status_code=422, detail="decision must be 'add_source' or 'continue'")
 
-    if not await submit_user_decision(article_id, decision):
+    if not await submit_user_decision(article_id, decision, by=str(token_data["user_id"])):
         raise HTTPException(status_code=409, detail="No pending decision for this article")
 
     return {"status": "ok", "decision": decision}
