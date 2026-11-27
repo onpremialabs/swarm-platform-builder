@@ -59,4 +59,5 @@ class AgentState(TypedDict):
     # Human-in-the-loop coherence gate (revisor):
     coherent: bool                  # whether the revisor judged the draft coherent
     user_decision: Optional[str]    # "add_source" | "continue" | None (per revisor pass)
+    hitl: Optional[Dict[str, Any]]  # {origin, outcome, by, at}: persona o «sin respuesta» (SPEC-036/AC9)
     source_retries: int             # how many times the user added a source and retried

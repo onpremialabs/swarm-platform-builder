@@ -8,6 +8,7 @@ from app.platform.capabilities.binding import provider
 import time
 
 from app.platform import review_budget
+from app.platform.engine.routing import EXPLICIT_DECISIONS, NO_RESPONSE
 from app.platform.llm import (
     LLMTimeoutError, call_llm, resolve_agent_model, resolve_agent_num_ctx,
     resolve_agent_temperature, resolve_agent_timeout,
@@ -189,33 +190,48 @@ async def run_revisor(state: Dict[str, Any]) -> Dict[str, Any]:
         "review_budget": traza_presupuesto,
         # Always reset the per-pass decision so a stale value can't re-trigger routing.
         "user_decision": None,
+        "hitl": None,
     }
 
-    # ── Human-in-the-loop: on incoherence, ask the user whether to add a source
-    # or continue. Only when a live decision channel is available (SSE listener).
+    # ── Human-in-the-loop (SPEC-036/AC9): ante la incoherencia se le pregunta a la persona si
+    # añade una fuente o continúa. Solo una decisión EXPLÍCITA suya salta la revisión; sin
+    # respuesta (sin oyente, tiempo vencido, sin canal o tope de fuentes) `user_decision` queda
+    # a `None` y el enrutador sigue por el umbral y las vueltas, sin llegar al Formateador.
     request_decision = state.get("_request_decision")
     source_retries = state.get("source_retries") or 0
     MAX_SOURCE_RETRIES = 3
 
     # Una revisión no verificada no es una opinión sobre la coherencia: no se le
     # pregunta a la persona si añade una fuente por ella.
-    if not coherent and review_status == REVIEW_OK and request_decision is not None:
-        if source_retries >= MAX_SOURCE_RETRIES:
-            log("ℹ️ Límite de reintentos con nuevas fuentes alcanzado — continuando con el borrador actual.", "warning")
-            result["user_decision"] = "continue"
+    if not coherent and review_status == REVIEW_OK:
+        if request_decision is None:
+            result["hitl"] = {"origin": "no_channel", "outcome": NO_RESPONSE, "by": None, "at": None}
+            log("ℹ️ Sin canal de decisión: no se continúa por omisión; el bucle sigue por umbral y vueltas.", "warning")
+        elif source_retries >= MAX_SOURCE_RETRIES:
+            result["hitl"] = {"origin": "source_retry_limit", "outcome": NO_RESPONSE, "by": None, "at": None}
+            log("ℹ️ Límite de reintentos con nuevas fuentes alcanzado — el bucle sigue por umbral y vueltas.", "warning")
         else:
             log("⏸️ Esperando decisión del usuario: subir otra fuente o continuar...", "warning")
-            decision = await request_decision({
+            respuesta = await request_decision({
                 "reason": "coherence_failed",
                 "approval_score": approval_score,
                 "feedback": feedback[:5],
                 "message": "El revisor considera que la redacción no es suficientemente coherente.",
             })
-            result["user_decision"] = decision
-            if decision == "add_source":
-                result["source_retries"] = source_retries + 1
-                log("📥 El usuario añadió una nueva fuente — reejecutando la investigación.")
+            if isinstance(respuesta, dict):
+                decision, por, cuando = respuesta.get("decision"), respuesta.get("by"), respuesta.get("at")
+            else:  # canal antiguo: devolvía solo la cadena
+                decision, por, cuando = respuesta, None, None
+            if decision in EXPLICIT_DECISIONS:
+                result["user_decision"] = decision
+                result["hitl"] = {"origin": "person", "outcome": decision, "by": por, "at": cuando}
+                if decision == "add_source":
+                    result["source_retries"] = source_retries + 1
+                    log("📥 El usuario añadió una nueva fuente — reejecutando la investigación.")
+                else:
+                    log("▶️ El usuario decidió continuar con el borrador actual.")
             else:
-                log("▶️ El usuario decidió continuar con el borrador actual.")
+                result["hitl"] = {"origin": "no_response", "outcome": NO_RESPONSE, "by": None, "at": cuando}
+                log("⏳ Nadie respondió a la decisión: no se continúa; el bucle sigue por umbral y vueltas.", "warning")
 
     return result

@@ -72,6 +72,14 @@ motivo. Un tiempo agotado se reintenta una sola vez con el doble de límite (nun
 `decision.review_budget` en la traza (`GET /agents/{id}/explain`) dice ventana, límite, reintentos y
 segundos consumidos. `timeout_seconds` menor de 5 impide cargar el perfil.
 
+**Decisión humana sin respuesta (SPEC-036/T24.8/AC9).** Si nadie responde a `await_decision`
+(sin oyente, sin canal o tras 900 s) el desenlace es `no_response`, **no** «continue»: el SSE
+`decision_resolved` lleva `decision: "no_response"` y `timed_out: true`, y el bucle sigue por umbral
+y vueltas hasta `requires_human_review`. `POST /agents/{id}/decision` solo acepta `continue` y
+`add_source`; el usuario y el instante van en `decision_resolved` (`by`, `at`) y en la traza
+(`decision.hitl`: `origin` `person`/`no_response`/`no_channel`/`source_retry_limit`, `outcome`, `by`, `at`;
+`hitl_outcome` pasa a `no_response` cuando nadie decidió).
+
 **Ventana del Redactor por el prompt (SPEC-036/T24.12/AC13).** `num_ctx` del Redactor es un
 **mínimo**, no un tope: antes de generar se estima el prompt (3 caracteres por token, por exceso) y
 se le suma el margen de salida (`max_output_tokens` si está fijado; si no, 2 tokens por palabra de

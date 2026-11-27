@@ -22,6 +22,12 @@ logger = logging.getLogger(__name__)
 
 FIN = "__end__"
 
+#: Decisiones que una persona puede tomar de forma explícita en una pausa (SPEC-036/AC9).
+EXPLICIT_DECISIONS = ("add_source", "continue")
+#: Desenlace de una pausa que nadie respondió. No es una decisión: el enrutador la ignora y
+#: sigue por la puntuación y las vueltas, así que jamás salta la revisión.
+NO_RESPONSE = "no_response"
+
 
 @dataclass(frozen=True)
 class ReviewLoop:
@@ -109,6 +115,10 @@ def make_review_router(loop: ReviewLoop) -> Callable[[Dict[str, Any]], str]:
     def router(state: Dict[str, Any]) -> str:
         flow = list(state.get("flow_sequence") or [])
         decision = state.get("user_decision")
+        # Solo una decisión explícita manda sobre la revisión; cualquier otro valor
+        # (p. ej. «no_response») equivale a que nadie decidió (SPEC-036/AC9).
+        if decision not in EXPLICIT_DECISIONS:
+            decision = None
 
         if state.get("abstained"):
             return FIN

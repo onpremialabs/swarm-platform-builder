@@ -23,7 +23,7 @@ from app.modules.agents.domain import alejandria
 from app.platform.engine.agents import MODO_CAPACIDADES, bundle_for, resolve_runner, uses_llm
 from app.platform.capabilities.binding import CLAVE_ESTADO as CLAVE_CAPACIDADES
 from app.platform.engine.graph import GraphSpec, build_graph
-from app.platform.engine.routing import make_review_router, next_after, review_exhausted
+from app.platform.engine.routing import NO_RESPONSE, make_review_router, next_after, review_exhausted
 from app.modules.agents.adapters.generic import run_generic_agent, load_agent_profile
 from app.platform.bus import get_bus
 from app.platform.metrics import current_agent_ctx, observe_agent_run
@@ -65,36 +65,43 @@ async def has_pipeline_checkpoint(article_id: uuid.UUID) -> bool:
     except Exception:
         return False
 
-# Default decision when the user does not respond in time (avoid hanging forever)
+# Tiempo máximo que el pipeline espera a una persona antes de darlo por «sin respuesta».
 _DECISION_TIMEOUT = 900.0  # 15 minutes
 
 
-async def request_user_decision(article_id: uuid.UUID, payload: Dict[str, Any]) -> str:
+async def request_user_decision(article_id: uuid.UUID, payload: Dict[str, Any]) -> Dict[str, Any]:
     """Pause the pipeline and ask the user for a decision.
 
-    Emits an ``await_decision`` SSE event and blocks until the user responds via
-    ``submit_user_decision`` or the timeout elapses (defaulting to "continue").
+    Emits an ``await_decision`` SSE event and blocks until a person responds via
+    ``submit_user_decision`` or the timeout elapses. Devuelve ``{decision, by, at}``:
+    al vencer el tiempo, ``decision`` es ``NO_RESPONSE`` —**nunca** «continue»— y no hay
+    ``by``; solo una decisión explícita de una persona salta la revisión (SPEC-036/AC9).
     """
     bus = get_bus()
     async with bus.awaiting_decision(article_id) as future:
         publish_event(article_id, {"type": "await_decision", **payload})
         try:
-            return await asyncio.wait_for(future, timeout=_DECISION_TIMEOUT)
+            resultado = await asyncio.wait_for(future, timeout=_DECISION_TIMEOUT)
         except asyncio.TimeoutError:
-            logger.info("User decision timed out for article %s — defaulting to 'continue'", article_id)
-            publish_event(article_id, {"type": "decision_resolved", "decision": "continue", "timed_out": True})
-            return "continue"
+            logger.info("User decision timed out for article %s — sin respuesta, no se continúa", article_id)
+            publish_event(article_id, {"type": "decision_resolved", "decision": NO_RESPONSE, "timed_out": True})
+            return {"decision": NO_RESPONSE, "by": None, "at": datetime.datetime.now(datetime.timezone.utc).isoformat()}
+    if isinstance(resultado, dict):
+        return {"decision": resultado.get("decision"), "by": resultado.get("by"), "at": resultado.get("at")}
+    return {"decision": resultado, "by": None, "at": None}
 
 
-async def submit_user_decision(article_id: uuid.UUID, decision: str) -> bool:
+async def submit_user_decision(article_id: uuid.UUID, decision: str, by: Optional[str] = None) -> bool:
     """Entregar una decisión pendiente. `True` si había alguien esperándola.
 
     Puede resolverla un worker distinto del que ejecuta el pipeline: el bus lleva el
-    valor hasta el `Future` que espera, esté donde esté (SPEC-018/T4.3).
+    valor hasta el `Future` que espera, esté donde esté (SPEC-018/T4.3). `by` es la
+    persona que decide; con ella queda además el instante, para la traza (SPEC-036/AC9).
     """
-    entregada = await get_bus().submit_decision(article_id, decision)
+    cuando = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    entregada = await get_bus().submit_decision(article_id, decision, by=by, at=cuando)
     if entregada:
-        publish_event(article_id, {"type": "decision_resolved", "decision": decision})
+        publish_event(article_id, {"type": "decision_resolved", "decision": decision, "by": by, "at": cuando})
     return entregada
 
 # In-memory log buffer: article_id -> list of formatted log lines

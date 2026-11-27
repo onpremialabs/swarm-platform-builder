@@ -311,6 +311,11 @@ def decision_of(salida: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         "coherent": salida.get("coherent"),
         "hitl_outcome": salida.get("user_decision"),
     }
+    # Decisión humana (SPEC-036 / T24.8 / AC9): distingue «decidió una persona» de «sin respuesta»,
+    # con quién y cuándo. Sin pausa no hay bloque.
+    if isinstance(salida.get("hitl"), dict):
+        decision["hitl"] = salida["hitl"]
+        decision["hitl_outcome"] = salida["hitl"].get("outcome") or decision["hitl_outcome"]
     if status is not None:
         decision["review_status"] = status
     # Presupuesto del Revisor (SPEC-036 / T24.11 / AC12): ventana, límite de tiempo, reintentos

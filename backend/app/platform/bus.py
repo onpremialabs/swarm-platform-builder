@@ -130,11 +130,15 @@ class InProcessBus:
         finally:
             self._decisions.pop(key, None)
 
-    async def submit_decision(self, article_id: uuid.UUID, decision: str) -> bool:
+    async def submit_decision(
+        self, article_id: uuid.UUID, decision: str, by: Optional[str] = None, at: Optional[str] = None
+    ) -> bool:
+        """Entrega la decisión. Si se conoce quién y cuándo (SPEC-036/AC9), el `Future` se
+        resuelve con `{decision, by, at}`; sin ello, con la cadena de siempre."""
         future = self._decisions.get(str(article_id))
         if future is None or future.done():
             return False
-        future.set_result(decision)
+        future.set_result({"decision": decision, "by": by, "at": at} if by else decision)
         return True
 
     # -- tickets de stream (SPEC-015/AC3, compartidos desde T4.3) ---------- #
@@ -280,7 +284,9 @@ class RedisBus(InProcessBus):
                         if handler is not None:
                             handler()
                     elif datos.get("type") == "decision":
-                        await super(RedisBus, self).submit_decision(article_id, datos.get("value"))
+                        await super(RedisBus, self).submit_decision(
+                            article_id, datos.get("value"), by=datos.get("by"), at=datos.get("at")
+                        )
             finally:
                 with contextlib.suppress(Exception):
                     await pubsub.unsubscribe()
@@ -319,13 +325,15 @@ class RedisBus(InProcessBus):
             with contextlib.suppress(Exception):
                 await self._redis.delete(_AWAITING.format(article_id=article_id))
 
-    async def submit_decision(self, article_id: uuid.UUID, decision: str) -> bool:
+    async def submit_decision(
+        self, article_id: uuid.UUID, decision: str, by: Optional[str] = None, at: Optional[str] = None
+    ) -> bool:
         esperando = await self._redis.exists(_AWAITING.format(article_id=article_id))
         if not esperando:
             return False
         await self._redis.publish(
             _CONTROL.format(article_id=article_id),
-            json.dumps({"type": "decision", "value": decision}),
+            json.dumps({"type": "decision", "value": decision, "by": by, "at": at}),
         )
         return True
 

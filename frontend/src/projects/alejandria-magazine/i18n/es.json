@@ -248,6 +248,7 @@
       "decision": "▶️ Decisión: {decision}",
       "decisionAddSource": "nueva fuente añadida",
       "decisionContinue": "continuar",
+      "decisionNoResponse": "sin respuesta: no se continúa, el bucle sigue",
       "gateFailed": "⛔ La compuerta bloquea la publicación ({list}). El artículo vuelve a borrador.",
       "humanReview": "⏸️ El Revisor no aprobó tras agotar las vueltas: el artículo requiere revisión humana",
       "pipelineDone": "Pipeline completado",
